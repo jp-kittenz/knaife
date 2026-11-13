@@ -35,12 +35,13 @@ let dpr = 1, scale = 1, ox = 0, oy = 0;
 
 let PIX = 0.8;
 const FONT = '"Silkscreen", "Courier New", monospace';                         // virtual units per art pixel
-const MAX_PIXELS = 480000;
+const MAX_PIXELS = 480000, Q_SCALE = [1, 0.78, 0.6, 0.45];
+let qLevel = 0, fEma = 16.7, qTimer = 0;
 function resize() {
   const cw = view.clientWidth || window.innerWidth, ch = view.clientHeight || window.innerHeight;
   scale = Math.min(cw / W, ch / H);
-  let p = PIX; const count = (cw / (p * scale)) * (ch / (p * scale));
-  if (count > MAX_PIXELS) p *= Math.sqrt(count / MAX_PIXELS);
+  let p = PIX; const count = (cw / (p * scale)) * (ch / (p * scale)), budget = MAX_PIXELS * Q_SCALE[qLevel];
+  if (count > budget) p *= Math.sqrt(count / budget);
   dpr = 1 / (p * scale);
   cv.width = Math.max(1, Math.round(cw * dpr)); cv.height = Math.max(1, Math.round(ch * dpr));
   view.width = cv.width; view.height = cv.height;
@@ -1393,7 +1394,7 @@ function drawAbilityKnife(k) {
     }
   }
   drawKnifeAura(k.y, 1);
-  ctx.save(); ctx.translate(CX, k.y); ctx.shadowColor = '#fff'; ctx.shadowBlur = 18; drawKnife(); ctx.restore();
+  ctx.save(); ctx.translate(CX, k.y); drawKnifeGlow(); ctx.restore();
 }
 
 // ---- the button: emblem from the reference sketch ----
@@ -2469,7 +2470,7 @@ function rr(x, y, w, h, r) {
 }
 
 // knife in local space: tip at (0,0), extends toward +y
-function drawKnife() {
+function drawKnifeVector() {
   // blade body
   ctx.beginPath();
   ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, 16, 6.5, 58); ctx.lineTo(-5.5, 58); ctx.lineTo(-5.5, 20); ctx.quadraticCurveTo(-4, 8, 0, 0);
@@ -2520,8 +2521,24 @@ function drawKnife() {
   ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, KL - 3.5, 1.3, 0, TAU); ctx.fill();
 }
 
+// pre-rendered sprites: one drawImage per knife instead of ~30 path/gradient calls
+const SPR = 4;
+const sprites = {};
+function bakeSprite(key, x, y, w, h, fn) {
+  if (sprites[key]) return sprites[key];
+  const c = document.createElement('canvas'); c.width = Math.ceil(w * SPR); c.height = Math.ceil(h * SPR);
+  const g = c.getContext('2d'); g.scale(SPR, SPR); g.translate(-x, -y);
+  withCtx(g, () => fn(g));
+  return (sprites[key] = { c, x, y, w, h });
+}
+function blit(sp) { ctx.drawImage(sp.c, sp.x, sp.y, sp.w, sp.h); }
+function drawKnife() { blit(bakeSprite('knife', -12, -2, 24, KL + 4, drawKnifeVector)); }
+function drawKnifeGlow(col = '#ffffff') {
+  blit(bakeSprite('knifeGlow' + col, -28, -18, 56, KL + 36, g => { g.shadowColor = col; g.shadowBlur = 16 * SPR; drawKnifeVector(); g.shadowBlur = 0; drawKnifeVector(); }));
+}
+function drawApple(half = 0) { blit(bakeSprite('apple' + half, -22, -22, 44, 44, () => drawAppleVector(half))); }
 // apple in local space, stem pointing toward -y
-function drawApple(half = 0) {
+function drawAppleVector(half = 0) {
   ctx.save();
   if (half) { ctx.beginPath(); ctx.rect(half < 0 ? -20 : 0, -25, 20, 45); ctx.clip(); }
   const g = ctx.createRadialGradient(-4, -4, 2, 0, 0, 15);
@@ -2550,15 +2567,18 @@ function drawTarget() {
   ctx.scale(1 + 0.05 * t.hit + 0.06 * land, 1 - 0.06 * t.hit - 0.08 * land);
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); drawKnife(); ctx.restore(); }
   drawLogSide(t);
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 14;
+  blit(bakeSprite('logShadow', -R - 40, -R - 26, 2 * R + 80, 2 * R + 80, g => {
+    const sg = g.createRadialGradient(0, 14, R * 0.7, 0, 14, R + 34); sg.addColorStop(0, 'rgba(0,0,0,.6)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sg; g.fillRect(-R - 40, -R - 26, 2 * R + 80, 2 * R + 80);
+  }));
   ctx.fillStyle = t.pal.barkLo; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
-  ctx.restore();
   ctx.save(); ctx.rotate(t.rot); drawFace(t); drawCraters(t); drawFeaturesOnFace(t); ctx.restore();
   drawSawGroove(t);
-  const sh = ctx.createRadialGradient(-R * 0.35, -R * 0.4, 5, 0, 0, R);
-  sh.addColorStop(0, 'rgba(255,255,255,.2)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(0.85, 'rgba(0,0,0,.12)'); sh.addColorStop(1, 'rgba(0,0,0,.4)');
-  ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  blit(bakeSprite('logShade', -R, -R, 2 * R, 2 * R, g => {
+    const sh = g.createRadialGradient(-R * 0.35, -R * 0.4, 5, 0, 0, R);
+    sh.addColorStop(0, 'rgba(255,255,255,.2)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(0.85, 'rgba(0,0,0,.12)'); sh.addColorStop(1, 'rgba(0,0,0,.4)');
+    g.fillStyle = sh; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  }));
   if (t.hit > 0) { ctx.fillStyle = `rgba(255,255,255,${0.35 * t.hit})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
   for (const ap of t.apples) {
     if (ap.cut) continue;
@@ -2572,7 +2592,7 @@ function drawDebris(d) {
   ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
   if (drawFeatureDebris(d)) { ctx.restore(); return; }
   if (d.kind === 'chunk') { drawChunk(d); ctx.restore(); return; }
-  if (d.kind === 'knife') { if (d.zap && Math.floor(time * 20) % 2) { ctx.shadowColor = '#2ad8ff'; ctx.shadowBlur = 12; } drawKnife(); }
+  if (d.kind === 'knife') { if (d.zap && Math.floor(time * 20) % 2) drawKnifeGlow('#2ad8ff'); else drawKnife(); }
   else if (d.kind === 'half') {
     ctx.save(); ctx.beginPath(); ctx.rect(d.side < 0 ? -R - 6 : 0, -R - 6, R + 6, 2 * R + 12); ctx.clip();
     ctx.save(); ctx.rotate(d.lrot); drawFace(d.t); drawCraters(d.t); ctx.restore();
@@ -2625,8 +2645,10 @@ function drawHUD() {
   for (let i = 0; i < MAX_LIVES; i++) {
     const alive = i < lives, sc = alive ? 1 + 0.12 * beat : 1;
     ctx.save(); ctx.translate(heartX(i), HEART_Y); ctx.scale(sc, sc);
-    if (alive) { ctx.shadowColor = `rgba(255,40,30,${0.35 + 0.5 * beat * (lives === 1 ? 1.4 : 0.8)})`; ctx.shadowBlur = 6 + 10 * beat; }
-    else ctx.globalAlpha = 0.85;
+    if (alive) {
+      const gl = bakeSprite('heartGlow', -HUD_HW, -HUD_HH, HUD_HW * 2, HUD_HH * 2, g => { g.shadowColor = 'rgb(255,40,30)'; g.shadowBlur = 14 * SPR; g.drawImage(HEART_IMG.live, -HUD_HW / 2, -HUD_HH / 2, HUD_HW, HUD_HH); });
+      ctx.globalAlpha = clamp(0.35 + 0.5 * beat * (lives === 1 ? 1.4 : 0.8), 0, 1); blit(gl); ctx.globalAlpha = 1;
+    } else ctx.globalAlpha = 0.85;
     ctx.drawImage(alive ? HEART_IMG.live : HEART_IMG.dead, -HUD_HW / 2, -HUD_HH / 2, HUD_HW, HUD_HH);
     ctx.restore();
   }
@@ -3054,9 +3076,9 @@ function drawBanner() {
   if (banner.t <= 0) return;
   const a = clamp(banner.t / 0.3, 0, 1);
   ctx.save(); ctx.globalAlpha = a;
-  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 12;
+  text(banner.text, CX + 3, 473, 46, 'rgba(0,0,0,.6)');
   text(banner.text, CX, 470, 46, banner.color);
-  if (banner.sub) text(banner.sub, CX, 512, 20, 'rgba(255,255,255,.85)', 'center', 700);
+  if (banner.sub) { text(banner.sub, CX + 2, 514, 20, 'rgba(0,0,0,.6)', 'center', 700); text(banner.sub, CX, 512, 20, 'rgba(255,255,255,.85)', 'center', 700); }
   ctx.restore();
 }
 
@@ -3108,8 +3130,8 @@ function drawScene() {
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
     ctx.save(); ctx.globalAlpha = clamp(1 - readyT / 0.15, 0.2, 1); ctx.translate(CX, ky);
     if (stunT > 0) { ctx.translate(0, KL / 2); ctx.rotate(Math.sin(time * 9) * 0.3 * Math.min(1, stunT)); ctx.translate(0, -KL / 2); ctx.globalAlpha *= 0.5; }
-    if (abil.state === 'armed') { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
-    drawKnife(); ctx.restore();
+    if (abil.state === 'armed') drawKnifeGlow(); else drawKnife();
+    ctx.restore();
     if (stunT > 0) drawStun(ky);
   }
   for (const p of parts) {
@@ -3268,23 +3290,39 @@ function pixelate() {
 }
 
 // ---------- fast monochrome backdrop ----------
-let bgHalftone = null, bgScan = null;
-function drawBackdrop() {
-  ctx.fillStyle = '#060608'; ctx.fillRect(-W, -H, W * 3, H * 3);
-  // scrolling diagonal hazard bands
-  ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#16161b';
-  const off = (time * 140) % 60;
-  for (let x = -W - 400; x < W * 2; x += 60) { ctx.beginPath(); ctx.moveTo(x + off, -H); ctx.lineTo(x + off + 22, -H); ctx.lineTo(x + off + 22 + H * 3 * 0.35, H * 2); ctx.lineTo(x + off + H * 3 * 0.35, H * 2); ctx.closePath(); ctx.fill(); }
-  ctx.restore();
-  // halftone dots, denser toward the bottom (cached)
-  if (!bgHalftone) {
-    bgHalftone = document.createElement('canvas'); bgHalftone.width = W + 120; bgHalftone.height = H - 180;
-    const g = bgHalftone.getContext('2d'); g.fillStyle = '#1e1e24';
-    for (let y = 300; y < H + 120; y += 12) for (let x = -60 + ((y / 12) % 2) * 6; x < W + 60; x += 12) {
-      const r = clamp((y - 300) / 520, 0, 1) * 3.2; if (r > 0.5) g.fillRect(x + 60 - r / 2, y - 300 - r / 2, r, r);
-    }
+let bgHalftone = null, bgScan = null, bgHalo = null;
+// static and scrolling backdrop layers are baked once per size and just blitted each frame
+let bgCache = null;
+function buildBg(boss) {
+  const cw = view.clientWidth || window.innerWidth, ch = view.clientHeight || window.innerHeight, M = 150, k = dpr * scale;
+  const x0 = -ox / scale - M, y0 = -oy / scale - M, w = cw / scale + 2 * M, h = ch / scale + 2 * M;
+  const mk = ww => { const c = document.createElement('canvas'); c.width = Math.ceil(ww * k); c.height = Math.ceil(h * k); const g = c.getContext('2d'); g.scale(k, k); g.translate(-x0, -y0); return [c, g]; };
+  // layer 1: base + diagonal bands (drawn at phase 0, scrolled by translating the blit)
+  const [bands, gb] = mk(w + 60);
+  gb.fillStyle = '#060608'; gb.fillRect(x0, y0, w + 60, h);
+  gb.globalAlpha = 0.5; gb.fillStyle = '#16161b';
+  const ya = y0, yb = y0 + h, sx = X => X + (ya + H) * 0.35;
+  for (let X = -W - 400 - 60 * Math.ceil((h * 0.35 + 2000) / 60); sx(X) < x0 + w + 60; X += 60) {
+    gb.beginPath(); gb.moveTo(X + (ya + H) * 0.35, ya); gb.lineTo(X + 22 + (ya + H) * 0.35, ya); gb.lineTo(X + 22 + (yb + H) * 0.35, yb); gb.lineTo(X + (yb + H) * 0.35, yb); gb.closePath(); gb.fill();
   }
-  ctx.drawImage(bgHalftone, -60, 300);
+  // layer 2: halo, halftone dots and scanlines (static, transparent)
+  const [ov, go] = mk(w);
+  const halo = go.createRadialGradient(CX, CY, R * 0.6, CX, CY, R * 2.6);
+  halo.addColorStop(0, boss ? 'rgba(255,46,69,.45)' : 'rgba(255,210,63,.32)'); halo.addColorStop(0.5, 'rgba(255,255,255,.06)'); halo.addColorStop(1, 'rgba(0,0,0,0)');
+  go.fillStyle = halo; go.fillRect(CX - R * 3, CY - R * 3, R * 6, R * 6);
+  go.fillStyle = '#1e1e24';
+  for (let y = 300; y < H + 120; y += 12) for (let x = -60 + ((y / 12) % 2) * 6; x < W + 60; x += 12) {
+    const r = clamp((y - 300) / 520, 0, 1) * 3.2; if (r > 0.5) go.fillRect(x - r / 2, y - r / 2, r, r);
+  }
+  go.fillStyle = 'rgba(0,0,0,.25)';
+  for (let y = -H + Math.ceil((y0 + H) / 3) * 3; y < y0 + h; y += 3) go.fillRect(x0, y, w, 1);
+  bgCache = { bands, ov, x0, y0, w, h, key: cv.width + 'x' + cv.height + (boss ? 'b' : '') };
+}
+function drawBackdrop() {
+  const boss = !!(tgt && tgt.boss);
+  if (!bgCache || bgCache.key !== cv.width + 'x' + cv.height + (boss ? 'b' : '')) buildBg(boss);
+  const B = bgCache, off = (time * 140) % 60;
+  ctx.drawImage(B.bands, B.x0 + off - 60, B.y0, B.w + 60, B.h);
   // speed streaks rushing past
   for (let i = 0; i < 26; i++) {
     const x = hash(i, 0, 21) * (W + 120) - 60, sp = 500 + hash(i, 0, 22) * 900, len = 20 + hash(i, 0, 23) * 70;
@@ -3292,10 +3330,6 @@ function drawBackdrop() {
     ctx.fillStyle = hash(i, 0, 25) < 0.25 ? '#ffffff' : '#38383f';
     ctx.fillRect(Math.round(x), y, 2, len);
   }
-  // dithered halo behind the log
-  const g = ctx.createRadialGradient(CX, CY, R * 0.6, CX, CY, R * 2.6);
-  g.addColorStop(0, tgt && tgt.boss ? 'rgba(255,46,69,.45)' : 'rgba(255,210,63,.32)'); g.addColorStop(0.5, 'rgba(255,255,255,.06)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g; ctx.fillRect(CX - R * 3, CY - R * 3, R * 6, R * 6);
   // rotating reticle around the log
   ctx.save(); ctx.translate(CX, CY); ctx.rotate(-time * 0.6);
   ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
@@ -3311,9 +3345,7 @@ function drawBackdrop() {
   const lo = (time * 260) % 24;
   for (let y = KNIFE_Y + KL + 20 - lo; y > CY + R + 30; y -= 24) ctx.fillRect(CX - 1.5, y, 3, 12);
   ctx.fillStyle = '#1e1e24'; ctx.fillRect(CX - 40, CY + R + 26, 2, KNIFE_Y + KL - CY - R - 6); ctx.fillRect(CX + 38, CY + R + 26, 2, KNIFE_Y + KL - CY - R - 6);
-  // scanlines (pattern)
-  if (!bgScan) { const c = document.createElement('canvas'); c.width = 1; c.height = 3; const g = c.getContext('2d'); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, 0, 1, 1); bgScan = ctx.createPattern(c, 'repeat'); }
-  ctx.fillStyle = bgScan; ctx.fillRect(-W, -H, W * 3, H * 3);
+  ctx.drawImage(B.ov, B.x0, B.y0, B.w, B.h);
 }
 
 // ======================= MAIN MENU / STORE / ENCYCLOPEDIA =======================
@@ -3361,7 +3393,7 @@ function drawPanel3D(tex, p, alpha = 1, glow = 0, glowCol = '#ff2e45') {
   ctx.fillStyle = '#060608'; ctx.beginPath(); qb.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath(); ctx.fill();
   for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; ctx.fillStyle = i % 2 ? '#1e1e24' : '#121216'; ctx.beginPath(); ctx.moveTo(...q[i]); ctx.lineTo(...q[j]); ctx.lineTo(...qb[j]); ctx.lineTo(...qb[i]); ctx.closePath(); ctx.fill(); }
   // textured face
-  const N = Math.max(10, Math.ceil(p.w / 3)), tw = tex.width, th = tex.height, sw = tw / N;
+  const N = Math.max(8, Math.ceil(p.w / 9)), tw = tex.width, th = tex.height, sw = tw / N;
   for (let i = 0; i < N; i++) {
     const u0 = i / N, u1 = (i + 1) / N, [x0, y0] = pt3(p, u0, 0), [x1, y1] = pt3(p, u1, 0), [x2, y2] = pt3(p, u0, 1);
     ctx.save(); ctx.transform((x1 - x0) / sw, (y1 - y0) / sw, (x2 - x0) / th, (y2 - y0) / th, x0, y0);
@@ -3752,7 +3784,7 @@ function drawKnifeShowcase(x, y, sc) {
   ctx.save(); ctx.translate(x, y + bob); ctx.rotate(0.12 * Math.sin(time * 0.8));
   if (Math.abs(c) < 0.12) { ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-2, -KL * sc / 2, 4, KL * sc * 0.5); ctx.fillStyle = '#8a281c'; ctx.fillRect(-3, 0, 6, KL * sc * 0.5); }
   ctx.scale(c * sc, sc); ctx.translate(0, -KL / 2);
-  ctx.shadowColor = '#fff'; ctx.shadowBlur = 14; drawKnife(); ctx.shadowBlur = 0;
+  drawKnifeGlow();
   if (c < 0) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.fillRect(-12, 0, 24, KL); }
   // glint sweeping along the blade
   const gl = ((time * 0.6) % 1.6) * 70 - 10;
@@ -4081,7 +4113,16 @@ window.addEventListener('keydown', e => {
 
 // ---------- loop ----------
 let last = performance.now();
+function canRescale() { return (state === 'play' && !fx && !pieces.length) || (state === 'menu' && !ui.trans); }
+function adaptQuality(real) {
+  if (real > 120 || document.hidden) return;                    // ignore tab switches and hitches
+  fEma += (real - fEma) * 0.04; qTimer += real;
+  if (qTimer < 1500 || !canRescale()) return;
+  if (fEma > 21 && qLevel < Q_SCALE.length - 1) { qLevel++; qTimer = 0; resize(); }
+  else if (fEma < 12.5 && qLevel > 0 && qTimer > 6000) { qLevel--; qTimer = 0; resize(); }
+}
 function frame(now) {
+  adaptQuality(now - last);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   update(dt); draw();
   requestAnimationFrame(frame);
