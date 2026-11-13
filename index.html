@@ -76,6 +76,7 @@ const sfx = {
   apple() { tone('sine', 620, 1250, 0.13, 0.22); noise(0.06, 2600, 1, 0.25); },
   smash() { noise(0.45, 650, 0.6, 0.7); tone('sine', 130, 40, 0.35, 0.5); },
   over() { tone('triangle', 420, 110, 0.6, 0.18); },
+  shatter() { noise(0.25, 6000, 0.7, 0.4, 'highpass'); tone('sine', 90, 30, 0.4, 0.6); },
 };
 function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
@@ -100,6 +101,11 @@ let stage = 1, score = 0, apples = 0, best = load('knaife.best', 0), newBest = f
 let tgt = null, flying = [], debris = [], parts = [];
 let knivesLeft = 0, knivesTotal = 0, readyT = 0, shake = 0, overT = 0, clearT = 0, time = 0;
 let banner = { text: '', sub: '', t: 0, color: '#fff' };
+const MAX_LIVES = 3;
+let lives = MAX_LIVES, heartT = 0;
+// impact sequence: hit-stop freeze -> black & white slow-mo -> fade back to colour
+const HITSTOP = 0.14, GRAY_HOLD = 0.6, IMPACT_TOTAL = 1.2;
+let impactT = 0, impactY = 0, gray = 0, impactLines = [];
 
 function placeAngles(n, sep, avoid) {
   const out = [];
@@ -170,6 +176,7 @@ function newStage() {
 
 function startGame() {
   stage = 1; score = 0; apples = 0; newBest = false;
+  lives = MAX_LIVES; impactT = 0; gray = 0;
   flying = []; debris = []; parts = [];
   newStage();
 }
@@ -236,13 +243,29 @@ function sliceApple(ap, w) {
   sfx.apple(); buzz(12);
 }
 
+function shatterKnife(y) {
+  const cols = ['#eef2f6', '#c3ccd6', '#8e98a6', '#e2604a', '#9b2f22', '#3b3f4a'];
+  for (let i = 0; i < 18; i++) {
+    const along = rand(0, KL), x = CX + rand(-5, 5), py = y + along;
+    const c = along < 58 ? cols[Math.floor(rand(3))] : along < 64 ? cols[5] : cols[3 + Math.floor(rand(2))];
+    const a = Math.atan2(py - y + 10, x - CX + rand(-30, 30)) + rand(-0.6, 0.6), sp = rand(250, 650);
+    const pts = []; for (let j = 0; j < 3; j++) { const r = rand(3, 8), ang = j / 3 * TAU + rand(-0.6, 0.6); pts.push([Math.cos(ang) * r, Math.sin(ang) * r]); }
+    debris.push({ kind: 'shard', x, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 150, rot: rand(TAU), vr: rand(-20, 20), c, pts });
+  }
+}
+
 function fail(k) {
   k.done = true;
-  debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-160, 160), vy: rand(380, 520), rot: 0, vr: (Math.random() < 0.5 ? -1 : 1) * rand(10, 16) });
-  burst(CX, k.y, 14, ['#fff7c2', '#ffd35c', '#ffffff'], 380, 40, 3, 0.45);
-  shake = 14; state = 'dying'; overT = 0.9;
-  if (score > best) { best = score; newBest = true; save('knaife.best', best); }
-  sfx.clang(); buzz([30, 40, 30]);
+  shatterKnife(k.y);
+  burst(CX, k.y, 18, ['#ffffff', '#fff7c2', '#ffd35c'], 420, 40, 3, 0.5);
+  sfx.clang(); sfx.shatter();
+  if (state !== 'play') return;            // a second knife in the same moment costs nothing extra
+  lives--; heartT = 1;
+  impactT = IMPACT_TOTAL; impactY = k.y; gray = 1; shake = 16;
+  impactLines = Array.from({ length: 16 }, (_, i) => ({ a: i / 16 * TAU + rand(-0.15, 0.15), r0: rand(40, 70), r1: rand(260, 520), w: rand(2, 7) }));
+  state = 'impact';
+  if (lives <= 0 && score > best) { best = score; newBest = true; save('knaife.best', best); }
+  buzz([40, 30, 60]);
 }
 
 function clearStage() {
@@ -273,6 +296,19 @@ function clearStage() {
 // ---------- update ----------
 function update(dt) {
   time += dt;
+  heartT = Math.max(0, heartT - dt * 1.5);
+  if (state === 'impact') {
+    impactT = Math.max(0, impactT - dt);
+    const el = IMPACT_TOTAL - impactT;
+    if (el < HITSTOP) return;                              // frozen impact frame
+    if (el < HITSTOP + 0.3) dt *= 0.3;                     // slow-mo
+    gray = el < GRAY_HOLD ? 1 : clamp(1 - (el - GRAY_HOLD) / (IMPACT_TOTAL - GRAY_HOLD), 0, 1);
+    if (impactT <= 0) {
+      gray = 0;
+      if (lives > 0) state = 'play';
+      else { state = 'dying'; overT = 0.4; }
+    }
+  }
   const t = tgt;
   if (t) {
     t.t += dt;
@@ -289,7 +325,7 @@ function update(dt) {
   flying = flying.filter(k => !k.done);
   if (state === 'play' && knivesLeft === 0 && flying.length === 0) clearStage();
 
-  for (const d of debris) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 1500 * dt; d.rot += d.vr * dt; }
+  for (const d of debris) { if (d.kind === 'shard') d.vx *= 1 - dt * 1.5; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 1500 * dt; d.rot += d.vr * dt; }
   debris = debris.filter(d => d.y < H + 220 && d.x > -220 && d.x < W + 220);
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt; p.rot += p.vr * dt; p.life -= dt; }
   parts = parts.filter(p => p.life > 0);
@@ -397,6 +433,10 @@ function drawTarget() {
 function drawDebris(d) {
   ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
   if (d.kind === 'knife') drawKnife();
+  else if (d.kind === 'shard') {
+    ctx.fillStyle = d.c; ctx.beginPath(); ctx.moveTo(d.pts[0][0], d.pts[0][1]);
+    for (const q of d.pts) ctx.lineTo(q[0], q[1]); ctx.closePath(); ctx.fill();
+  }
   else if (d.kind === 'apple') drawApple(d.half);
   else if (d.kind === 'wedge') {
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, d.a0, d.a1); ctx.closePath(); ctx.clip();
@@ -428,6 +468,12 @@ function drawHUD() {
   text(String(score), 22, 40, 40, '#fff', 'left');
   ctx.save(); ctx.translate(32, 82); ctx.scale(0.75, 0.75); drawApple(); ctx.restore();
   text(String(apples), 48, 83, 20, '#ffd1d6', 'left', 700);
+  for (let i = 0; i < MAX_LIVES; i++) {
+    const lost = i >= lives, justLost = i === lives && heartT > 0;
+    const pop = justLost ? 1 + 0.6 * heartT : 1;
+    ctx.save(); ctx.translate(W - 34 - i * 26 + (justLost ? rand(-3, 3) * heartT : 0), 76); ctx.scale(pop, pop);
+    drawHeart(lost ? 'rgba(255,255,255,.18)' : '#ff4d6a'); ctx.restore();
+  }
   // stage dots
   const g0 = Math.floor((stage - 1) / 5) * 5 + 1;
   for (let i = 0; i < 5; i++) {
@@ -446,6 +492,31 @@ function drawHUD() {
     ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
     ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
     drawKnife(); ctx.restore();
+  }
+}
+
+function drawHeart(c) {
+  ctx.fillStyle = c; ctx.beginPath();
+  ctx.moveTo(0, 8); ctx.bezierCurveTo(-12, -1, -9, -11, 0, -5); ctx.bezierCurveTo(9, -11, 12, -1, 0, 8);
+  ctx.fill();
+}
+
+function drawImpact() {
+  const el = IMPACT_TOTAL - impactT;
+  if (el < HITSTOP) {
+    // impact frame: speed lines bursting from the hit point
+    ctx.save(); ctx.translate(CX, impactY);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-W, -H * 2, W * 3, H * 4);
+    ctx.fillStyle = '#fff';
+    for (const l of impactLines) {
+      ctx.save(); ctx.rotate(l.a); ctx.beginPath();
+      ctx.moveTo(l.r0, 0); ctx.lineTo(l.r1, -l.w); ctx.lineTo(l.r1, l.w); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    ctx.lineWidth = 5; ctx.strokeStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, 0, 26 + el * 400, 0, TAU); ctx.stroke();
+    ctx.restore();
+  } else if (el < HITSTOP + 0.1) {
+    ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (el - HITSTOP) / 0.1)})`; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
 }
 
@@ -477,7 +548,7 @@ function drawMenu() {
 
 function drawOver() {
   ctx.fillStyle = 'rgba(10,6,22,.72)'; ctx.fillRect(-W, -H, W * 3, H * 3);
-  text('MISS!', CX, 230, 54, '#ff5d6c', 'center', 900);
+  text('OUT OF LIVES', CX, 230, 44, '#ff5d6c', 'center', 900);
   text(String(score), CX, 310, 72, '#fff', 'center', 900);
   text(`stage ${stage}  ·  ${apples} apple${apples === 1 ? '' : 's'}`, CX, 365, 18, 'rgba(255,255,255,.75)', 'center', 600);
   text(newBest ? 'NEW BEST!' : 'BEST  ' + best, CX, 405, 22, '#ffd35c', 'center', 800);
@@ -511,8 +582,13 @@ function draw() {
 
   if (state === 'menu') drawMenu();
   else { drawHUD(); drawBanner(); }
+  if (state === 'impact') drawImpact();
   if (state === 'over') drawOver();
   drawMute();
+  const el = IMPACT_TOTAL - impactT;
+  const f = state === 'impact' && el < HITSTOP ? 'grayscale(1) contrast(1.8) brightness(1.15)'
+    : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 0.25 * gray).toFixed(3)})` : 'none';
+  if (cv.style.filter !== f) cv.style.filter = f;
 }
 
 // ---------- input ----------
@@ -539,7 +615,7 @@ function frame(now) {
 menuTarget();
 requestAnimationFrame(frame);
 // test hook
-window.__knaife = { get state() { return state; }, get score() { return score; }, get stage() { return stage; }, get knivesLeft() { return knivesLeft; } };
+window.__knaife = { get lives() { return lives; }, get state() { return state; }, get score() { return score; }, get stage() { return stage; }, get knivesLeft() { return knivesLeft; } };
 </script>
 </body>
 </html>
