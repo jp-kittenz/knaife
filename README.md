@@ -9,3 +9,6 @@ A knife-throwing web game. Open `index.html` in a browser.
   Hitting a stuck knife destroys it (1 damage, no life lost); a killing blow slices the log in half.
   Recharges after 4 successful hits.
 - Grazing the side of a stuck knife ricochets your knife away (no life lost, knife refunded), tilts the stuck knife, and stuns you for 2s.
+- Log types (random each stage from stage 2): branched (plain, swirly, burning, beehive, wired, chained, bird), weak-spot holes (x2),
+  overgrown bushes (apples or hidden knives), moss armour, ironbark shell, tree hole (swallows knives), sawmill blades (timer).
+  The knife ability has its own interaction with each type (see `KNIFE_ABILITIES` in index.html).
