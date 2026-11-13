@@ -21,8 +21,10 @@
 <script>
 'use strict';
 // ---------- setup ----------
-const cv = document.getElementById('c');
-let ctx = cv.getContext('2d', { willReadFrequently: true });
+const view = document.getElementById('c');          // what the player sees (WebGL post-process)
+const cv = document.createElement('canvas');         // where the game is drawn (GPU-accelerated 2D)
+let GL = null, view2d = null;
+let ctx = cv.getContext('2d');
 const TAU = Math.PI * 2, HALF = Math.PI / 2;
 const W = 420, H = 760;                 // virtual playfield
 const CX = W / 2, CY = 255, R = 92;     // target
@@ -35,12 +37,14 @@ let PIX = 0.8;
 const FONT = '"Silkscreen", "Courier New", monospace';                         // virtual units per art pixel
 const MAX_PIXELS = 480000;
 function resize() {
-  const cw = cv.clientWidth || window.innerWidth, ch = cv.clientHeight || window.innerHeight;
+  const cw = view.clientWidth || window.innerWidth, ch = view.clientHeight || window.innerHeight;
   scale = Math.min(cw / W, ch / H);
   let p = PIX; const count = (cw / (p * scale)) * (ch / (p * scale));
   if (count > MAX_PIXELS) p *= Math.sqrt(count / MAX_PIXELS);
   dpr = 1 / (p * scale);
   cv.width = Math.max(1, Math.round(cw * dpr)); cv.height = Math.max(1, Math.round(ch * dpr));
+  view.width = cv.width; view.height = cv.height;
+  if (GL) GL.gl.viewport(0, 0, view.width, view.height);
   ox = (cw - W * scale) / 2; oy = (ch - H * scale) / 2;
 }
 window.addEventListener('resize', resize);
@@ -724,7 +728,7 @@ function newStage() {
 }
 
 function startGame() {
-  setPix(PIX_GAME); cv.style.cursor = 'pointer';
+  setPix(PIX_GAME); view.style.cursor = 'pointer';
   stage = 1; score = 0; apples = 0; newBest = false;
   lives = MAX_LIVES; impactT = 0; gray = 0; finale = false; pieces = []; gridFrac = null; frac = null;
   flying = []; debris = []; parts = [];
@@ -1142,8 +1146,8 @@ function canvasLike(c) { if (!c || c.width !== cv.width || c.height !== cv.heigh
 function postFX() {
   const w = cv.width, h = cv.height;
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (zblur > 0.03 || aberr > 0.03) { fxBuf = canvasLike(fxBuf); const b = fxBuf.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(cv, 0, 0); }
-  if (zblur > 0.03) {                                                   // radial zoom blur toward the focus
+  if (!GL && (zblur > 0.03 || aberr > 0.03)) { fxBuf = canvasLike(fxBuf); const b = fxBuf.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(cv, 0, 0); }
+  if (!GL && zblur > 0.03) {                                            // radial zoom blur toward the focus (CPU fallback)
     const fx0 = dpr * (ox + cam.fx * scale), fy0 = dpr * (oy + cam.fy * scale);
     for (let i = 1; i <= 4; i++) {
       const sc = 1 + i * 0.03 * zblur;
@@ -1153,7 +1157,7 @@ function postFX() {
     ctx.globalAlpha = 1;
     if (aberr > 0.03) { const b = fxBuf.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(cv, 0, 0); }
   }
-  if (aberr > 0.03) {                                                   // split red and cyan channels apart
+  if (!GL && aberr > 0.03) {                                            // split red and cyan channels apart (CPU fallback)
     const d = Math.min(aberr, 2) * 9 * dpr;
     tmpR = canvasLike(tmpR); tmpC = canvasLike(tmpC);
     for (const [c, col] of [[tmpR, '#f00'], [tmpC, '#0ff']]) {
@@ -2977,7 +2981,7 @@ function drawRewind() {
       ctx.drawImage(popCanvas, -popCanvas.width / 2, -popCanvas.height / 2); ctx.restore();
     }
   }
-  if (cv.style.filter !== f) cv.style.filter = f;
+  if (view.style.filter !== f) view.style.filter = f;
 }
 
 function drawPieces() {
@@ -3130,14 +3134,14 @@ function drawScene() {
 function draw() {
   if (state === 'tomenu') { drawToMenu(); return; }
   if (state === 'menu') {
-    drawMenuScreen(); if (cv.style.filter !== 'none') cv.style.filter = 'none'; pixelate();
+    drawMenuScreen(); if (view.style.filter !== 'none') view.style.filter = 'none'; pixelate();
     if (ui.trans && ui.trans.wantFrags) captureSlabFrags();
     return;
   }
   if (state === 'over') {
     drawOverScreen(); drawPieces();
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); drawMute();
-    if (cv.style.filter !== 'grayscale(1)') cv.style.filter = 'grayscale(1)';
+    if (view.style.filter !== 'grayscale(1)') view.style.filter = 'grayscale(1)';
     pixelate();
     return;
   }
@@ -3156,7 +3160,7 @@ function draw() {
   postFX();
   const f = fxFilter ? fxFilter : zapT > 0.85 ? (Math.floor(time * 30) % 2 ? INVERT : TWO_TONE) : state === 'impact' && el < hitstopLen() ? 'grayscale(1) contrast(40) invert(1)'
     : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 39 * Math.pow(gray, 3)).toFixed(3)})` : 'none';
-  if (cv.style.filter !== f) cv.style.filter = f;
+  if (view.style.filter !== f) view.style.filter = f;
   if (pieces.length) drawPieces();
   pixelate();
 }
@@ -3184,7 +3188,7 @@ const LUT = new Uint8Array(32768);
 const BAYERI = Int16Array.from(BAYER, v => Math.round(v));
 const LUT32 = new Uint32Array(32768);
 for (let i = 0; i < 32768; i++) { const p = PALETTE[LUT[i]]; LUT32[i] = (255 << 24 | p[2] << 16 | p[1] << 8 | p[0]) >>> 0; }
-function pixelate() {
+function pixelateCPU() {
   let img;
   try { img = ctx.getImageData(0, 0, cv.width, cv.height); } catch (e) { return; }
   const u32 = new Uint32Array(img.data.buffer), w = cv.width, h = cv.height;
@@ -3198,6 +3202,69 @@ function pixelate() {
     }
   }
   ctx.putImageData(img, 0, 0);
+}
+
+// ---------- GPU pixel pass: palette LUT + ordered dither + chromatic split + zoom blur in one shader ----------
+function initGL() {
+  const gl = view.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false });
+  if (!gl) { view2d = view.getContext('2d'); return; }
+  const vs = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+  const fsrc = `precision highp float;
+  uniform sampler2D tex, lut; uniform vec2 res, foc; uniform float ab, zb, dith; varying vec2 uv;
+  float b2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
+  float b4(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
+  vec3 S(vec2 q){ return texture2D(tex, q).rgb; }
+  void main(){
+    vec2 px = floor(uv * res) + 0.5, q = px / res;
+    vec3 c = S(q);
+    if (ab > 0.01) { vec2 d = vec2(ab, ab * 0.3) / res; c = vec3(S(q + d).r, c.g, S(q - d).b); }
+    if (zb > 0.01) { vec3 acc = c; for (int i = 1; i <= 4; i++) { float s = 1.0 / (1.0 + float(i) * 0.03 * zb); acc += S(foc + (q - foc) * s); } c = mix(c, acc / 5.0, min(1.0, zb) * 0.6); }
+    c = clamp(c + (b4(px) - 0.5) * dith, 0.0, 1.0);
+    vec3 k = floor(c * 31.999);
+    gl_FragColor = vec4(texture2D(lut, vec2((k.r * 32.0 + k.g + 0.5) / 1024.0, (k.b + 0.5) / 32.0)).rgb, 1.0);
+  }`;
+  const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  try {
+    const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fsrc)); gl.linkProgram(pr);
+    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error('link');
+    gl.useProgram(pr);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const mk = unit => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return t; };
+    // palette LUT as a 1024x32 texture: x = r*32 + g, y = b (5 bits each), same mapping as the CPU table
+    const lutTex = mk(1), data = new Uint8Array(1024 * 32 * 4);
+    for (let r = 0; r < 32; r++) for (let g = 0; g < 32; g++) for (let b = 0; b < 32; b++) {
+      const p = PALETTE[LUT[r << 10 | g << 5 | b]], o = (b * 1024 + r * 32 + g) * 4;
+      data[o] = p[0]; data[o + 1] = p[1]; data[o + 2] = p[2]; data[o + 3] = 255;
+    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 32, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    const tex = mk(0);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    const u = n => gl.getUniformLocation(pr, n);
+    gl.uniform1i(u('tex'), 0); gl.uniform1i(u('lut'), 1);
+    GL = { gl, tex, res: u('res'), foc: u('foc'), ab: u('ab'), zb: u('zb'), dith: u('dith') };
+    gl.viewport(0, 0, view.width, view.height);
+  } catch (e) { GL = null; }
+}
+// present the frame: draws the 2D canvas through the pixel shader (or the CPU fallback)
+function pixelate() {
+  if (GL) {
+    const { gl } = GL;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, GL.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+    const inGame = state !== 'menu' && state !== 'tomenu' && state !== 'over';
+    gl.uniform2f(GL.res, cv.width, cv.height);
+    gl.uniform1f(GL.ab, inGame ? Math.min(aberr, 2) * 9 * dpr * (aberr > 0.03 ? 1 : 0) : 0);
+    gl.uniform1f(GL.zb, inGame && zblur > 0.03 ? zblur : 0);
+    gl.uniform2f(GL.foc, (ox + cam.fx * scale) / (cv.width / dpr), 1 - (oy + cam.fy * scale) / (cv.height / dpr));
+    gl.uniform1f(GL.dith, 18 / 255);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    return;
+  }
+  pixelateCPU();
+  if (!view2d) view2d = view.getContext('2d');
+  view2d.drawImage(cv, 0, 0);
 }
 
 // ---------- fast monochrome backdrop ----------
@@ -3936,7 +4003,7 @@ function captureScreenFrags(vx, vy) {
 let toMenu = null;
 function startToMenu(x, y) {
   toMenu = { t: 0, frags: captureScreenFrags(x, y), x, y, pieces: null, built: false };
-  state = 'tomenu'; cv.style.filter = 'none';
+  state = 'tomenu'; view.style.filter = 'none';
   shock(x, y, 0.45, 160); sfx.playShatter(); buzz([30, 20, 60]);
 }
 function buildMenuPieces() {
@@ -3979,14 +4046,14 @@ function drawToMenu() {
   if (t > 0.88) { ctx.fillStyle = `rgba(255,255,255,${(t - 0.88) / 0.12 * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); }
 }
 function enterMenu(intro = false) {
-  state = 'menu'; ui.screen = intro ? 'intro' : 'main'; cv.style.cursor = 'none'; ui.enter = 0; ui.trans = null; ui.hov = {}; ui.tex = {};
+  state = 'menu'; ui.screen = intro ? 'intro' : 'main'; view.style.cursor = 'none'; ui.enter = 0; ui.trans = null; ui.hov = {}; ui.tex = {};
   tgt = null; flying = []; debris = []; parts = []; pieces = []; floaters = [];
-  setPix(PIX_MENU); cv.style.filter = 'none';
+  setPix(PIX_MENU); view.style.filter = 'none';
 }
 
 // ---------- input ----------
-function toVirtual(e) { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left - ox) / scale, (e.clientY - b.top - oy) / scale]; }
-cv.addEventListener('pointerdown', e => {
+function toVirtual(e) { const b = view.getBoundingClientRect(); return [(e.clientX - b.left - ox) / scale, (e.clientY - b.top - oy) / scale]; }
+view.addEventListener('pointerdown', e => {
   e.preventDefault();
   const [x, y] = toVirtual(e);
   if (Math.hypot(x - (W - 34), y - 34) < 24) { muted = !muted; save('knaife.muted', muted); ac(); return; }
@@ -3995,7 +4062,7 @@ cv.addEventListener('pointerdown', e => {
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
 });
-cv.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (state === 'menu') menuMove(x, y); });
+view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (state === 'menu') menuMove(x, y); });
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
   if (state === 'menu' && !e.repeat) {
@@ -4019,6 +4086,7 @@ function frame(now) {
   update(dt); draw();
   requestAnimationFrame(frame);
 }
+initGL(); resize();
 enterMenu(true);
 requestAnimationFrame(frame);
 // test hook
