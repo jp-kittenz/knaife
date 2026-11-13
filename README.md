@@ -14,3 +14,5 @@ A knife-throwing web game. Open `index.html` in a browser.
   The knife ability has its own interaction with each type (see `KNIFE_ABILITIES` in index.html).
 - Main menu: 3D floating PLAY / STORE / ENCYCLOPEDIA slabs in a haunted sawmill corridor. The store shows the equipped blade
   (drag to spin) and banked apples; the encyclopedia covers every log type, branch, boss and mechanic with live demos.
+- Knife: REGULAR KNIFE, ability STRONG THROW (ACTIVE). The store has KNIFE and ABILITY tabs.
+- Music: `assets/music.mp3` (supplied by the project owner) loops from the entry screen; slow-mo lowers its pitch and impacts muffle it.

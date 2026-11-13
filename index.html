@@ -22,7 +22,7 @@
 'use strict';
 // ---------- setup ----------
 const cv = document.getElementById('c');
-let ctx = cv.getContext('2d');
+let ctx = cv.getContext('2d', { willReadFrequently: true });
 const TAU = Math.PI * 2, HALF = Math.PI / 2;
 const W = 420, H = 760;                 // virtual playfield
 const CX = W / 2, CY = 255, R = 92;     // target
@@ -194,6 +194,7 @@ const sfx = {
     noise(2.2, 700, 0.5, 0.6, 'lowpass', { wet: 1, curve: 1.2 });   // rolling thunder tail
     tone('sawtooth', 1200, 60, 0.5, 0.06, { wet: 0.8 });
   },
+  playShatter() { noise(0.6, 3800, 0.5, 0.8, 'highpass', { wet: 0.6, curve: 2 }); tone('sine', 110, 30, 0.7, 0.8, { drive: true, wet: 0.5 }); for (let i = 0; i < 24; i++) { const f = rand(2500, 8500); tone('triangle', f, f, rand(0.04, 0.16), 0.06, { delay: Math.pow(Math.random(), 1.6) * 0.5, wet: 0.6 }); } },
   tick() { tone('square', 1800, 1700, 0.025, 0.04); },
   menuTick() { tone('triangle', 900, 600, 0.06, 0.12); noise(0.03, 3000, 2, 0.15, 'bandpass'); },
   menuSelect() { tone('sine', 120, 40, 0.5, 0.7, { drive: true, wet: 0.6 }); noise(0.5, 400, 1, 0.5, 'bandpass', { sweepTo: 3000, wet: 0.6 }); tone('triangle', 660, 660, 0.4, 0.08, { delay: 0.05, wet: 0.9 }); },
@@ -300,6 +301,37 @@ const sfx = {
   heart() { tone('square', 330, 160, 0.25, 0.08, { delay: 0.15 }); tone('square', 247, 110, 0.35, 0.08, { delay: 0.3, wet: 0.5 }); },
   unfreeze() { noise(0.6, 250, 1.5, 0.35, 'bandpass', { sweepTo: 4500, rise: true, wet: 0.5 }); tone('sine', 80, 300, 0.6, 0.12, { attack: 0.4 }); },
 };
+const music = { el: null, filt: null, gain: null, rate: 1, cut: 20000, t: 0 };
+function startMusic() {
+  if (music.el) return;
+  const a = ac();
+  const el = new Audio('assets/music.mp3'); el.loop = true; el.preload = 'auto';
+  el.preservesPitch = false; el.mozPreservesPitch = false; el.webkitPreservesPitch = false;
+  music.el = el;
+  try {
+    if (a) { const src = a.createMediaElementSource(el); music.filt = a.createBiquadFilter(); music.filt.type = 'lowpass'; music.filt.frequency.value = 20000; music.filt.Q.value = 0.8;
+      music.gain = a.createGain(); music.gain.gain.value = muted ? 0 : 0.5; src.connect(music.filt).connect(music.gain).connect(a.destination); }
+    else el.volume = muted ? 0 : 0.5;
+  } catch (e) { el.volume = muted ? 0 : 0.5; }
+  el.play().catch(() => {});
+}
+// slow-mo drops the pitch; impacts, black & white and game over muffle it
+function updateMusic(rdt) {
+  if (!music.el) return;
+  let rate = 1, cut = 20000, vol = 0.5;
+  if (state === 'menu') { cut = ui.screen === 'main' || ui.screen === 'intro' ? 20000 : 6000; vol = 0.45; }
+  else if (state === 'impact') { rate = finale ? 0.55 : 0.8; cut = 700; }
+  else if (state === 'over') { rate = 0.75; cut = 900; vol = 0.35; }
+  else if (state === 'rewind') { rate = rewindT < REW_SWITCH ? 0.7 : 1; cut = rewindT < REW_SWITCH ? 500 : 20000; }
+  else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
+  if (zapT > 0) cut = 900;
+  music.rate += (rate - music.rate) * Math.min(1, rdt * 6); music.cut += (cut - music.cut) * Math.min(1, rdt * 8);
+  music.t -= rdt;
+  if (music.t <= 0) { music.t = 0.08; try { if (Math.abs(music.el.playbackRate - music.rate) > 0.01) music.el.playbackRate = Math.max(0.5, music.rate); } catch (e) {} }
+  if (music.filt) music.filt.frequency.value = music.cut;
+  const v = muted ? 0 : vol;
+  if (music.gain) music.gain.gain.value += (v - music.gain.gain.value) * Math.min(1, rdt * 4); else music.el.volume = v;
+}
 function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
 // ---------- palettes ----------
@@ -670,7 +702,7 @@ function newStage() {
 }
 
 function startGame() {
-  setPix(PIX_GAME);
+  setPix(PIX_GAME); cv.style.cursor = 'pointer';
   stage = 1; score = 0; apples = 0; newBest = false;
   lives = MAX_LIVES; impactT = 0; gray = 0; finale = false; pieces = []; gridFrac = null; frac = null;
   flying = []; debris = []; parts = [];
@@ -691,7 +723,7 @@ function throwKnife() {
 
 function action() {
   ac();
-  if (state === 'menu') { if (ui.screen === 'main') go('play', 'play'); return; }
+  if (state === 'menu') { if (ui.screen === 'intro') { menuDown(CX, 450); return; } if (ui.screen === 'main') go('play', 'play'); return; }
   if (state === 'over') { if (overT <= 0) startRewind(); return; }
   throwKnife();
 }
@@ -817,7 +849,7 @@ function clearStage() {
   sfx.smash(); buzz(25);
 }
 
-// ---------- ability: the Shroud Blade ----------
+// ---------- ability: Strong Throw (Regular Knife) ----------
 const BTN = [W - 56, H - 80];
 const KNIFE_MID = () => [CX, KNIFE_Y + KL / 2];
 const abil = { state: 'ready', charge: 0, need: 4, swirl: null, flash: 0 };
@@ -869,7 +901,7 @@ function updateAbility(rdt) {
     sw.t += rdt;
     if (sw.t >= sw.dur) {
       abil.swirl = null;
-      if (sw.dir === 'in') { abil.state = 'armed'; sfx.abilityArmed(); buzz([20, 30, 40]); kick(0.07, 0.02, 0.9, 0.5); shocks(CX, KNIFE_Y + KL / 2, 2, 60); burst(CX, KNIFE_Y + KL / 2, 40, ['#fff', '#000'], 360, 0, 4, 0.6); }
+      if (sw.dir === 'in') { abil.state = 'armed'; floater(ABILITY.name, CX, KNIFE_Y - 30, '#ffffff'); sfx.abilityArmed(); buzz([20, 30, 40]); kick(0.07, 0.02, 0.9, 0.5); shocks(CX, KNIFE_Y + KL / 2, 2, 60); burst(CX, KNIFE_Y + KL / 2, 40, ['#fff', '#000'], 360, 0, 4, 0.6); }
       else { abil.state = abil.charge >= abil.need ? 'ready' : 'cooldown'; }
     }
   }
@@ -1834,8 +1866,9 @@ function updateFxp(dt) {
 
 // ---------- the knife ability meets each log type ----------
 const KNIFE_ABILITIES = {
-  shroud: {
-    name: 'SHROUD BLADE', need: 4,
+  strong: {
+    name: 'STRONG THROW', kind: 'ACTIVE', need: 4,
+    desc: 'Tap the emblem to arm the next knife. Throw it: time slows, it hits for double, and a stuck knife in its path explodes instead of costing a heart.',
     // returns bonus damage dealt by the interaction
     onImpact(t, aHit) {
       const F = t.f; if (!F) return 0;
@@ -1867,7 +1900,11 @@ const KNIFE_ABILITIES = {
     },
   },
 };
-let ABILITY = KNIFE_ABILITIES.shroud;
+let ABILITY = KNIFE_ABILITIES.strong;
+// knives own an ability; each ability is either ACTIVE (you trigger it) or PASSIVE (always on)
+const KNIVES = [
+  { id: 'regular', name: 'REGULAR KNIFE', lore: 'A plain blade pulled from the mill floor. Honest steel.', ability: KNIFE_ABILITIES.strong },
+];
 let pending = [];
 function updatePending(rdt) { for (const p of pending) { p.t -= rdt; if (p.t <= 0) { p.done = true; p.f(); } } pending = pending.filter(p => !p.done); }
 
@@ -2318,6 +2355,7 @@ function breakFeatures(t) {
 // ---------- update ----------
 function update(dt) {
   time += dt;
+  updateMusic(dt);
   if (state === 'menu') { updateMenu(dt); return; }
   heartT = Math.max(0, heartT - dt * 1.5);
   updateAbility(dt);
@@ -2783,7 +2821,9 @@ function shatterScreen() {
   launch(pieces, icx, icy, k, 350, 900, 0.025);
 }
 
-function startRewind() {
+let rewindFrom = null;
+function startRewind(from = null) {
+  rewindFrom = from;
   startGame();
   state = 'rewind'; rewindT = 0; needRewindSnap = true; rewFlashed = false; rewSwitched = false; popCanvas = null;
   banner.t = 0; tgt.pop = 1; readyT = 0; pieces = [];
@@ -2801,6 +2841,16 @@ function buildRewindPieces() {
     const dist = far * rand(0.7, 1.2);
     p.home = true; p.sx = p.hx + dx * dist + rand(-0.15, 0.15) * far; p.sy = p.hy + dy * dist + rand(0, 0.3) * far;
     p.rot0 = rand(-6, 6); p.dur = 0.42; p.delay = (8 - p.j) * 0.045 + rand(0, 0.05);
+  }
+  if (rewindFrom) {
+    const fr = rewindFrom.frags;
+    pieces.forEach((p, i) => {
+      const f = fr[i % fr.length], [vx, vy, r] = fragPose(f, 1);
+      p.sx = dpr * (ox + vx * scale); p.sy = dpr * (oy + vy * scale); p.rot0 = r + rand(-1.2, 1.2);
+      p.s0 = Math.min(1, (f.w * dpr * scale) / Math.max(8, p.c.width)) * 0.9;
+      p.ease = 'inout'; p.dur = 0.72; p.delay = rand(0, 0.14); p.frag = f;
+    });
+    rewindFrom = null;
   }
 }
 
@@ -2846,9 +2896,15 @@ function drawRewind() {
   if (t < REW_FLASH) {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
     for (const p of pieces) {
-      const u = clamp((t - p.delay) / p.dur, 0, 1), e = 1 - Math.pow(1 - u, 3);
+      const u = clamp((t - p.delay) / p.dur, 0, 1);
+      const e = p.ease === 'inout' ? (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2) : 1 - Math.pow(1 - u, 3);
       ctx.save(); ctx.translate(p.sx + (p.hx - p.sx) * e, p.sy + (p.hy - p.sy) * e); ctx.rotate(p.rot0 * (1 - e));
-      ctx.drawImage(p.c, p.ox, p.oy); ctx.restore();
+      if (p.ease === 'inout') {
+        const sc = p.s0 + (1 - p.s0) * e, mix = clamp(u * 2.2, 0, 1); ctx.scale(sc, sc);
+        ctx.globalAlpha = mix; ctx.drawImage(p.c, p.ox, p.oy);
+        if (mix < 1) { const f = p.frag, k = dpr * scale / sc; ctx.globalAlpha = 1 - mix; ctx.drawImage(f.c, -f.w * k / 2, -f.h * k / 2, f.w * k, f.h * k); }
+      } else ctx.drawImage(p.c, p.ox, p.oy);
+      ctx.restore();
     }
     f = 'grayscale(1)';
   } else {
@@ -3016,7 +3072,11 @@ function drawScene() {
 }
 
 function draw() {
-  if (state === 'menu') { drawMenuScreen(); if (cv.style.filter !== 'none') cv.style.filter = 'none'; pixelate(); return; }
+  if (state === 'menu') {
+    drawMenuScreen(); if (cv.style.filter !== 'none') cv.style.filter = 'none'; pixelate();
+    if (ui.trans && ui.trans.wantFrags) captureSlabFrags();
+    return;
+  }
   if (state === 'over') {
     drawOverScreen(); drawPieces();
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); drawMute();
@@ -3062,23 +3122,27 @@ const LUT = new Uint8Array(32768);
     LUT[i] = bi;
   }
 })();
+const BAYERI = Int16Array.from(BAYER, v => Math.round(v));
+const LUT32 = new Uint32Array(32768);
+for (let i = 0; i < 32768; i++) { const p = PALETTE[LUT[i]]; LUT32[i] = (255 << 24 | p[2] << 16 | p[1] << 8 | p[0]) >>> 0; }
 function pixelate() {
   let img;
   try { img = ctx.getImageData(0, 0, cv.width, cv.height); } catch (e) { return; }
-  const d = img.data, w = cv.width;
-  for (let y = 0, i = 0; y < cv.height; y++) {
+  const u32 = new Uint32Array(img.data.buffer), w = cv.width, h = cv.height;
+  for (let y = 0, i = 0; y < h; y++) {
     const row = (y & 3) << 2;
-    for (let x = 0; x < w; x++, i += 4) {
-      const o = BAYER[row | (x & 3)];
-      const r = d[i] + o, g = d[i + 1] + o, b = d[i + 2] + o;
-      const p = PALETTE[LUT[((r < 0 ? 0 : r > 255 ? 255 : r) >> 3) << 10 | ((g < 0 ? 0 : g > 255 ? 255 : g) >> 3) << 5 | ((b < 0 ? 0 : b > 255 ? 255 : b) >> 3)]];
-      d[i] = p[0]; d[i + 1] = p[1]; d[i + 2] = p[2]; d[i + 3] = 255;
+    for (let x = 0; x < w; x++, i++) {
+      const o = BAYERI[row | (x & 3)], v = u32[i];
+      let r = (v & 255) + o, g = (v >> 8 & 255) + o, b = (v >> 16 & 255) + o;
+      r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
+      u32[i] = LUT32[(r >> 3) << 10 | (g >> 3) << 5 | (b >> 3)];
     }
   }
   ctx.putImageData(img, 0, 0);
 }
 
 // ---------- fast monochrome backdrop ----------
+let bgHalftone = null, bgScan = null;
 function drawBackdrop() {
   ctx.fillStyle = '#060608'; ctx.fillRect(-W, -H, W * 3, H * 3);
   // scrolling diagonal hazard bands
@@ -3086,11 +3150,15 @@ function drawBackdrop() {
   const off = (time * 140) % 60;
   for (let x = -W - 400; x < W * 2; x += 60) { ctx.beginPath(); ctx.moveTo(x + off, -H); ctx.lineTo(x + off + 22, -H); ctx.lineTo(x + off + 22 + H * 3 * 0.35, H * 2); ctx.lineTo(x + off + H * 3 * 0.35, H * 2); ctx.closePath(); ctx.fill(); }
   ctx.restore();
-  // halftone dots, denser toward the bottom
-  ctx.fillStyle = '#1e1e24';
-  for (let y = 300; y < H + 120; y += 12) for (let x = -60 + ((y / 12) % 2) * 6; x < W + 60; x += 12) {
-    const r = clamp((y - 300) / 520, 0, 1) * 3.2; if (r > 0.5) ctx.fillRect(x - r / 2, y - r / 2, r, r);
+  // halftone dots, denser toward the bottom (cached)
+  if (!bgHalftone) {
+    bgHalftone = document.createElement('canvas'); bgHalftone.width = W + 120; bgHalftone.height = H - 180;
+    const g = bgHalftone.getContext('2d'); g.fillStyle = '#1e1e24';
+    for (let y = 300; y < H + 120; y += 12) for (let x = -60 + ((y / 12) % 2) * 6; x < W + 60; x += 12) {
+      const r = clamp((y - 300) / 520, 0, 1) * 3.2; if (r > 0.5) g.fillRect(x + 60 - r / 2, y - 300 - r / 2, r, r);
+    }
   }
+  ctx.drawImage(bgHalftone, -60, 300);
   // speed streaks rushing past
   for (let i = 0; i < 26; i++) {
     const x = hash(i, 0, 21) * (W + 120) - 60, sp = 500 + hash(i, 0, 22) * 900, len = 20 + hash(i, 0, 23) * 70;
@@ -3117,9 +3185,9 @@ function drawBackdrop() {
   const lo = (time * 260) % 24;
   for (let y = KNIFE_Y + KL + 20 - lo; y > CY + R + 30; y -= 24) ctx.fillRect(CX - 1.5, y, 3, 12);
   ctx.fillStyle = '#1e1e24'; ctx.fillRect(CX - 40, CY + R + 26, 2, KNIFE_Y + KL - CY - R - 6); ctx.fillRect(CX + 38, CY + R + 26, 2, KNIFE_Y + KL - CY - R - 6);
-  // scanlines
-  ctx.fillStyle = 'rgba(0,0,0,.25)';
-  for (let y = -H; y < H * 2; y += 3) ctx.fillRect(-W, y, W * 3, 1);
+  // scanlines (pattern)
+  if (!bgScan) { const c = document.createElement('canvas'); c.width = 1; c.height = 3; const g = c.getContext('2d'); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, 0, 1, 1); bgScan = ctx.createPattern(c, 'repeat'); }
+  ctx.fillStyle = bgScan; ctx.fillRect(-W, -H, W * 3, H * 3);
 }
 
 // ======================= MAIN MENU / STORE / ENCYCLOPEDIA =======================
@@ -3142,7 +3210,9 @@ function pt3(p, u, v) {
   return [p.x + X * k, p.y + Y * k];
 }
 function quad(p) { return [pt3(p, 0, 0), pt3(p, 1, 0), pt3(p, 1, 1), pt3(p, 0, 1)]; }
-function inQuad(q, x, y) {
+function inQuad(q, x, y, pad = 8) {
+  if (pad) { const cx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, cy = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4;
+    q = q.map(([px, py]) => { const dx = px - cx, dy = py - cy, l = Math.hypot(dx, dy) || 1; return [px + dx / l * pad, py + dy / l * pad]; }); }
   let ins = false;
   for (let i = 0, j = 3; i < 4; j = i++) { const [xi, yi] = q[i], [xj, yj] = q[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; }
   return ins;
@@ -3170,6 +3240,14 @@ function drawPanel3D(tex, p, alpha = 1, glow = 0, glowCol = '#ff2e45') {
     const u0 = i / N, u1 = (i + 1) / N, [x0, y0] = pt3(p, u0, 0), [x1, y1] = pt3(p, u1, 0), [x2, y2] = pt3(p, u0, 1);
     ctx.save(); ctx.transform((x1 - x0) / sw, (y1 - y0) / sw, (x2 - x0) / th, (y2 - y0) / th, x0, y0);
     ctx.drawImage(tex, i * sw, 0, Math.min(sw + 1, tw - i * sw), th, 0, 0, Math.min(sw + 1, tw - i * sw), th);
+    ctx.restore();
+  }
+  const sh = ((time * 0.35 + p.x * 0.003) % 1.6) - 0.3;
+  if (sh > 0 && sh < 1) {
+    ctx.save(); ctx.beginPath(); q.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath(); ctx.clip();
+    const minx = Math.min(...q.map(v => v[0])), maxx = Math.max(...q.map(v => v[0])), miny = Math.min(...q.map(v => v[1])), maxy = Math.max(...q.map(v => v[1]));
+    const sx = minx + (maxx - minx + 80) * sh - 40;
+    ctx.fillStyle = 'rgba(255,255,255,.13)'; ctx.beginPath(); ctx.moveTo(sx, miny); ctx.lineTo(sx + 16, miny); ctx.lineTo(sx - 24, maxy); ctx.lineTo(sx - 40, maxy); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
   if (glow > 0.01) {
@@ -3329,6 +3407,8 @@ const SHOP = {
   prev:    { x: 66,  y: 690, z: 0, w: 62,  h: 56,  ry: 0.35,  rx: 0.1,  rz: -0.12, ph: 2.9 },
   next:    { x: 368, y: 694, z: 0, w: 56,  h: 56,  ry: -0.35, rx: 0.1,  rz: 0.1,   ph: 3.7 },
   back:    { x: 58,  y: 50,  z: 0, w: 92,  h: 34,  ry: 0.2,   rx: 0,    rz: -0.04, ph: 0.2 },
+  tabK:    { x: 150, y: 104, z: 0, w: 92,  h: 30,  ry: 0.12,  rx: 0.05, rz: -0.03, ph: 1.9 },
+  tabA:    { x: 262, y: 104, z: 0, w: 92,  h: 30,  ry: -0.12, rx: 0.05, rz: 0.03,  ph: 2.6 },
 };
 const ENCY = {
   name:  { x: 214, y: 140, z: 0, w: 150, h: 62,  ry: 0.05,  rx: 0.08, rz: -0.02, ph: 0.3 },
@@ -3383,10 +3463,11 @@ function drawMenuBackdrop() {
     poly([[A.cx - A.hw, A.cy + A.hh], [A.cx + A.hw, A.cy + A.hh], [B.cx + B.hw, B.cy + B.hh], [B.cx - B.hw, B.cy + B.hh]], `rgb(${lum - 4},${lum - 6},${lum - 8})`);
     poly([[A.cx - A.hw, A.cy - A.hh], [A.cx + A.hw, A.cy - A.hh], [B.cx + B.hw, B.cy - B.hh], [B.cx - B.hw, B.cy - B.hh]], `rgb(${Math.max(0, lum - 10)},${Math.max(0, lum - 10)},${Math.max(0, lum - 8)})`);
     // planks
-    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(0.5, 1.4 * B.s);
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(0.5, 1.4 * B.s); ctx.beginPath();
     for (let p = 1; p < 6; p++) { const u = p / 6 * 2 - 1;
-      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(A.cx + sd * A.hw, A.cy + u * A.hh); ctx.lineTo(B.cx + sd * B.hw, B.cy + u * B.hh); ctx.stroke(); }
-      ctx.beginPath(); ctx.moveTo(A.cx + u * A.hw, A.cy + A.hh); ctx.lineTo(B.cx + u * B.hw, B.cy + B.hh); ctx.stroke(); }
+      for (const sd of [-1, 1]) { ctx.moveTo(A.cx + sd * A.hw, A.cy + u * A.hh); ctx.lineTo(B.cx + sd * B.hw, B.cy + u * B.hh); }
+      ctx.moveTo(A.cx + u * A.hw, A.cy + A.hh); ctx.lineTo(B.cx + u * B.hw, B.cy + B.hh); }
+    ctx.stroke();
     // frame beams
     ctx.strokeStyle = `rgb(${lum + 20},${lum + 10},${lum})`; ctx.lineWidth = Math.max(1, 7 * B.s);
     ctx.strokeRect(B.cx - B.hw, B.cy - B.hh, B.hw * 2, B.hh * 2);
@@ -3437,8 +3518,9 @@ function drawMenuBackdrop() {
   for (const [hx, len, ph, sz] of [[26, 210, 0, 1], [398, 160, 2, 0.85], [-6, 120, 4, 0.7]]) {
     const sw = Math.sin(time * 0.9 + ph) * 0.18, px = hx - (ui.mx - CX) * 0.12;
     ctx.save(); ctx.translate(px, -10); ctx.rotate(sw);
-    ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 1.6;
-    for (let y = 0; y < len; y += 7) { ctx.beginPath(); ctx.ellipse(0, y, y % 14 ? 1.2 : 2.6, 3.6, 0, 0, TAU); ctx.stroke(); }
+    ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 1.6; ctx.beginPath();
+    for (let y = 0; y < len; y += 7) { const rx = y % 14 ? 1.2 : 2.6; ctx.moveTo(rx, y); ctx.ellipse(0, y, rx, 3.6, 0, 0, TAU); }
+    ctx.stroke();
     ctx.translate(0, len); ctx.scale(sz, sz); ctx.rotate(Math.PI); ctx.translate(0, -KL); drawKnife();
     ctx.restore();
   }
@@ -3482,13 +3564,45 @@ function connector(ax, ay, q, side) {
 let hitList = [];
 function regPanel(id, q, p) { hitList.push({ id, q, p }); }
 
+function drawIntroScreen() {
+  const letters = 'KNAIFE'.split('');
+  ctx.save(); ctx.font = `700 60px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  letters.forEach((ch, i) => {
+    const t = clamp((ui.enter - 0.2 - i * 0.09) / 0.5, 0, 1), y = 300 - (1 - easeOutBounce(t)) * 260, x = CX + (i - 2.5) * 46;
+    ctx.globalAlpha = t; ctx.fillStyle = '#ff2e45'; ctx.fillText(ch, x - 3, y + 3); ctx.fillStyle = '#2ad8ff'; ctx.fillText(ch, x + 3, y - 2); ctx.fillStyle = '#fff'; ctx.fillText(ch, x, y);
+  });
+  ctx.restore();
+  if (ui.enter > 1.1) {
+    ctx.save(); ctx.globalAlpha = 0.55 + 0.45 * Math.sin(time * 4);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(CX - 120, 430, 240, 44);
+    text('CLICK TO ENTER', CX, 452, 16, '#fff', 'center', 700); ctx.restore();
+    text('HEADPHONES RECOMMENDED', CX, 500, 8, 'rgba(255,255,255,.5)', 'center', 400);
+  }
+}
+function drawCursor() {
+  if (!ui.hasPointer) return;
+  const hv = ui.hover ? 1 : 0; ui.cur = (ui.cur || 0) + (hv - (ui.cur || 0)) * 0.25;
+  const r = 6 + ui.cur * 6;
+  ctx.save(); ctx.translate(ui.mx, ui.my); ctx.rotate(time * (1 + ui.cur * 3));
+  ctx.strokeStyle = ui.cur > 0.5 ? '#ff2e45' : '#ffffff'; ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r + 6, 0); ctx.stroke(); }
+  ctx.restore();
+  ctx.fillStyle = '#fff'; ctx.fillRect(ui.mx - 1, ui.my - 1, 2, 2);
+  for (const c of ui.clicks || []) { const u = c.t / 0.4; ctx.strokeStyle = `rgba(255,255,255,${1 - u})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x, c.y, 6 + u * 30, 0, TAU); ctx.stroke(); }
+}
+function drawStatusBar() {
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(-W, H - 18, W * 3, 18);
+  ctx.fillStyle = '#ff2e45'; ctx.fillRect(-W, H - 18, W * 3, 1);
+  text('BEST ' + best + '   /   APPLES ' + ui.bank + '   /   MUSIC ' + (muted ? 'OFF' : 'ON'), CX, H - 9, 8, '#8d8d97', 'center', 400);
+}
 function drawMainScreen() {
   drawTitle('KNAIFE', 118, 60);
   ctx.save(); ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 2); text('THE MILL NEVER SLEEPS', CX, 162, 10, '#c3c3ca', 'center', 400); ctx.restore();
   const order = MAIN.map(d => d).sort((a, b) => (ui.hov[b.id] || 0) - (ui.hov[a.id] || 0)).reverse();
   for (const d of order) {
     let p = livePanel(d, d.id);
-    if (ui.trans && ui.trans.panel === d.id) { const u = clamp(ui.trans.t / 0.55, 0, 1); p.z -= u * u * 430; p.ry *= 1 - u; p.rz *= 1 - u; p.x += (CX - p.x) * u; p.y += (H / 2 - p.y) * u; }
+    if (ui.trans && ui.trans.shatter && d.id === 'play') { if (!ui.trans.frags) ui.trans.wantFrags = { p, id: d.id }; else continue; }
+    if (ui.trans && ui.trans.panel === d.id && !ui.trans.shatter) { const u = clamp(ui.trans.t / 0.55, 0, 1); p.z -= u * u * 430; p.ry *= 1 - u; p.rz *= 1 - u; p.x += (CX - p.x) * u; p.y += (H / 2 - p.y) * u; }
     else if (ui.trans) { p.y += ui.trans.t * ui.trans.t * 900; }
     const hv = ui.hov[d.id] || 0;
     const q = drawPanel3D(mainTex(d.id), p, 1, hv * (0.7 + 0.3 * Math.sin(time * 6)), d.id === 'play' ? '#ff2e45' : d.id === 'store' ? '#ffd23f' : '#2ad8ff');
@@ -3496,7 +3610,7 @@ function drawMainScreen() {
     // embers rising off a hovered slab
     if (hv > 0.5 && Math.random() < 0.4) parts.push({ x: p.x + rand(-p.w / 2, p.w / 2), y: p.y + p.h / 2, vx: rand(-20, 20), vy: rand(-160, -60), life: 1, max: 1, c: Math.random() < 0.5 ? '#ff7a1a' : '#ffd23f', s: 2, rot: 0, vr: 0 });
   }
-  text('TAP A SLAB', CX, H - 26, 10, 'rgba(255,255,255,.45)', 'center', 400);
+  text('TAP A SLAB', CX, H - 32, 10, 'rgba(255,255,255,.45)', 'center', 400);
 }
 
 function drawKnifeShowcase(x, y, sc) {
@@ -3518,25 +3632,53 @@ function drawKnifeShowcase(x, y, sc) {
   ctx.restore();
 }
 
+function tabTex(label, on) { return texFor('tab' + label + on, () => slab(92, 30, 'metal', (g, w, h) => { if (on) { g.fillStyle = 'rgba(255,46,69,.35)'; g.fillRect(4, 4, w - 8, h - 8); } etch(g, label, w / 2, h / 2 + 1, 10, on ? '#ffffff' : '#8d8d97', on ? '#ff2e45' : null); })); }
+function drawAbilityShowcase(x, y) {
+  const c = Math.cos(ui.spin * 0.8), bob = Math.sin(time * 1.6) * 8;
+  const g = ctx.createRadialGradient(x, y, 10, x, y, 150); g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(x - 150, y - 150, 300, 300);
+  drawPixelAura(x, y + bob, 88, 0.85);
+  ctx.save(); ctx.translate(x, y + bob);
+  // coin edge for thickness
+  ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.ellipse(4 * Math.sign(c || 1), 0, 72 * Math.max(0.08, Math.abs(c)), 72, 0, 0, TAU); ctx.fill();
+  ctx.scale(Math.max(0.08, Math.abs(c)) * 2.4, 2.4);
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.stroke();
+  ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 26, 0, TAU); ctx.stroke();
+  if (c > 0) drawLogo('#fff', '#000'); else { ctx.scale(-1, 1); drawLogo('#c3c3ca', '#000'); }
+  ctx.restore();
+}
 function drawShopScreen() {
   drawTitle('SHOP', 52, 34);
+  const kn = KNIVES[0], A = kn.ability, tab = ui.shopTab || 'knife';
   const kx = CX + 6, ky = 300;
-  drawKnifeShowcase(kx, ky, 2.15);
-  const A = ABILITY;
-  const cards = [
-    ['stats', cardTex('shop-stats', 122, 196, 'STATS', [
-      { stat: 'DAMAGE', txt: '1', v: 0.33 }, { stat: 'ABILITY DMG', txt: 'X2', v: 0.66 }, { stat: 'RECHARGE', txt: A.need + ' HITS', v: 0.5, col: '#2ad8ff' },
-      { stat: 'PIERCE', txt: 'YES', v: 1, col: '#ffd23f' }, { stat: 'SLOW-MO', txt: 'YES', v: 1, col: '#b6e05a' }]), 1, [kx - 26, ky + 20]],
-    ['lore', cardTex('shop-lore', 76, 92, 'LORE', [{ text: 'Forged in the dark of the old mill.', size: 7 }]), 1, [kx - 8, ky + 92]],
-    ['ability', cardTex('shop-abil', 108, 176, A.name, [{ text: 'Arm it, then throw. Time slows, the blade hits for double, and stuck knives explode instead of costing a heart.', size: 7 }, { text: 'Every log type reacts to it differently.', size: 7, col: '#ffd23f' }]), -1, [kx + 22, ky - 60]],
-  ];
+  let cards;
+  if (tab === 'knife') {
+    drawKnifeShowcase(kx, ky, 2.15);
+    cards = [
+      ['stats', cardTex('shop-stats', 122, 196, 'STATS', [
+        { stat: 'DAMAGE', txt: '1', v: 0.33 }, { stat: 'SPEED', txt: 'FAST', v: 0.75, col: '#2ad8ff' }, { stat: 'WEIGHT', txt: 'LIGHT', v: 0.35, col: '#b6e05a' },
+        { stat: 'ABILITY', txt: A.kind, v: 1, col: A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff' }, { stat: 'RARITY', txt: 'COMMON', v: 0.2, col: '#c3c3ca' }]), 1, [kx - 26, ky + 20]],
+      ['lore', cardTex('shop-lore', 76, 92, 'LORE', [{ text: kn.lore, size: 7 }]), 1, [kx - 8, ky + 92]],
+      ['ability', cardTex('shop-abil2', 108, 176, kn.name, [{ text: 'Ability: ' + A.name, size: 8, col: '#ffffff' }, { text: A.kind, size: 10, col: A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff' }, { text: 'Open the ABILITY tab for details.', size: 7, col: '#8d8d97' }]), -1, [kx + 22, ky - 60]],
+    ];
+  } else {
+    drawAbilityShowcase(kx, ky);
+    cards = [
+      ['stats', cardTex('ab-stats', 122, 196, 'ABILITY STATS', [
+        { stat: 'TYPE', txt: A.kind, v: 1, col: A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff' }, { stat: 'DAMAGE', txt: 'X2', v: 0.66 },
+        { stat: 'RECHARGE', txt: A.need + ' HITS', v: 0.5, col: '#2ad8ff' }, { stat: 'PIERCE', txt: 'YES', v: 1, col: '#ffd23f' }, { stat: 'SLOW-MO', txt: 'YES', v: 1, col: '#b6e05a' }]), 1, [kx - 60, ky + 20]],
+      ['lore', cardTex('ab-type', 76, 92, A.kind, [{ text: A.kind === 'ACTIVE' ? 'You trigger it. Press E or tap the emblem.' : 'Always on.', size: 7 }], A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff'), 1, [kx - 40, ky + 60]],
+      ['ability', cardTex('ab-desc', 108, 176, A.name, [{ text: A.desc, size: 7 }, { text: 'Each log type reacts to it. See the ENCYCLOPEDIA.', size: 7, col: '#ffd23f' }]), -1, [kx + 60, ky - 40]],
+    ];
+  }
   for (const [id, tex, side, anchor] of cards) { const p = livePanel(SHOP[id], id); const q = drawPanel3D(tex, p, 1, (ui.hov[id] || 0) * 0.6, '#ffffff'); regPanel(id, q, p); connector(anchor[0], anchor[1] + Math.sin(time * 1.6) * 8, q, side); }
-  const lt = cardTex('shop-list', 180, 118, 'KNIFE LIST   1/1', [{ text: '> SHROUD BLADE', size: 9, col: '#ffffff' }, { text: 'EQUIPPED   OWNED', size: 7, col: '#b6e05a' }], '#ffd23f');
+  const lt = cardTex('shop-list2', 180, 118, 'KNIFE LIST   1/1', [{ text: '> ' + kn.name, size: 9, col: '#ffffff' }, { text: A.name + ' / ' + A.kind, size: 7, col: '#ff2e45' }, { text: 'EQUIPPED   OWNED', size: 7, col: '#b6e05a' }], '#ffd23f');
   let p = livePanel(SHOP.list, 'list'); regPanel('list', drawPanel3D(lt, p, 1, (ui.hov.list || 0) * 0.6, '#ffd23f'), p);
   for (const id of ['prev', 'next']) { p = livePanel(SHOP[id], id); regPanel(id, drawPanel3D(arrowTex(id === 'prev' ? -1 : 1), p, 1, (ui.hov[id] || 0), '#ff2e45'), p); }
+  for (const [id, label, key] of [['tabK', 'KNIFE', 'knife'], ['tabA', 'ABILITY', 'ability']]) { p = livePanel(SHOP[id], id); regPanel(id, drawPanel3D(tabTex(label, tab === key), p, 1, (ui.hov[id] || 0), '#ff2e45'), p); }
   p = livePanel(SHOP.back, 'back'); regPanel('back', drawPanel3D(backTex(), p, 1, (ui.hov.back || 0), '#ffffff'), p);
   ctx.save(); ctx.translate(W - 70, 50); ctx.scale(0.8, 0.8); drawApple(); ctx.restore(); text(String(ui.bank), W - 52, 51, 14, '#fff', 'left', 700);
-  text('DRAG THE BLADE', kx, 470, 8, 'rgba(255,255,255,.4)', 'center', 400);
+  text(tab === 'knife' ? 'DRAG THE BLADE' : 'DRAG THE EMBLEM', kx, 470, 8, 'rgba(255,255,255,.4)', 'center', 400);
 }
 
 function drawEncyScreen() {
@@ -3596,14 +3738,18 @@ function drawMenuScreen() {
   hitList = [];
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
   drawMenuBackdrop();
-  if (ui.screen === 'main') drawMainScreen();
+  if (ui.screen === 'intro') drawIntroScreen();
+  else if (ui.screen === 'main') drawMainScreen();
   else if (ui.screen === 'shop') drawShopScreen();
   else drawEncyScreen();
+  if (ui.trans && ui.trans.frags) drawSlabFrags();
+  if (ui.screen !== 'intro') drawStatusBar();
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
+  drawCursor();
   // fade between screens
-  if (ui.trans) { const u = clamp((ui.trans.t - 0.3) / 0.3, 0, 1); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${u})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
+  if (ui.trans) { const u = ui.trans.shatter ? clamp(ui.trans.t / 0.45, 0, 1) * 0.92 : clamp((ui.trans.t - 0.3) / 0.3, 0, 1); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${u})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   if (ui.enter < 0.4) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${1 - ui.enter / 0.4})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // horizontal tear glitch
   if (ui.glitch > 0) {
@@ -3638,29 +3784,70 @@ function updateMenu(dt) {
   if (actx) { ui.amb -= dt; if (ui.amb <= 0) { ui.amb = rand(3, 6); sfx.ambient(); } }
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
   parts = parts.filter(p => p.life > 0);
+  for (const r of rings) r.t += dt; rings = rings.filter(r => r.t < r.max);
+  ui.clicks = (ui.clicks || []).filter(c => (c.t += dt) < 0.4);
   for (const f of floaters) f.t += dt; floaters = floaters.filter(f => f.t < 1.1);
   if (ui.trans) {
     ui.trans.t += dt;
-    if (ui.trans.t >= 0.62) {
-      const to = ui.trans.to; ui.trans = null;
-      if (to === 'play') { startGame(); return; }
+    if (ui.trans.t >= (ui.trans.shatter ? 0.5 : 0.62)) {
+      const to = ui.trans.to; ui.trans_last = ui.trans; ui.trans = null;
+      if (to === 'play') { const tr = ui.trans_last; startRewind(tr && tr.frags && tr.frags.length ? tr : null); return; }
       ui.screen = to; ui.enter = 0; ui.hov = {}; ui.demo = null;
     }
   }
 }
-function go(to, panel) { if (ui.trans) return; ui.trans = { t: 0, to, panel }; sfx.menuSelect(); buzz(20); }
+function go(to, panel) {
+  if (ui.trans) return;
+  ui.trans = { t: 0, to, panel, shatter: to === 'play' };
+  if (to === 'play') { if (!ui.hasPointer && !hitList.some(h => h.id === 'play')) ui.trans.shatter = false; sfx.playShatter(); buzz([30, 20, 60]); }
+  else sfx.menuSelect();
+  buzz(20);
+}
+// cut the PLAY slab (as rendered) into fragments, in virtual coords
+function captureSlabFrags() {
+  const w = ui.trans.wantFrags; ui.trans.wantFrags = null;
+  const hit = hitList.find(h => h.id === 'play'); if (!hit) { ui.trans.frags = []; return; }
+  const q = hit.q.map(([x, y]) => [dpr * (ox + x * scale), dpr * (oy + y * scale)]);
+  const src = document.createElement('canvas'); src.width = cv.width; src.height = cv.height;
+  const g = src.getContext('2d'); g.beginPath(); q.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x, y)); g.closePath(); g.clip(); g.drawImage(cv, 0, 0);
+  const k = dpr * scale, cx = q.reduce((a, v) => a + v[0], 0) / 4, cy = q.reduce((a, v) => a + v[1], 0) / 4;
+  const pcs = cutPieces(src, 0, 0, makeGrid(9, [0, 22, 50, 85, 125, 175]), cx, cy, k, 1 * dpr);
+  const vcx = (cx / dpr - ox) / scale, vcy = (cy / dpr - oy) / scale;
+  ui.trans.frags = pcs.map(p => {
+    const vx = (p.x / dpr - ox) / scale, vy = (p.y / dpr - oy) / scale;
+    let dx = vx - vcx, dy = vy - vcy; const dl = Math.hypot(dx, dy) || 1;
+    return { c: p.c, vx, vy, ow: p.ox / k, oh: p.oy / k, w: p.c.width / k, h: p.c.height / k, dx: dx / dl, dy: dy / dl, rot: rand(-0.9, 0.9), dist: rand(18, 46) };
+  });
+  ui.trans.slabC = [vcx, vcy];
+  burst(vcx, vcy, 40, ['#ffffff', '#ff2e45', '#ffd23f'], 520, 40, 3, 0.6);
+  shock(vcx, vcy, 0.4, 120);
+}
+function fragPose(f, t) {
+  const u = clamp(t / 0.4, 0, 1), e = 1 - Math.pow(1 - u, 3);
+  return [f.vx + f.dx * f.dist * e, f.vy + f.dy * f.dist * e, f.rot * e];
+}
+function drawSlabFrags() {
+  for (const f of ui.trans.frags) {
+    const [x, y, r] = fragPose(f, ui.trans.t);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(r); ctx.drawImage(f.c, f.ow, f.oh, f.w, f.h); ctx.restore();
+  }
+  drawRings();
+}
 function menuDown(x, y) {
   ui.mx = x; ui.my = y;
+  (ui.clicks = ui.clicks || []).push({ x, y, t: 0 });
+  if (ui.screen === 'intro') { if (ui.enter > 0.6) { startMusic(); sfx.menuSelect(); ui.screen = 'main'; ui.enter = 0; } return; }
   if (ui.trans || ui.enter < 0.3) return;
   let hit = null;
   for (let i = hitList.length - 1; i >= 0; i--) if (inQuad(hitList[i].q, x, y)) { hit = hitList[i]; break; }
-  if (ui.screen === 'shop' && !hit && Math.abs(x - CX) < 70 && y > 160 && y < 460) { ui.drag = { x, last: x }; return; }
+  if (ui.screen === 'shop' && !hit && Math.abs(x - CX) < 90 && y > 160 && y < 460) { ui.drag = { x, last: x }; return; }
   if (!hit) return;
   ui.press[hit.id] = 1;
   if (ui.screen === 'main') { go(hit.id === 'play' ? 'play' : hit.id === 'store' ? 'shop' : 'ency', hit.id); return; }
   if (hit.id === 'back') { go('main'); return; }
   if (ui.screen === 'shop') {
-    if (hit.id === 'prev' || hit.id === 'next') { ui.spinV = hit.id === 'next' ? 16 : -16; sfx.menuTick(); floater('1 / 1', CX, 560, '#fff'); }
+    if (hit.id === 'tabK' || hit.id === 'tabA') { const nt = hit.id === 'tabK' ? 'knife' : 'ability'; if (nt !== (ui.shopTab || 'knife')) { ui.shopTab = nt; ui.spinV = 14; sfx.cardFlip(); } }
+    else if (hit.id === 'prev' || hit.id === 'next') { ui.spinV = hit.id === 'next' ? 16 : -16; sfx.menuTick(); floater('1 / 1', CX, 560, '#fff'); }
     else if (hit.id === 'list') { floater('EQUIPPED', 300, 540, '#b6e05a'); sfx.menuTick(); }
     else { ui.spinV = 9; sfx.menuTick(); }
   } else {
@@ -3675,8 +3862,8 @@ function menuMove(x, y) {
   if (ui.drag) { const d = x - ui.drag.last; ui.spin += d * 0.03; ui.spinV = d * 2; ui.drag.last = x; }
 }
 function menuUp() { ui.drag = null; }
-function enterMenu() {
-  state = 'menu'; ui.screen = 'main'; ui.enter = 0; ui.trans = null; ui.hov = {}; ui.tex = {};
+function enterMenu(intro = false) {
+  state = 'menu'; ui.screen = intro ? 'intro' : 'main'; cv.style.cursor = 'none'; ui.enter = 0; ui.trans = null; ui.hov = {}; ui.tex = {};
   tgt = null; flying = []; debris = []; parts = []; pieces = []; floaters = [];
   setPix(PIX_MENU); cv.style.filter = 'none';
 }
@@ -3700,6 +3887,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
     if (ui.screen === 'ency' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { flipTo(ui.idx + (e.code === 'ArrowRight' ? 1 : -1)); return; }
     if (ui.screen === 'shop' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { ui.spinV = e.code === 'ArrowRight' ? 16 : -16; sfx.menuTick(); return; }
+    if (ui.screen === 'intro' && e.code !== 'KeyM') { menuDown(CX, 450); return; }
   }
   if (state === 'over' && e.code === 'Escape' && overT <= 0) { enterMenu(); return; }
   if (e.repeat) return;
@@ -3715,7 +3903,7 @@ function frame(now) {
   update(dt); draw();
   requestAnimationFrame(frame);
 }
-enterMenu();
+enterMenu(true);
 requestAnimationFrame(frame);
 // test hook
 window.__knaife = { get lives() { return lives; }, get state() { return state; }, get score() { return score; }, get stage() { return stage; }, get knivesLeft() { return knivesLeft; } };
