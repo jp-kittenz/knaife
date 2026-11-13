@@ -870,6 +870,7 @@ function shatterKnife(y) {
 
 function fail(k) {
   k.done = true;
+  if (!k.wood) knivesLeft++;          // the hit never landed: the log keeps that hit point
   if (state !== 'play') {
     const sd = Math.random() < 0.5 ? -1 : 1;
     debris.push({ kind: 'knife', x: CX, y: k.y, vx: sd * rand(380, 560), vy: rand(-460, -260), rot: 0, vr: sd * rand(18, 26) });
