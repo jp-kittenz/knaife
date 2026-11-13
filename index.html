@@ -47,27 +47,49 @@ function load(k, d) { try { const v = localStorage.getItem(k); return v === null
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
 // ---------- audio ----------
-let actx = null, muted = load('knaife.muted', false);
+let actx = null, master = null, verb = null, muted = load('knaife.muted', false);
+function makeIR(a, secs) {
+  const len = Math.floor(a.sampleRate * secs), b = a.createBuffer(2, len, a.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  return b;
+}
 function ac() {
-  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (!actx) {
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+    master = actx.createDynamicsCompressor(); master.threshold.value = -14; master.ratio.value = 6;
+    const mg = actx.createGain(); mg.gain.value = 0.9; master.connect(mg).connect(actx.destination);
+    verb = actx.createConvolver(); verb.buffer = makeIR(actx, 2.6); verb.connect(master);
+  }
   if (actx.state === 'suspended') actx.resume();
   return actx;
 }
-function tone(type, f0, f1, dur, vol) {
-  const a = ac(); if (!a || muted) return;
-  const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
-  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+let driveCurve = null;
+function route(a, node, o) {
+  let n = node;
+  if (o.drive) {
+    if (!driveCurve) { driveCurve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; driveCurve[i] = Math.tanh(x * 4); } }
+    const ws = a.createWaveShaper(); ws.curve = driveCurve; n.connect(ws); n = ws;
+  }
+  n.connect(master);
+  if (o.wet) { const g = a.createGain(); g.gain.value = o.wet; n.connect(g).connect(verb); }
 }
-function noise(dur, freq, q, vol, type = 'bandpass') {
+function tone(type, f0, f1, dur, vol, o = {}) {
   const a = ac(); if (!a || muted) return;
-  const t = a.currentTime, len = Math.max(1, Math.floor(a.sampleRate * dur));
+  const t = a.currentTime + (o.delay || 0), osc = a.createOscillator(), g = a.createGain();
+  osc.type = type; osc.frequency.setValueAtTime(f0, t); osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + (o.attack || 0.003)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g); route(a, g, o); osc.start(t); osc.stop(t + dur + 0.05);
+}
+function noise(dur, freq, q, vol, type = 'bandpass', o = {}) {
+  const a = ac(); if (!a || muted) return;
+  const t = a.currentTime + (o.delay || 0), len = Math.max(1, Math.floor(a.sampleRate * dur));
   const buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
-  s.buffer = buf; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
-  s.connect(f).connect(g).connect(a.destination); s.start(t);
+  const shape = o.rise ? (i => i / len) : (i => Math.pow(1 - i / len, o.curve || 1));
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * shape(i);
+  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = buf; f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q; g.gain.value = vol;
+  if (o.sweepTo) f.frequency.exponentialRampToValueAtTime(o.sweepTo, t + dur);
+  src.connect(f).connect(g); route(a, g, o); src.start(t);
 }
 const sfx = {
   whoosh() { noise(0.07, 3200, 0.8, 0.12); },
@@ -75,8 +97,30 @@ const sfx = {
   clang() { tone('square', 1500, 950, 0.28, 0.08); tone('triangle', 2400, 1900, 0.4, 0.12); noise(0.12, 4500, 2, 0.35); },
   apple() { tone('sine', 620, 1250, 0.13, 0.22); noise(0.06, 2600, 1, 0.25); },
   smash() { noise(0.45, 650, 0.6, 0.7); tone('sine', 130, 40, 0.35, 0.5); },
-  over() { tone('triangle', 420, 110, 0.6, 0.18); },
-  shatter() { noise(0.25, 6000, 0.7, 0.4, 'highpass'); tone('sine', 90, 30, 0.4, 0.6); },
+  over() {
+    tone('sawtooth', 110, 36, 2.2, 0.14, { wet: 0.8, attack: 0.05 });
+    tone('sine', 55, 30, 2.4, 0.5, { wet: 0.4 });
+    for (const [f, d] of [[392, 0], [311, 0.35], [233, 0.7]]) tone('triangle', f, f * 0.97, 1.4, 0.12, { delay: d, wet: 0.9 });
+  },
+  impact() {
+    // the hit: distorted sub boom + crunch
+    tone('sine', 120, 26, 1.4, 1, { drive: true, wet: 0.35 });
+    tone('square', 70, 30, 0.35, 0.25, { drive: true });
+    noise(0.6, 260, 0.7, 1, 'lowpass', { drive: true, wet: 0.5, curve: 2 });
+    // ringing steel: inharmonic partials into a long tail
+    for (const f of [1180, 1733, 2489, 3317, 4410]) tone('sine', f, f * 0.985, 1.8, 0.07, { wet: 0.9 });
+    // glass: a bright crash then a rain of tinkling shards
+    noise(0.9, 4200, 0.5, 0.7, 'highpass', { wet: 0.6, curve: 2.5 });
+    noise(0.35, 2500, 3, 0.35, 'bandpass', { wet: 0.4 });
+    for (let i = 0; i < 34; i++) {
+      const d = 0.02 + Math.pow(Math.random(), 1.8) * 0.9, f = rand(2600, 9000);
+      tone(Math.random() < 0.5 ? 'sine' : 'triangle', f, f * rand(0.97, 1.02), rand(0.04, 0.22), rand(0.03, 0.1), { delay: d, wet: 0.7 });
+    }
+    // time-freeze: pitch dropping out from under you
+    tone('sawtooth', 600, 45, 0.5, 0.08, { wet: 0.6 });
+  },
+  heart() { tone('square', 330, 160, 0.25, 0.08, { delay: 0.15 }); tone('square', 247, 110, 0.35, 0.08, { delay: 0.3, wet: 0.5 }); },
+  unfreeze() { noise(0.6, 250, 1.5, 0.35, 'bandpass', { sweepTo: 4500, rise: true, wet: 0.5 }); tone('sine', 80, 300, 0.6, 0.12, { attack: 0.4 }); },
 };
 function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
@@ -105,7 +149,26 @@ const MAX_LIVES = 3;
 let lives = MAX_LIVES, heartT = 0;
 // impact sequence: hit-stop freeze -> black & white slow-mo -> fade back to colour
 const HITSTOP = 0.14, GRAY_HOLD = 0.6, IMPACT_TOTAL = 1.2;
-let impactT = 0, impactY = 0, gray = 0, impactLines = [];
+let impactT = 0, impactY = 0, gray = 0, impactLines = [], frac = null, unfrozen = false;
+
+// cracked-glass pattern radiating from the hit point
+function makeFracture() {
+  const rays = [], web = [], n = 13;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU + rand(-0.18, 0.18), len = rand(170, 430), pts = [[0, 0]];
+    for (let r = 0; r < len;) { r += rand(16, 38); const aa = a + rand(-0.1, 0.1); pts.push([Math.cos(aa) * r, Math.sin(aa) * r]); }
+    rays.push({ a, len, pts });
+  }
+  for (const rr of [rand(28, 40), rand(65, 90), rand(115, 150), rand(180, 230)]) {
+    for (let i = 0; i < n; i++) {
+      const A = rays[i], B = rays[(i + 1) % n];
+      if (A.len < rr || B.len < rr || Math.random() < 0.2) continue;
+      const r1 = rr * rand(0.88, 1.12), r2 = rr * rand(0.88, 1.12), mid = (A.a + B.a + (i === n - 1 ? TAU : 0)) / 2, rm = (r1 + r2) / 2 * rand(0.85, 1);
+      web.push([[Math.cos(A.a) * r1, Math.sin(A.a) * r1], [Math.cos(mid) * rm, Math.sin(mid) * rm], [Math.cos(B.a) * r2, Math.sin(B.a) * r2], rr]);
+    }
+  }
+  return { rays, web };
+}
 
 function placeAngles(n, sep, avoid) {
   const out = [];
@@ -258,8 +321,14 @@ function fail(k) {
   k.done = true;
   shatterKnife(k.y);
   burst(CX, k.y, 18, ['#ffffff', '#fff7c2', '#ffd35c'], 420, 40, 3, 0.5);
-  sfx.clang(); sfx.shatter();
-  if (state !== 'play') return;            // a second knife in the same moment costs nothing extra
+  if (state !== 'play') { sfx.clang(); return; }   // a second knife in the same moment costs nothing extra
+  sfx.impact(); sfx.heart();
+  frac = makeFracture(); unfrozen = false;
+  for (let i = 0; i < 24; i++) {
+    const a = rand(TAU), sp = rand(200, 750), pts = [];
+    for (let j = 0; j < 3 + Math.floor(rand(2)); j++) { const r = rand(4, 15), ang = j / 4 * TAU + rand(-0.5, 0.5); pts.push([Math.cos(ang) * r, Math.sin(ang) * r]); }
+    debris.push({ kind: 'glass', x: CX + rand(-10, 10), y: k.y + rand(-10, 10), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, rot: rand(TAU), vr: rand(-14, 14), pts });
+  }
   lives--; heartT = 1;
   impactT = IMPACT_TOTAL; impactY = k.y; gray = 1; shake = 16;
   impactLines = Array.from({ length: 16 }, (_, i) => ({ a: i / 16 * TAU + rand(-0.15, 0.15), r0: rand(40, 70), r1: rand(260, 520), w: rand(2, 7) }));
@@ -303,8 +372,9 @@ function update(dt) {
     if (el < HITSTOP) return;                              // frozen impact frame
     if (el < HITSTOP + 0.3) dt *= 0.3;                     // slow-mo
     gray = el < GRAY_HOLD ? 1 : clamp(1 - (el - GRAY_HOLD) / (IMPACT_TOTAL - GRAY_HOLD), 0, 1);
+    if (el >= GRAY_HOLD && !unfrozen) { unfrozen = true; sfx.unfreeze(); }
     if (impactT <= 0) {
-      gray = 0;
+      gray = 0; frac = null;
       if (lives > 0) state = 'play';
       else { state = 'dying'; overT = 0.4; }
     }
@@ -325,7 +395,7 @@ function update(dt) {
   flying = flying.filter(k => !k.done);
   if (state === 'play' && knivesLeft === 0 && flying.length === 0) clearStage();
 
-  for (const d of debris) { if (d.kind === 'shard') d.vx *= 1 - dt * 1.5; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 1500 * dt; d.rot += d.vr * dt; }
+  for (const d of debris) { if (d.kind === 'shard' || d.kind === 'glass') d.vx *= 1 - dt * 1.5; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 1500 * dt; d.rot += d.vr * dt; }
   debris = debris.filter(d => d.y < H + 220 && d.x > -220 && d.x < W + 220);
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt; p.rot += p.vr * dt; p.life -= dt; }
   parts = parts.filter(p => p.life > 0);
@@ -433,6 +503,12 @@ function drawTarget() {
 function drawDebris(d) {
   ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
   if (d.kind === 'knife') drawKnife();
+  else if (d.kind === 'glass') {
+    ctx.beginPath(); ctx.moveTo(d.pts[0][0], d.pts[0][1]);
+    for (const q of d.pts) ctx.lineTo(q[0], q[1]); ctx.closePath();
+    ctx.fillStyle = 'rgba(225,240,255,.35)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.2; ctx.stroke();
+  }
   else if (d.kind === 'shard') {
     ctx.fillStyle = d.c; ctx.beginPath(); ctx.moveTo(d.pts[0][0], d.pts[0][1]);
     for (const q of d.pts) ctx.lineTo(q[0], q[1]); ctx.closePath(); ctx.fill();
@@ -499,6 +575,32 @@ function drawHeart(c) {
   ctx.fillStyle = c; ctx.beginPath();
   ctx.moveTo(0, 8); ctx.bezierCurveTo(-12, -1, -9, -11, 0, -5); ctx.bezierCurveTo(9, -11, 12, -1, 0, 8);
   ctx.fill();
+}
+
+function drawFracture() {
+  if (!frac) return;
+  const el = IMPACT_TOTAL - impactT, p = clamp(el / 0.1, 0, 1), alpha = el < GRAY_HOLD ? 1 : gray;
+  if (alpha <= 0) return;
+  ctx.save(); ctx.translate(CX, impactY); ctx.globalAlpha = alpha;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  // glassy panes in the innermost ring
+  ctx.fillStyle = 'rgba(255,255,255,.10)';
+  frac.web.forEach((w, i) => { if (w[3] < 100 && i % 2 === 0) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(...w[0]); ctx.lineTo(...w[1]); ctx.lineTo(...w[2]); ctx.closePath(); ctx.fill(); } });
+  const path = () => {
+    ctx.beginPath();
+    for (const r of frac.rays) {
+      const n = Math.max(1, Math.floor(r.pts.length * p));
+      ctx.moveTo(0, 0); for (let i = 1; i < n; i++) ctx.lineTo(...r.pts[i]);
+    }
+    if (p >= 1) for (const w of frac.web) { ctx.moveTo(...w[0]); ctx.lineTo(...w[1]); ctx.lineTo(...w[2]); }
+  };
+  path(); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 4; ctx.stroke();
+  path(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
+  // crushed point of impact
+  ctx.fillStyle = '#fff'; ctx.beginPath();
+  for (let i = 0; i < 16; i++) { const r = i % 2 ? 5 : 15, a = i / 16 * TAU; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
 
 function drawImpact() {
@@ -569,6 +671,7 @@ function draw() {
   ctx.fillStyle = glow; ctx.fillRect(-W, -H, W * 3, H * 3);
 
   if (tgt) drawTarget();
+  drawFracture();
   for (const d of debris) drawDebris(d);
   for (const k of flying) { ctx.save(); ctx.translate(CX, k.y); drawKnife(); ctx.restore(); }
   if ((state === 'play' && knivesLeft > 0) || state === 'menu') {
@@ -586,8 +689,9 @@ function draw() {
   if (state === 'over') drawOver();
   drawMute();
   const el = IMPACT_TOTAL - impactT;
-  const f = state === 'impact' && el < HITSTOP ? 'grayscale(1) contrast(1.8) brightness(1.15)'
-    : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 0.25 * gray).toFixed(3)})` : 'none';
+  // pure two-tone black & white (inverted on the impact frame), easing back to colour
+  const f = state === 'impact' && el < HITSTOP ? 'grayscale(1) contrast(40) invert(1)'
+    : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 39 * Math.pow(gray, 3)).toFixed(3)})` : 'none';
   if (cv.style.filter !== f) cv.style.filter = f;
 }
 
