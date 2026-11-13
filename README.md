@@ -16,3 +16,5 @@ A knife-throwing web game. Open `index.html` in a browser.
   (drag to spin) and banked apples; the encyclopedia covers every log type, branch, boss and mechanic with live demos.
 - Knife: REGULAR KNIFE, ability STRONG THROW (ACTIVE). The store has KNIFE and ABILITY tabs.
 - Music: `assets/music.mp3` (supplied by the project owner) loops from the entry screen; slow-mo lowers its pitch and impacts muffle it.
+- Knives (equip in the store): Regular Knife (Strong Throw), Precision Dagger (Marker), Carving Knife (Knife with a Knife),
+  Conductive Knife (Chain Reaction + passive Overvolt), Kitchen Knife (Cook + passive Get the Bird). Items appear in a tray above the ability button (keys 1 / 2).

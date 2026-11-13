@@ -203,6 +203,17 @@ const sfx = {
     tone('sawtooth', 1200, 60, 0.5, 0.06, { wet: 0.8 });
   },
   playShatter() { noise(0.6, 3800, 0.5, 0.8, 'highpass', { wet: 0.6, curve: 2 }); tone('sine', 110, 30, 0.7, 0.8, { drive: true, wet: 0.5 }); for (let i = 0; i < 24; i++) { const f = rand(2500, 8500); tone('triangle', f, f, rand(0.04, 0.16), 0.06, { delay: Math.pow(Math.random(), 1.6) * 0.5, wet: 0.6 }); } },
+  markerOn() { tone('sine', 880, 1760, 0.15, 0.12, { wet: 0.6 }); tone('square', 1760, 1760, 0.05, 0.05, { delay: 0.15 }); tone('square', 1760, 1760, 0.05, 0.05, { delay: 0.3 }); },
+  markerHit() { tone('sine', 120, 25, 1.4, 1, { drive: true, wet: 0.5 }); noise(0.9, 900, 0.8, 0.9, 'lowpass', { drive: true, wet: 0.6, curve: 1.5 }); for (let i = 0; i < 14; i++) noise(0.04, rand(600, 2400), 3, 0.5, 'bandpass', { delay: rand(0, 0.6), wet: 0.5 }); },
+  shadowRise() { noise(1.6, 120, 1, 0.6, 'lowpass', { rise: true, wet: 1 }); tone('sawtooth', 40, 55, 2, 0.15, { attack: 0.8, wet: 1 }); tone('sine', 30, 28, 2.4, 0.5, { attack: 1, drive: true }); noise(0.4, 300, 6, 0.4, 'bandpass', { delay: 0.9, sweepTo: 150, wet: 1 }); },
+  carve() { for (let i = 0; i < 6; i++) noise(0.09, 1800 + i * 300, 3, 0.35, 'bandpass', { delay: i * 0.06, sweepTo: 900 }); tone('sine', 300, 120, 0.2, 0.2); },
+  pickup() { for (const [f, d] of [[660, 0], [990, 0.07], [1320, 0.14]]) tone('triangle', f, f, 0.18, 0.1, { delay: d, wet: 0.5 }); },
+  woodSplit() { noise(0.12, 1400, 2, 0.8, 'bandpass', { drive: true }); tone('square', 260, 90, 0.12, 0.2); for (let i = 0; i < 5; i++) noise(0.03, rand(900, 2200), 3, 0.35, 'bandpass', { delay: 0.04 + i * 0.03 }); },
+  overvolt() { noise(0.6, 3000, 0.5, 0.8, 'bandpass', { drive: true, wet: 0.6 }); tone('sawtooth', 60, 240, 0.6, 0.25, { drive: true }); tone('square', 120, 480, 0.5, 0.12, { delay: 0.1 }); for (let i = 0; i < 10; i++) noise(0.02, 7000, 1, 0.5, 'highpass', { delay: i * 0.04 }); },
+  cookStart() { tone('triangle', 523, 523, 0.15, 0.1); tone('triangle', 659, 659, 0.15, 0.1, { delay: 0.12 }); tone('triangle', 784, 784, 0.25, 0.1, { delay: 0.24 }); },
+  chop() { noise(0.06, 1200, 1.5, 0.9, 'bandpass', { drive: true }); tone('sine', 160, 60, 0.12, 0.6, { drive: true }); },
+  sizzle() { noise(0.9, 5000, 0.6, 0.35, 'highpass', { curve: 0.6 }); for (let i = 0; i < 16; i++) noise(0.02, rand(3000, 8000), 2, 0.25, 'bandpass', { delay: rand(0, 0.8) }); },
+  heal() { for (const [f, d] of [[523, 0], [659, 0.08], [784, 0.16], [1046, 0.24]]) tone('sine', f, f, 0.4, 0.1, { delay: d, wet: 0.8 }); },
   tick() { tone('square', 1800, 1700, 0.025, 0.04); },
   menuTick() { tone('triangle', 900, 600, 0.06, 0.12); noise(0.03, 3000, 2, 0.15, 'bandpass'); },
   menuSelect() { tone('sine', 120, 40, 0.5, 0.7, { drive: true, wet: 0.6 }); noise(0.5, 400, 1, 0.5, 'bandpass', { sweepTo: 3000, wet: 0.6 }); tone('triangle', 660, 660, 0.4, 0.08, { delay: 0.05, wet: 0.9 }); },
@@ -722,6 +733,7 @@ function newStage() {
   const type = forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   fxp = []; pending = []; zapT = 0;
+  if (abil.state === 'used' && !fx) { abil.state = 'cooldown'; abil.charge = 0; }
   const tn = type === 'plain' ? '' : TYPE_NAME[type];
   banner = boss ? { text: 'BOSS', sub: pal.name + (tn ? ' / ' + tn : ''), t: 1.8, color: '#ff5d6c' } : { text: 'STAGE ' + stage, sub: tn, t: 1.4, color: '#fff' };
   readyT = 0.3;
@@ -741,7 +753,11 @@ function startGame() {
 function throwKnife() {
   if (state !== 'play' || knivesLeft <= 0 || readyT > 0.04 || abil.state === 'arming') return;
   if (stunT > 0) { sfx.denied(); return; }
-  if (abil.state === 'armed') { abilityThrow(); return; }
+  if (abil.state === 'armed') {
+    if (ABILITY.id === 'strong') { abilityThrow(); return; }
+    knivesLeft--; flying.push({ y: KNIFE_Y, done: false, ab: ABILITY.id }); abil.state = 'used';
+    readyT = knivesLeft > 0 ? 0.12 : 0; sfx.heavyThrow(); return;
+  }
   knivesLeft--;
   flying.push({ y: KNIFE_Y, done: false });
   readyT = knivesLeft > 0 ? 0.12 : 0;
@@ -770,7 +786,9 @@ function stepKnife(k) {
   const tip = k.y;
   if (k.ability) k.trail.push(tip);
   // hit another knife?
+  let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
+    if (hitWood) { hitWood = false; }
     const w = t.rot + s.a;
     if (angDiff(w, HALF) > 0.7) continue;
     const sk = R - EMBED - (s.sink || 0), bw = w + knifeTilt(s), ex = CX + Math.cos(w) * sk, ey = CY + Math.sin(w) * sk;
@@ -779,6 +797,12 @@ function stepKnife(k) {
       const px = ex + r * c, py = ey + r * sn, d = px - CX;
       if (Math.abs(d) < 10 && py >= tip && py <= tip + KL) {
         if (s.hidden) { s.hidden = false; s.reveal = 0.001; revealFlash(t, s); for (const b of (t.f ? t.f.bushes : [])) if (b.alive && inArc(s.a, b.a, b.w + 0.05)) { b.alive = false; const [bx, by] = worldAt(t, b.a, R + 8); leafBurst(bx, by, 30, 420); } }
+        if (k.wood) { k.done = true; splitWood(CX, k.y + 30, 0); knivesLeft = Math.max(0, knivesLeft - 1); score++; holdForBranches(t); floater('SPLIT -1', CX, k.y + 50, '#f2cf94'); return; }
+        if (s.wood && !k.ability) {
+          t.stuck.splice(t.stuck.indexOf(s), 1); splitWood(px, py, t.rot + s.a - HALF); k.woodBonus = true;
+          kick(0.18, 0.05, 0.9, 0.5); shocks(px, py, 2, 90); shake = Math.max(shake, 14); floater('SPLIT X2', px, py - 20, '#f2cf94'); sfx.clank(); buzz([30, 20, 40]);
+          hitWood = true; break;
+        }
         if (k.ability) abilityClank(k, s);
         else if (Math.abs(d) >= GRAZE) ricochet(k, s, d, px, py);
         else fail(k);
@@ -786,7 +810,8 @@ function stepKnife(k) {
       }
     }
   }
-  if (!k.ability && featureHits(k, t)) return;
+  if (!k.ability && !k.wood && featureHits(k, t)) return;
+  for (const p of (t.pickups || []).slice()) { const w = t.rot + p.a; if (angDiff(w, HALF) < 0.2 && tip <= CY + R + 30) collectPickup(t, p, w); }
   // slice apples
   for (const ap of t.apples) {
     if (ap.cut) continue;
@@ -796,6 +821,7 @@ function stepKnife(k) {
   // stick
   if (tip <= CY + R - EMBED) {
     if (k.ability) { abilityStick(k); return; }
+    if (k.wood) { woodStick(k, t); return; }
     stickNormal(k, t);
   }
 }
@@ -890,6 +916,7 @@ function resetAbility() {
   abil.state = 'ready'; abil.charge = 0; abil.swirl = null; abil.flash = 0;
   fx = null; tscale = 1; fxFilter = null; slash = 0; ripple = null;
   smoke = []; screenHits = []; floaters = []; rings = [];
+  abil.items = []; abil.birds = 0; abil.ov = 0; abil.need = ABILITY.need; gameTimers.length = 0;
   stunT = 0; stunMax = 2; abil.pauseT = 0; fxp = []; pending = []; zapT = 0; camFocus(CX, CY, 1); cam.kz = cam.kr = 0; cinema(false); aberr = zblur = 0;
 }
 
@@ -902,6 +929,10 @@ function makeSwirl(dir, from, to, dur) {
 function activateAbility() {
   if (state !== 'play' || abil.state !== 'ready' || knivesLeft <= 0 || stunT > 0) return;
   if (abil.pauseT > 0) { sfx.bees(); floater('JAMMED', BTN[0] - 30, BTN[1] - 50, '#ffd23f'); return; }
+  if (ABILITY.mode === 'instant') {
+    if (ABILITY.id === 'cook' && !(abil.birds > 0)) { floater('NO BIRDS CAUGHT', BTN[0] - 70, BTN[1] - 50, '#ffa04a'); sfx.denied(); return; }
+    abil.state = 'arming'; abil.swirl = makeSwirl('in', BTN, [CX, CY], 0.6); sfx.abilityArm(); buzz(15); return;
+  }
   abil.state = 'arming'; abil.swirl = makeSwirl('in', BTN, KNIFE_MID(), 0.6);
   sfx.abilityArm(); buzz(15);
 }
@@ -928,7 +959,8 @@ function updateAbility(rdt) {
     sw.t += rdt;
     if (sw.t >= sw.dur) {
       abil.swirl = null;
-      if (sw.dir === 'in') { abil.state = 'armed'; floater(ABILITY.name, CX, KNIFE_Y - 30, '#ffffff'); sfx.abilityArmed(); buzz([20, 30, 40]); kick(0.07, 0.02, 0.9, 0.5); shocks(CX, KNIFE_Y + KL / 2, 2, 60); burst(CX, KNIFE_Y + KL / 2, 40, ['#fff', '#000'], 360, 0, 4, 0.6); }
+      if (sw.dir === 'in' && ABILITY.mode === 'instant') { abil.state = 'used'; if (ABILITY.id === 'marker') placeMarker(); else if (ABILITY.id === 'cook') startCook(); }
+      else if (sw.dir === 'in') { abil.state = 'armed'; floater(ABILITY.name, CX, KNIFE_Y - 30, '#ffffff'); sfx.abilityArmed(); buzz([20, 30, 40]); kick(0.07, 0.02, 0.9, 0.5); shocks(CX, KNIFE_Y + KL / 2, 2, 60); burst(CX, KNIFE_Y + KL / 2, 40, ['#fff', '#000'], 360, 0, 4, 0.6); }
       else { abil.state = abil.charge >= abil.need ? 'ready' : 'cooldown'; }
     }
   }
@@ -1336,6 +1368,8 @@ function updateFx(rdt) {
       if (fx.k.done && e > 0.8) endFx(fx.lethal ? 'clearing' : 'play');
       break;
     }
+    case 'shadow': updateShadowFx(t); break;
+    case 'cook': updateCookFx(t); break;
     case 'slice':
       fxFilter = TWO_TONE;
       if (t < 0.75) tscale = 0.05;
@@ -1427,7 +1461,7 @@ function drawButtonBody(grey, sc, rot) {
   ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.fill();
   ctx.strokeStyle = grey ? '#55555c' : '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.stroke();
   ctx.strokeStyle = grey ? '#3a3a40' : '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 26, 0, TAU); ctx.stroke();
-  ctx.translate(0, 1); drawLogo(grey ? '#6c6c74' : '#fff', grey ? '#26262b' : '#000');
+  ctx.translate(0, 1); ABILITY.logo(grey ? '#6c6c74' : '#fff', grey ? '#26262b' : '#000');
   ctx.restore();
 }
 
@@ -1462,6 +1496,7 @@ function drawAbilityButton() {
   if (st === 'ready') {
     drawPixelAura(BTN[0], BTN[1], 34, 0.8);
     drawButtonBody(false, 1 + 0.04 * Math.sin(time * 5), 0);
+    if (ABILITY.id === 'cook') text('BIRDS ' + (abil.birds || 0), BTN[0], BTN[1] + 44, 9, abil.birds ? '#ffa04a' : '#5c5c66', 'center', 700);
     if (abil.flash > 0) { ctx.strokeStyle = `rgba(255,255,255,${abil.flash})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(BTN[0], BTN[1], 32 + (1 - abil.flash) * 40, 0, TAU); ctx.stroke(); }
   } else if (st === 'arming' && sw) {
     const u = clamp(sw.t / (sw.dur * 0.7), 0, 1);
@@ -1610,7 +1645,8 @@ function featureHits(k, t) {
 function stickNormal(k, t) {
   const F = t.f, a = normA(HALF - t.rot);
   if (F && F.treehole && inArc(a, F.treehole.a, F.treehole.w)) { swallow(k, t); return; }
-  if (F) for (const z of F.arcs) if (inArc(a, z.a, z.w)) { electrocute(k, t); return; }
+  let ovTrigger = PASSIVE && PASSIVE.id === 'overvolt' && inChainArc(t, a);
+  if (F) for (const z of F.arcs) if (inArc(a, z.a, z.w)) { if (PASSIVE && PASSIVE.id === 'overvolt') { ovTrigger = true; break; } electrocute(k, t); return; }
   k.done = true; chargeAbility();
   const s = { a, wob: 0.09 }; t.stuck.push(s); addMark(t, a);
   t.hit = 1; score++;
@@ -1624,10 +1660,25 @@ function stickNormal(k, t) {
     if (m) { soaked = true; hitMoss(t, m); }
     else { const h = F.holes.find(h => !h.used && inArc(a, h.a, h.w)); if (h) { dmg = 2; h.used = true; holeHit(t, h); } }
   }
+  let marked = false;
+  if (!soaked) {
+    if (k.woodBonus) dmg *= 2;
+    if (t.marker && !t.marker.dead && inArc(a, t.marker.a, 0.14)) { marked = true; dmg = Math.max(dmg, 4); }
+    if (abil.ov > 0) { dmg *= 2; abil.ov--; floater('OVERVOLT X2', CX + 50, CY + R + 40, '#2ad8ff'); burst(CX, CY + R, 30, ['#2ad8ff', '#ffffff'], 400, 0, 3, 0.5); sfx.zap(0.4); }
+  }
+  if (t.marker && !marked && !t.marker.dead) markerMiss(t);
   if (soaked) knivesLeft++;
   else { knivesLeft = Math.max(0, knivesLeft - (dmg - 1)); score += dmg - 1; }
   if (F) for (const b of F.branches) if (b.alive && b.bird && b.bird.on && inArc(a, b.a, 0.5)) scareBird(t, b);
   holdForBranches(t);
+  if (ovTrigger) overvolt();
+  if (k.ab === 'carve') carveHit(t, s);
+  if (k.ab === 'chain') startChain(t, s);
+  if (marked) {
+    markerHit(t, s);
+    if (knivesLeft === 0 && branchesLeft(t) === 0) startShadowCut(s);
+    else { fx = { type: 'hit', t: 0, freeze: 0.25, x: CX, y: CY + R, lines: impactLinesFor(26, 1000) }; state = 'fx'; }
+  }
 }
 
 function holdForBranches(t) {
@@ -1715,6 +1766,7 @@ function killBird(t, b) {
   b.bird.on = false;
   for (let i = 0; i < 30; i++) fxp.push({ kind: 'feather', x, y, vx: rand(-260, 260), vy: rand(-300, 60), ph: rand(TAU), rot: rand(TAU), life: rand(2, 3), max: 3, c: Math.random() < 0.6 ? b.bird.col[0] : b.bird.col[1] });
   burst(x, y, 20, ['#ff2e45', '#a3122a'], 300, 40, 3, 0.8);
+  if (PASSIVE && PASSIVE.id === 'getbird') { b.bird.on = true; getTheBird(t, b); return; }
   sfx.squawk(); loseGame('YOU HIT THE BIRD');
 }
 function breakBush(t, b, byAbility) {
@@ -1886,6 +1938,7 @@ function updateFxp(dt) {
       if (!p.flee) { p.vx += (kx - p.x) * dt * 6; p.vy += (ky - p.y) * dt * 6; }
       p.vx *= 1 - dt * 2; p.vy *= 1 - dt * 2; p.x += (p.vx + Math.sin(p.ph * 3) * 80) * dt; p.y += (p.vy + Math.cos(p.ph * 2.3) * 60) * dt;
     } else if (p.kind === 'bird') { p.vy -= 60 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+    else if (p.kind === 'fly') { p.t += dt; if (p.t >= p.max && !p.fired) { p.fired = true; p.then(); } }
     else if (p.kind === 'splinter') { p.vy += 1100 * dt; p.vx *= 1 - dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
   }
   fxp = fxp.filter(p => p.life > 0);
@@ -1932,6 +1985,477 @@ let ABILITY = KNIFE_ABILITIES.strong;
 const KNIVES = [
   { id: 'regular', name: 'REGULAR KNIFE', lore: 'A plain blade pulled from the mill floor. Honest steel.', ability: KNIFE_ABILITIES.strong },
 ];
+// ======================= KNIVES: designs, logos, abilities =======================
+function steelGrad(x0, x1, dark = false) {
+  const g = ctx.createLinearGradient(x0, 0, x1, 0);
+  if (dark) { g.addColorStop(0, '#38383f'); g.addColorStop(0.5, '#8d8d97'); g.addColorStop(1, '#2a2a31'); }
+  else { g.addColorStop(0, '#727280'); g.addColorStop(0.35, '#c3c3ca'); g.addColorStop(0.55, '#f6f8fb'); g.addColorStop(0.8, '#a8a8b2'); g.addColorStop(1, '#5c5c66'); }
+  return g;
+}
+function poly(pts) { ctx.beginPath(); pts.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1])); ctx.closePath(); }
+
+// Precision Dagger: needle blade, hooked gold quillons, slim wrapped grip, ball pommel
+function drawDaggerVector() {
+  poly([[0, 0], [2.4, 10], [2.6, 64], [-2.6, 64], [-2.4, 10]]); ctx.fillStyle = steelGrad(-2.6, 2.6, true); ctx.fill();
+  ctx.strokeStyle = '#08080a'; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.strokeStyle = '#f0f0f4'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(0, 1); ctx.lineTo(0, 62); ctx.stroke();
+  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-1.4, 40); ctx.lineTo(-1.4, 58); ctx.stroke();
+  // hooked quillons curling back toward the grip
+  ctx.fillStyle = '#c89a1a'; ctx.strokeStyle = '#5e2e10'; ctx.lineWidth = 0.6;
+  for (const sd of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(sd * 2, 63); ctx.quadraticCurveTo(sd * 13, 60, sd * 12, 72); ctx.quadraticCurveTo(sd * 11.5, 80, sd * 8, 84);
+    ctx.quadraticCurveTo(sd * 9.5, 76, sd * 8, 70); ctx.quadraticCurveTo(sd * 6, 67, sd * 2, 68); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = '#ffd23f'; rr(-4, 63, 8, 6, 2); ctx.fill();
+  ctx.fillStyle = '#ffe680'; ctx.fillRect(-3, 63.6, 6, 1);
+  // grip with gold wire wrap
+  ctx.fillStyle = '#16161b'; rr(-2.8, 69, 5.6, 38, 2); ctx.fill();
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 0.7;
+  for (let y = 71; y < 106; y += 3) { ctx.beginPath(); ctx.moveTo(-2.8, y); ctx.lineTo(2.8, y + 1.6); ctx.stroke(); }
+  ctx.fillStyle = '#c89a1a'; rr(-3.6, 106, 7.2, 3, 1); ctx.fill();
+  // ball pommel
+  const pg = ctx.createRadialGradient(-1.5, 111.5, 0.5, 0, 113, 5.5); pg.addColorStop(0, '#fff0cc'); pg.addColorStop(0.4, '#ffd23f'); pg.addColorStop(1, '#5e2e10');
+  ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(0, 113, 5.2, 0, TAU); ctx.fill();
+}
+// Carving Knife: curved drop point, serrated spine, brass collar, bent wooden pistol grip
+function drawCarvingVector() {
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(10, 22, 8, 62); ctx.lineTo(-6, 62);
+  for (let y = 58; y > 16; y -= 7) { ctx.lineTo(-6.5, y); ctx.quadraticCurveTo(-3.5, y - 2, -6, y - 4.5); }
+  ctx.quadraticCurveTo(-5, 6, 0, 0); ctx.closePath();
+  ctx.fillStyle = steelGrad(-6.5, 9); ctx.fill(); ctx.strokeStyle = '#1e1e24'; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0.5, 2); ctx.quadraticCurveTo(9.4, 22, 7.5, 61); ctx.lineTo(4.6, 61); ctx.quadraticCurveTo(5.5, 24, 0.5, 2); ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fill();
+  ctx.fillStyle = '#c89a1a'; rr(-7.5, 61, 17, 6, 2); ctx.fill(); ctx.fillStyle = '#ffe680'; ctx.fillRect(-6.5, 61.6, 15, 1);
+  ctx.beginPath(); ctx.moveTo(-6.5, 67); ctx.lineTo(7.5, 67); ctx.quadraticCurveTo(9, 92, 15, 104); ctx.quadraticCurveTo(19, 117, 8, 118);
+  ctx.quadraticCurveTo(-5, 118, -7, 102); ctx.quadraticCurveTo(-8, 84, -6.5, 67); ctx.closePath();
+  const wg = ctx.createLinearGradient(-8, 0, 16, 0); wg.addColorStop(0, '#874419'); wg.addColorStop(0.4, '#e09a52'); wg.addColorStop(1, '#5e2e10');
+  ctx.fillStyle = wg; ctx.fill(); ctx.strokeStyle = '#2a1408'; ctx.lineWidth = 0.7; ctx.stroke();
+  ctx.save(); ctx.clip(); ctx.strokeStyle = 'rgba(42,20,8,.45)'; ctx.lineWidth = 0.6;
+  for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(-6 + i * 3, 68); ctx.quadraticCurveTo(-4 + i * 3.4, 95, 2 + i * 3, 118); ctx.stroke(); }
+  ctx.restore();
+}
+// Conductive Knife: dark blade with live circuit, copper coil knuckle guard, 100V grip
+function drawConductiveVector() {
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, 16, 6.5, 60); ctx.lineTo(-5.5, 60); ctx.lineTo(-5.5, 18); ctx.quadraticCurveTo(-4, 7, 0, 0); ctx.closePath();
+  ctx.fillStyle = steelGrad(-5.5, 7, true); ctx.fill(); ctx.strokeStyle = '#08080a'; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.strokeStyle = '#2ad8ff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0.5, 6);
+  for (let y = 10; y < 58; y += 6) ctx.lineTo(y % 12 ? 3 : -2, y); ctx.stroke();
+  ctx.strokeStyle = '#c8f4ff'; ctx.lineWidth = 0.4; ctx.stroke();
+  // copper coil knuckle guard
+  ctx.strokeStyle = '#a85e28'; ctx.lineWidth = 4.2; ctx.beginPath(); ctx.moveTo(-5, 61); ctx.bezierCurveTo(-24, 66, -24, 110, -5, 113); ctx.stroke();
+  ctx.strokeStyle = '#ffa04a'; ctx.lineWidth = 2.6; ctx.stroke();
+  ctx.strokeStyle = '#5e2e10'; ctx.lineWidth = 0.8;
+  for (let i = 1; i < 14; i++) { const u = i / 14, x = (1 - u) ** 3 * -5 + 3 * (1 - u) ** 2 * u * -24 + 3 * (1 - u) * u * u * -24 + u ** 3 * -5, y = (1 - u) ** 3 * 61 + 3 * (1 - u) ** 2 * u * 66 + 3 * (1 - u) * u * u * 110 + u ** 3 * 113; ctx.beginPath(); ctx.moveTo(x - 2, y - 1); ctx.lineTo(x + 2, y + 1); ctx.stroke(); }
+  ctx.fillStyle = '#38383f'; rr(-8, 59, 16, 5, 2); ctx.fill();
+  ctx.fillStyle = '#16161b'; rr(-6, 64, 12, 52, 4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(-3.5, 64, 1.4, 52);
+  ctx.fillStyle = '#ffd23f'; ctx.fillRect(-4, 70, 8, 15); ctx.fillStyle = '#16161b';
+  ctx.font = `700 4px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.save(); ctx.translate(0, 77.5); ctx.rotate(HALF); ctx.fillText('100V', 0, 0); ctx.restore();
+  ctx.fillStyle = '#2ad8ff'; ctx.beginPath(); ctx.arc(-1.8, 92, 1.3, 0, TAU); ctx.arc(1.8, 92, 1.3, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#5c5c66'; rr(-6.5, 112, 13, 5, 2); ctx.fill();
+}
+// Kitchen Knife: wide chef's blade, steel bolster, black triple-rivet handle with hanging hole
+function drawKitchenVector() {
+  ctx.beginPath(); ctx.moveTo(-1.5, 0); ctx.lineTo(-6.5, 64); ctx.lineTo(9.5, 64); ctx.quadraticCurveTo(11, 28, -1.5, 0); ctx.closePath();
+  ctx.fillStyle = steelGrad(-6.5, 11); ctx.fill(); ctx.strokeStyle = '#1e1e24'; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-1, 2); ctx.quadraticCurveTo(10.3, 28, 9, 63); ctx.lineTo(6.5, 63); ctx.quadraticCurveTo(7.5, 30, -1, 2); ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fill();
+  ctx.strokeStyle = '#8d8d97'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(-6, 54); ctx.lineTo(7, 54); ctx.stroke();
+  const bg = ctx.createLinearGradient(0, 64, 0, 70); bg.addColorStop(0, '#dcdce2'); bg.addColorStop(1, '#5c5c66');
+  ctx.fillStyle = bg; rr(-7, 63.5, 16, 6, 2); ctx.fill();
+  ctx.fillStyle = '#1e1e24'; rr(-6, 69, 13, 48, 5); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fillRect(-3, 69, 1.5, 48);
+  for (const y of [76, 88, 100]) { ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(0.5, y, 1.8, 0, TAU); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(-0.3, y - 1, 0.8, 0.8); }
+  ctx.fillStyle = '#060608'; ctx.beginPath(); ctx.arc(0.5, 110, 2.6, 0, TAU); ctx.fill();
+}
+// the carved wooden knife (the Carving Knife's pickup)
+function drawWoodKnifeVector() {
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, 18, 6, 60); ctx.lineTo(-5, 60); ctx.quadraticCurveTo(-4.5, 14, 0, 0); ctx.closePath();
+  const g = ctx.createLinearGradient(-5, 0, 7, 0); g.addColorStop(0, '#c97a35'); g.addColorStop(0.5, '#f2cf94'); g.addColorStop(1, '#a85e28');
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = '#5e2e10'; ctx.lineWidth = 0.7; ctx.stroke();
+  ctx.strokeStyle = 'rgba(94,46,16,.5)'; ctx.lineWidth = 0.5; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-3 + i * 2, 8 + i * 4); ctx.lineTo(-3 + i * 2.2, 58); ctx.stroke(); }
+  ctx.fillStyle = '#874419'; rr(-7, 59, 14, 5, 2); ctx.fill();
+  ctx.fillStyle = '#a85e28'; rr(-5.5, 64, 11, 52, 4); ctx.fill();
+  ctx.strokeStyle = '#5e2e10'; ctx.lineWidth = 0.8; for (let y = 70; y < 114; y += 8) { ctx.beginPath(); ctx.moveTo(-5.5, y); ctx.lineTo(5.5, y); ctx.stroke(); }
+}
+
+// ---------- logos (drawn in a ~48 unit box, foreground on background) ----------
+function logoMarker(fg, bg) {
+  ctx.lineCap = 'round'; ctx.strokeStyle = fg; ctx.lineWidth = 1.6;
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-18, -2 + i * 4); ctx.quadraticCurveTo(-2, 8 + i * 2, 8 + i * 3, 18); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(-16, 14); ctx.quadraticCurveTo(2, 6, 18, -10); ctx.lineWidth = 2.2; ctx.stroke();
+  ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(-6, 10); ctx.bezierCurveTo(-18, -4, -14, -20, -4, -20); ctx.bezierCurveTo(6, -20, 10, -6, -6, 10); ctx.fill();
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(-5, -10, 3.8, 0, TAU); ctx.fill();
+  ctx.strokeStyle = fg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(14, 30, 18, -2.4, -1.4); ctx.stroke();
+}
+function logoCarve(fg, bg) {
+  ctx.fillStyle = fg; ctx.strokeStyle = fg; ctx.lineCap = 'round';
+  for (const [x, y, r] of [[-12, -16, 0], [-4, -18, 0.3], [6, -17, -0.2]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(r); poly([[-3, 2], [3, 2], [0, -4]]); ctx.stroke(); ctx.restore(); }
+  ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-10, 8); ctx.bezierCurveTo(-16, -8, 4, -12, 2, 0); ctx.quadraticCurveTo(0, 10, -6, 20); ctx.stroke();
+  ctx.lineWidth = 2; ctx.strokeStyle = bg; ctx.stroke();
+  ctx.fillStyle = fg; poly([[8, 4], [16, -12], [12, -2], [18, -4]]); ctx.fill();
+  ctx.strokeStyle = fg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-2, 20); ctx.lineTo(22, 2); ctx.stroke();
+}
+function logoChain(fg, bg) {
+  ctx.strokeStyle = fg; ctx.fillStyle = fg; ctx.lineWidth = 1.8; ctx.lineJoin = 'miter';
+  ctx.beginPath(); ctx.arc(0, 26, 24, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+  ctx.fillRect(-1.5, -10, 3, 16); ctx.fillRect(-6, -8, 12, 3); poly([[-1.5, -10], [1.5, -10], [0, -18]]); ctx.fill();
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 10, -18); ctx.lineTo(sd * 16, -10); ctx.lineTo(sd * 11, -8); ctx.lineTo(sd * 18, 2); ctx.lineTo(sd * 12, 4); ctx.lineTo(sd * 16, 12); ctx.stroke(); }
+}
+function logoOvervolt(fg, bg) {
+  ctx.fillStyle = fg; ctx.beginPath();
+  for (let i = 0; i < 18; i++) { const a = i / 18 * TAU, r = i % 2 ? 9 : 18 + (i % 4) * 2; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+  ctx.closePath(); ctx.fill();
+  ctx.save(); ctx.rotate(-0.8); ctx.fillStyle = bg; poly([[0, -12], [2.5, -4], [2.5, 8], [-2.5, 8], [-2.5, -4]]); ctx.fill(); ctx.fillRect(-4, 8, 8, 2); ctx.restore();
+  ctx.fillStyle = fg; for (const [x, y] of [[-18, -16], [18, 16]]) { poly([[x, y - 4], [x + 1, y - 1], [x + 4, y], [x + 1, y + 1], [x, y + 4], [x - 1, y + 1], [x - 4, y], [x - 1, y - 1]]); ctx.fill(); }
+}
+function logoCook(fg, bg) {
+  ctx.fillStyle = fg; ctx.strokeStyle = fg; ctx.lineWidth = 1.6;
+  ctx.save(); ctx.translate(2, -12); ctx.rotate(-0.15); poly([[-14, -5], [8, -5], [10, 4], [-12, 6]]); ctx.fill(); rr(8, -2, 10, 4, 2); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.ellipse(-12, 2, 4, 2.6, 0, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.ellipse(12, 3, 4, 2.6, 0, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 14, 16, 6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(0, 13, 6, 2.2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = fg; ctx.fillRect(-16, 14, 32, 4);
+}
+function logoBird(fg, bg) {
+  ctx.fillStyle = fg; ctx.strokeStyle = fg; ctx.lineWidth = 1.4;
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 4, -2); ctx.quadraticCurveTo(sd * 20, -12, sd * 20, 16); ctx.lineTo(sd * 6, 10); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = bg; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(sd * (8 + i * 4), -4 + i * 2); ctx.lineTo(sd * (8 + i * 4), 12); ctx.stroke(); } ctx.strokeStyle = fg; }
+  ctx.beginPath(); ctx.arc(0, -8, 8, 0, TAU); ctx.fill(); poly([[-4, 2], [4, 2], [0, 16]]); ctx.fill();
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(1, -9, 3.6, 0, TAU); ctx.fill(); ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(1.5, -9, 1.6, 0, TAU); ctx.fill();
+  poly([[-3, -5], [3, -5], [0, 0]]); ctx.fillStyle = bg; ctx.fill();
+}
+
+// ---------- registry ----------
+Object.assign(KNIFE_ABILITIES.strong, { id: 'strong', mode: 'arm', logo: (f, b) => drawLogo(f, b) });
+KNIFE_ABILITIES.marker = { id: 'marker', name: 'MARKER', kind: 'ACTIVE', mode: 'instant', need: 5, logo: logoMarker,
+  desc: 'Paints a marker somewhere on the log. Hit it within 3 throws for 4 damage and a cracking blow. If that finishes the log, something in the dark takes the dagger and cuts it in half.' };
+KNIFE_ABILITIES.carve = { id: 'carve', name: 'KNIFE WITH A KNIFE', kind: 'ACTIVE', mode: 'arm', need: 4, logo: logoCarve,
+  desc: 'Your next hit carves a wooden knife out of the log. Hit it to collect it, then throw it from the tray: it deals 1, and splits instead of costing a heart. Hit one stuck in the log for double damage.' };
+KNIFE_ABILITIES.chain = { id: 'chain', name: 'CHAIN REACTION', kind: 'ACTIVE', mode: 'arm', need: 5, logo: logoChain,
+  desc: 'Your next knife arcs to nearby knives, and they to theirs. After 2s every linked knife explodes in blue lightning, 1 damage each.' };
+KNIFE_ABILITIES.cook = { id: 'cook', name: 'COOK', kind: 'ACTIVE', mode: 'instant', need: 3, logo: logoCook,
+  desc: 'Turns a bird you caught into a meal, using the log as a cutting board. Eat it from the tray for +1 heart (not when hearts are full).' };
+const PASSIVES = {
+  overvolt: { id: 'overvolt', name: 'OVERVOLT', kind: 'PASSIVE', logo: logoOvervolt, desc: 'Landing in an electric arc overvolts the knife: double damage for 3 hits. Live wires no longer stun you.' },
+  getbird: { id: 'getbird', name: 'GET THE BIRD', kind: 'PASSIVE', logo: logoBird, desc: 'Hitting a bird no longer ends the run. Each one is caught for cooking.' },
+};
+KNIVES.length = 0;
+KNIVES.push(
+  { id: 'regular', name: 'REGULAR KNIFE', lore: 'A plain blade pulled from the mill floor. Honest steel.', ability: KNIFE_ABILITIES.strong, passive: null, draw: drawKnifeVector, rarity: ['COMMON', 0.2, '#c3c3ca'], speed: ['FAST', 0.75], weight: ['LIGHT', 0.35] },
+  { id: 'dagger', name: 'PRECISION DAGGER', lore: 'Balanced to the gram. It always finds the mark.', ability: KNIFE_ABILITIES.marker, passive: null, draw: drawDaggerVector, rarity: ['RARE', 0.6, '#3a7bff'], speed: ['FASTEST', 0.95], weight: ['FEATHER', 0.15] },
+  { id: 'carving', name: 'CARVING KNIFE', lore: 'Whittles while it works. Smells of fresh pine.', ability: KNIFE_ABILITIES.carve, passive: null, draw: drawCarvingVector, rarity: ['UNCOMMON', 0.4, '#7fbf3a'], speed: ['STEADY', 0.55], weight: ['MEDIUM', 0.55] },
+  { id: 'conductive', name: 'CONDUCTIVE KNIFE', lore: 'Rated 100V. Do not lick the blade.', ability: KNIFE_ABILITIES.chain, passive: PASSIVES.overvolt, draw: drawConductiveVector, rarity: ['EPIC', 0.85, '#9466ff'], speed: ['STEADY', 0.55], weight: ['HEAVY', 0.8] },
+  { id: 'kitchen', name: 'KITCHEN KNIFE', lore: 'From the mill canteen. Still sharp, still hungry.', ability: KNIFE_ABILITIES.cook, passive: PASSIVES.getbird, draw: drawKitchenVector, rarity: ['UNCOMMON', 0.4, '#7fbf3a'], speed: ['FAST', 0.7], weight: ['MEDIUM', 0.5] },
+);
+const knifeById = id => KNIVES.find(k => k.id === id) || KNIVES[0];
+let EQUIP = knifeById(load('knaife.knife', 'regular')).id, PASSIVE = null;
+function equip(id) {
+  EQUIP = knifeById(id).id; save('knaife.knife', EQUIP);
+  const kn = knifeById(EQUIP); ABILITY = kn.ability; PASSIVE = kn.passive; abil.need = ABILITY.need;
+}
+function drawKnifeOf(id) { const kn = knifeById(id); blit(bakeSprite('knife_' + id, -24, -2, 48, KL + 4, kn.draw)); }
+function drawWoodKnife() { blit(bakeSprite('woodknife', -12, -2, 24, KL + 4, drawWoodKnifeVector)); }
+
+// ---------- MARKER ----------
+function placeMarker() {
+  const t = tgt; if (!t) return;
+  let a = 0; for (let i = 0; i < 40; i++) { a = rand(TAU); if (!t.stuck.some(s => angDiff(s.a, a) < 0.3)) break; }
+  t.marker = { a, throws: 3, t: 0 };
+  const [x, y] = worldAt(t, a, R - 12); shock(x, y, 0.4, 70); burst(x, y, 24, ['#ff2e45', '#ffffff'], 300, 0, 3, 0.5);
+  floater('HIT THE MARK', CX, CY - R - 30, '#ff2e45'); sfx.markerOn();
+}
+function drawMarker(t) {
+  const m = t.marker; if (!m) return;
+  ctx.save(); ctx.rotate(m.a); ctx.translate(R - 13, 0);
+  const pu = 0.5 + 0.5 * Math.sin(time * 8), fade = m.dead ? clamp(1 - m.dead, 0, 1) : 1;
+  ctx.globalAlpha = fade;
+  ctx.fillStyle = `rgba(255,46,69,${0.25 + 0.25 * pu})`; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
+  ctx.rotate(time * 2);
+  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 11 + pu * 2, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(0, 0, 16, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.fillStyle = '#fff'; ctx.fillRect(-1, -22, 2, 7); }
+  ctx.fillStyle = '#fff'; ctx.fillRect(-1.5, -1.5, 3, 3);
+  ctx.restore();
+  for (let i = 0; i < m.throws; i++) { const [x, y] = [Math.cos(m.a) * (R + 26), Math.sin(m.a) * (R + 26)]; ctx.fillStyle = '#ff2e45'; ctx.fillRect(x - 5 + i * 4, y - 1, 3, 3); }
+}
+// spreading cracks across the face after a marker hit (log frame)
+function addBigCracks(t, a) {
+  t.bigCracks = t.bigCracks || [];
+  for (let i = 0; i < 7; i++) {
+    let x = Math.cos(a) * (R - 12), y = Math.sin(a) * (R - 12), ang = a + Math.PI + rand(-0.9, 0.9); const pts = [[x, y]];
+    for (let k = 0, n = 5 + Math.floor(rand(4)); k < n; k++) { const l = rand(8, 18); ang += rand(-0.4, 0.4); x += Math.cos(ang) * l; y += Math.sin(ang) * l; if (Math.hypot(x, y) > R - 4) break; pts.push([x, y]); }
+    t.bigCracks.push({ pts, t0: time });
+  }
+}
+function drawBigCracks(t) {
+  if (!t.bigCracks) return;
+  ctx.lineJoin = 'round';
+  for (const c of t.bigCracks) {
+    const g = clamp((time - c.t0) / 0.35, 0, 1), n = Math.max(2, Math.ceil(c.pts.length * g));
+    ctx.beginPath(); for (let i = 0; i < n; i++) ctx[i ? 'lineTo' : 'moveTo'](...c.pts[i]);
+    ctx.strokeStyle = '#08080a'; ctx.lineWidth = 3.2; ctx.stroke(); ctx.strokeStyle = 'rgba(255,122,26,.65)'; ctx.lineWidth = 0.9; ctx.stroke();
+  }
+}
+function markerHit(t, s) {
+  t.marker = null; addBigCracks(t, s.a);
+  const [x, y] = worldAt(t, s.a, R);
+  shocks(x, y, 3, 200); burst(x, y, 90, [t.pal.light, t.pal.dark, '#ff2e45', '#ffffff'], 800, 80, 5, 0.9);
+  for (let i = 0; i < 40; i++) splinter(x, y, t, 700);
+  kick(0.4, 0.08, 1.4, 1.2); shake = 30; floater('MARKED X4', CX, CY + R + 60, '#ff2e45'); sfx.markerHit(); buzz([60, 30, 90]);
+}
+function markerMiss(t) {
+  const m = t.marker; m.throws--;
+  if (m.throws <= 0) { m.dead = 0.001; floater('MARKER LOST', CX, CY - R - 30, '#8d8d97'); sfx.denied(); const [x, y] = worldAt(t, m.a, R); summonButton(x, y); }
+}
+// the one-shot finisher: a shrouded wooden figure takes the dagger and halves the log
+function startShadowCut(s) {
+  fx = { type: 'shadow', t: 0, freeze: 0.25, x: CX, y: CY + R, lines: impactLinesFor(30, 1100), s, boss: tgt.boss, cut: false };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY + 40, 1.15); sfx.shadowRise();
+}
+function updateShadowFx(t) {
+  tscale = t < 1.5 ? 0.08 : 0.5;
+  if (t > 1.42 && !fx.cut) {
+    fx.cut = true;
+    if (tgt) { tgt.stuck = tgt.stuck.filter(x => x !== fx.s); breakTarget(tgt, 1, true); tgt = null; }
+    knivesLeft = 0; slash = 1; shake = 40; kick(-0.4, 0.18, 2.2, 2); shocks(CX, CY, 4, 260);
+    burst(CX, CY, 120, ['#ffffff', '#38383f', '#08080a'], 1200, 0, 4, 0.9); sfx.slice(); sfx.subDrop(); buzz([40, 20, 120]);
+    floater('CUT DOWN', CX, CY - R - 30, '#ffffff');
+  }
+  if (t > 2.3 && !fx.summoned) { fx.summoned = true; summonButton(CX, CY); }
+  if (t > 2.6) endFx('clearing');
+}
+function drawShadowFigure(t) {
+  const rise = clamp((t - 0.25) / 0.6, 0, 1), sink = clamp((t - 1.9) / 0.6, 0, 1), e = (1 - Math.pow(1 - rise, 3)) * (1 - sink);
+  const dark = clamp((t - 0.2) / 0.4, 0, 1) * (1 - sink * 0.9);
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${0.75 * dark})`; ctx.fillRect(-W, -H, W * 3, H * 3);
+  // the figure: tall, bark-skinned, rising from the dark below the log
+  const fx0 = CX - 70, fy0 = H + 60 - e * 420;
+  // red backlight so the silhouette reads against the dark
+  const bl = ctx.createRadialGradient(fx0, fy0 + 40, 10, fx0, fy0 + 40, 220);
+  bl.addColorStop(0, `rgba(255,46,69,${0.55 * e})`); bl.addColorStop(1, 'rgba(255,46,69,0)'); ctx.fillStyle = bl; ctx.fillRect(fx0 - 230, fy0 - 190, 460, 460);
+  ctx.translate(fx0, fy0);
+  const body = [[-34, 400], [-26, 120], [-30, 60], [-18, 10], [0, -6], [20, 8], [30, 60], [26, 120], [36, 400]];
+  ctx.fillStyle = '#0d0905'; poly(body); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,96,112,.85)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = '#5e2e10'; ctx.lineWidth = 1.4;
+  for (let i = 0; i < 9; i++) { const x = -24 + i * 6; ctx.beginPath(); ctx.moveTo(x, 20 + i * 4); ctx.quadraticCurveTo(x + 4, 160, x - 2, 400); ctx.stroke(); }
+  // head with antler-like twigs and glowing eyes
+  ctx.fillStyle = '#0d0905'; ctx.beginPath(); ctx.ellipse(0, -24, 20, 26, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,96,112,.85)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = '#0d0905'; ctx.lineWidth = 3; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 10, -44); ctx.lineTo(sd * 22, -70); ctx.lineTo(sd * 30, -74); ctx.moveTo(sd * 18, -62); ctx.lineTo(sd * 10, -78); ctx.stroke(); }
+  const blink = Math.sin(time * 3) > -0.95;
+  if (blink) for (const sd of [-1, 1]) { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(sd * 8 - 6, -31, 12, 9); ctx.fillStyle = '#ffffff'; ctx.fillRect(sd * 8 - 4, -29, 8, 4); ctx.fillStyle = '#ff2e45'; ctx.fillRect(sd * 8 - 1.5, -29, 3, 4); }
+  // the reaching arm: to the dagger, then up, then down through the log
+  const grab = clamp((t - 0.8) / 0.4, 0, 1), lift = clamp((t - 1.15) / 0.2, 0, 1), swing = clamp((t - 1.35) / 0.12, 0, 1);
+  const hx = (CX - fx0) * (grab) + 26 * (1 - grab), hy0 = (CY + R + 40 - fy0) * grab + 60 * (1 - grab);
+  const hy = hy0 - lift * 230 + swing * 330, hxx = hx + lift * 10;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,96,112,.8)'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(22, 30); ctx.quadraticCurveTo(hxx * 0.6, hy * 0.4, hxx, hy); ctx.stroke();
+  ctx.strokeStyle = '#0d0905'; ctx.lineWidth = 9; ctx.stroke();
+  ctx.lineWidth = 2.5; for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(hxx, hy); ctx.lineTo(hxx + i * 4, hy + 10); ctx.stroke(); }
+  if (grab >= 1) { ctx.save(); ctx.translate(hxx, hy + 4); ctx.rotate(Math.PI); ctx.translate(0, -KL * 0.6); drawKnifeOf('dagger'); ctx.restore(); }
+  ctx.restore();
+  // shroud of drifting shadow
+  for (let i = 0; i < 4; i++) smoke.push({ x: fx0 + rand(-60, 60), y: fy0 + rand(0, 200), vx: rand(-30, 30), vy: rand(-40, -10), r: rand(10, 20), life: 1, max: 1.2, g: 0, c: 'rgba(0,0,0,.6)' });
+}
+
+// ---------- KNIFE WITH A KNIFE ----------
+function carveHit(t, s) {
+  const [x, y] = worldAt(t, s.a, R);
+  for (let i = 0; i < 50; i++) splinter(x, y, t, 520);
+  burst(x, y, 40, [t.pal.light, t.pal.sap || t.pal.light, '#fff0cc'], 420, 60, 3, 0.7);
+  let a = s.a; for (let i = 0; i < 30; i++) { a = normA(s.a + (Math.random() < 0.5 ? -1 : 1) * rand(0.45, 0.85)); if (!t.stuck.some(o => angDiff(o.a, a) < 0.25)) break; }
+  (t.pickups = t.pickups || []).push({ a, kind: 'woodknife', t: 0 });
+  addMark(t, a);
+  floater('CARVED!', CX, CY + R + 60, '#f2cf94'); sfx.carve(); shake = Math.max(shake, 8);
+  summonButton(x, y);
+}
+function drawPickups(t) {
+  for (const p of t.pickups || []) {
+    p.t += 0.016;
+    ctx.save(); ctx.rotate(p.a - HALF); ctx.translate(0, R + 14 + Math.sin(time * 4 + p.a) * 2); ctx.rotate(Math.PI);
+    const sc = 0.32 * Math.min(1, p.t * 3);
+    ctx.strokeStyle = `rgba(255,226,166,${0.5 + 0.5 * Math.sin(time * 6)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.stroke();
+    ctx.scale(sc, sc); ctx.translate(0, -KL / 2); drawWoodKnife();
+    ctx.restore();
+  }
+}
+function collectPickup(t, p, w) {
+  t.pickups.splice(t.pickups.indexOf(p), 1);
+  const x = CX + Math.cos(w) * (R + 14), y = CY + Math.sin(w) * (R + 14);
+  fxp.push({ kind: 'fly', x, y, tx: ITEM_X, ty: ITEM_Y0, t: 0, life: 0.6, max: 0.6, ph: 0, item: p.kind, then: () => abil.items.push(p.kind) });
+  burst(x, y, 20, ['#f2cf94', '#ffffff'], 300, 40, 3, 0.5); floater('WOODEN KNIFE +1', x, y - 24, '#f2cf94'); sfx.pickup();
+}
+function splitWood(x, y, rot) {
+  for (const sd of [-1, 1]) debris.push({ kind: 'woodhalf', side: sd, x: x + sd * 3, y, vx: sd * rand(200, 320), vy: rand(-380, -220), rot, vr: sd * rand(8, 14) });
+  burst(x, y, 30, ['#f2cf94', '#c97a35', '#fff0cc'], 420, 40, 3, 0.6); sfx.woodSplit();
+}
+function throwWoodKnife() {
+  if (state !== 'play' || stunT > 0 || !tgt) return false;
+  flying.push({ y: KNIFE_Y, done: false, wood: true }); sfx.whoosh(); return true;
+}
+function woodStick(k, t) {
+  k.done = true;
+  const a = normA(HALF - t.rot), s = { a, wood: true, wob: 0.1 }; t.stuck.push(s); addMark(t, a); t.hit = 0.7;
+  knivesLeft = Math.max(0, knivesLeft - 1); score++; holdForBranches(t);
+  for (let i = 0; i < 8; i++) splinter(CX, CY + R - 4, t, 300);
+  floater('-1', CX + 30, CY + R + 30, '#f2cf94'); sfx.thunk();
+  if (t.marker) { if (inArc(a, t.marker.a, 0.13)) { t.marker = null; floater('MARK TAKEN', CX, CY - R - 30, '#f2cf94'); } }
+}
+
+// ---------- CHAIN REACTION + OVERVOLT ----------
+function startChain(t, s) {
+  const nodes = [s], links = [], seen = new Set([s]);
+  for (let i = 0; i < nodes.length; i++) for (const o of t.stuck) if (!seen.has(o) && !o.hidden && angDiff(o.a, nodes[i].a) < 0.8) { seen.add(o); nodes.push(o); links.push([nodes[i], o]); }
+  if (nodes.length < 2) { floater('NO CONDUCTORS NEARBY', CX, CY - R - 30, '#2ad8ff'); sfx.zap(0.3); summonButton(CX, CY + R); return; }
+  t.chain = { nodes, links, t: 0 };
+  floater('CHAIN X' + nodes.length, CX, CY - R - 30, '#2ad8ff'); sfx.zap(1); kick(0.08, 0.03, 0.8, 0.3);
+}
+const handlePt = (t, s, f = 0.65) => { const w = t.rot + s.a, r = R - EMBED + KL * f; return [CX + Math.cos(w) * r, CY + Math.sin(w) * r]; };
+function updateChain(t, dt) {
+  const c = t.chain; if (!c) return;
+  c.t += dt;
+  if (c.t >= 2) {
+    t.chain = null;
+    for (const s of c.nodes) {
+      const w = t.rot + s.a, [x, y] = handlePt(t, s, 0.4);
+      shatterKnifeAt(CX + Math.cos(w) * (R - EMBED), CY + Math.sin(w) * (R - EMBED), w + Math.PI, 1.4);
+      burst(x, y, 50, ['#ffffff', '#2ad8ff', '#3a7bff', '#c8f4ff'], 700, 0, 4, 0.7); shock(x, y, 0.5, 120);
+      for (let i = 0; i < 4; i++) fxp.push({ kind: 'bolt', x, y, x2: x + rand(-90, 90), y2: y + rand(-90, 90), life: rand(0.2, 0.5), max: 0.5 });
+    }
+    t.stuck = t.stuck.filter(s => !c.nodes.includes(s));
+    const n = c.nodes.length; knivesLeft = Math.max(0, knivesLeft - n); score += n; holdForBranches(t);
+    zapT = 0.95; kick(0.45, 0.1, 1.8, 1.2); shake = 34; cinema(true, 0.6); setTimeoutGame(() => cinema(false), 0.6);
+    floater('OVERLOAD -' + n, CX, CY - R - 40, '#2ad8ff'); sfx.knifeExplode(); sfx.zap(1.6); buzz([60, 30, 60, 30, 120]);
+    summonButton(CX, CY);
+  }
+}
+function drawChain(t) {
+  const c = t.chain; if (!c) return;
+  const q = Math.floor(time * 24), heat = c.t / 2;
+  for (const [a, b] of c.links) {
+    const [x1, y1] = handlePt(t, a), [x2, y2] = handlePt(t, b);
+    for (let k = 0; k < 2; k++) {
+      ctx.beginPath(); ctx.moveTo(x1, y1);
+      for (let i = 1; i < 8; i++) { const u = i / 8; ctx.lineTo(x1 + (x2 - x1) * u + (hash(i, q + k * 9, 3) - 0.5) * 18, y1 + (y2 - y1) * u + (hash(i, q + k * 9, 4) - 0.5) * 18); }
+      ctx.lineTo(x2, y2); ctx.strokeStyle = k ? '#2ad8ff' : '#ffffff'; ctx.lineWidth = k ? 3 + heat * 3 : 1.2; ctx.stroke();
+    }
+  }
+  for (const s of c.nodes) { const [x, y] = handlePt(t, s, 0.4); ctx.fillStyle = `rgba(42,216,255,${0.3 + 0.4 * Math.sin(time * 30)})`; ctx.beginPath(); ctx.arc(x, y, 10 + heat * 10, 0, TAU); ctx.fill(); }
+}
+function inChainArc(t, a) {
+  if (!t.chain) return false;
+  return t.chain.links.some(([p, q]) => { const mid = normA(p.a + Math.atan2(Math.sin(q.a - p.a), Math.cos(q.a - p.a)) / 2); return inArc(a, mid, angDiff(p.a, q.a) / 2 + 0.05); });
+}
+function overvolt() {
+  abil.ov = 3; zapT = 0.95; kick(0.2, 0.06, 1.4, 0.6); shake = Math.max(shake, 18);
+  for (let i = 0; i < 10; i++) fxp.push({ kind: 'bolt', x: CX + rand(-30, 30), y: CY + R, x2: CX + rand(-50, 50), y2: KNIFE_Y + rand(0, KL), life: rand(0.2, 0.6), max: 0.6 });
+  floater('OVERVOLT!', CX, KNIFE_Y - 40, '#2ad8ff'); sfx.overvolt(); buzz([30, 20, 30, 20, 60]);
+}
+function drawOvervoltAura(ky) {
+  const q = Math.floor(time * 20);
+  ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 20); ctx.translate(CX, ky); drawKnifeGlow('#2ad8ff'); ctx.restore();
+  for (let k = 0; k < 3; k++) {
+    ctx.beginPath(); let x = CX + (hash(k, q, 1) - 0.5) * 30, y = ky + hash(k, q, 2) * 20; ctx.moveTo(x, y);
+    for (let i = 0; i < 6; i++) { x += (hash(k * 7 + i, q, 3) - 0.5) * 22; y += KL / 6; ctx.lineTo(x, y); }
+    ctx.strokeStyle = '#2ad8ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8; ctx.stroke();
+  }
+  text('X2  ' + abil.ov, CX + 34, ky + 20, 12, '#2ad8ff', 'left', 700);
+}
+
+// ---------- COOK + GET THE BIRD ----------
+function startCook() {
+  fx = { type: 'cook', t: 0, freeze: 0, x: CX, y: CY };
+  state = 'fx'; cinema(true, 0.7); camFocus(CX, CY, 1.25); sfx.cookStart();
+}
+function updateCookFx(t) {
+  tscale = 0;
+  const chops = [0.55, 0.85, 1.1, 1.35];
+  fx.chopped = fx.chopped || 0;
+  while (fx.chopped < chops.length && t >= chops[fx.chopped]) { fx.chopped++; sfx.chop(); shake = 8; burst(CX + rand(-10, 10), CY, 14, ['#ffb0b8', '#ffffff', '#ff6070'], 260, 40, 3, 0.4); }
+  if (t > 1.6 && !fx.sizzled) { fx.sizzled = true; sfx.sizzle(); }
+  if (t > 1.6 && t < 2.4 && Math.random() < 0.6) smoke.push({ x: CX + rand(-24, 24), y: CY + rand(-6, 6), vx: rand(-20, 20), vy: rand(-90, -40), r: rand(4, 8), life: 1.2, max: 1.2, g: 200, c: 'rgba(240,240,244,.5)' });
+  if (t > 2.45 && !fx.done) {
+    fx.done = true; abil.birds--;
+    fxp.push({ kind: 'fly', x: CX, y: CY, tx: ITEM_X, ty: ITEM_Y0, t: 0, life: 0.6, max: 0.6, ph: 0, item: 'bird', then: () => abil.items.push('bird') });
+    floater('COOKED!', CX, CY - 60, '#ffa04a'); sfx.pickup();
+  }
+  if (t > 2.6) { summonButton(CX, CY); endFx('play'); }
+}
+function drawRawBird(x, y, s, cooked) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = cooked ? '#a85e28' : '#ffb0b8'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 12, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = cooked ? '#874419' : '#ff8a96'; ctx.beginPath(); ctx.ellipse(-4, 3, 10, 6, 0.3, 0, TAU); ctx.fill();
+  for (const sd of [-1, 1]) { ctx.fillStyle = cooked ? '#874419' : '#ffb0b8'; ctx.beginPath(); ctx.ellipse(16, sd * 7, 7, 4, sd * 0.4, 0, TAU); ctx.fill(); ctx.fillStyle = '#fff0cc'; ctx.fillRect(21, sd * 8 - 1, 5, 2); }
+  if (cooked) { ctx.fillStyle = 'rgba(255,226,166,.6)'; ctx.fillRect(-10, -8, 8, 2); ctx.fillRect(2, -9, 6, 2); }
+  ctx.restore();
+}
+function drawCook(t) {
+  const drop = clamp((t - 0.05) / 0.35, 0, 1), y0 = CY - 200 * (1 - easeOutBounce(drop));
+  ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore();
+  // the log becomes a cutting board: a lit square on its face
+  ctx.save(); ctx.translate(CX, CY); ctx.fillStyle = 'rgba(255,240,204,.18)'; rr(-46, -32, 92, 64, 6); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1.5; rr(-46, -32, 92, 64, 6); ctx.stroke(); ctx.restore();
+  const cooked = t > 1.9, n = fx.chopped || 0;
+  if (n === 0) drawRawBird(CX, y0, 1.1, false);
+  else for (let i = 0; i <= n; i++) { const off = (i - n / 2) * 10 * Math.min(1, (t - 0.55) * 4); drawRawBird(CX + off, CY + (i % 2 ? 3 : -3), 1.1 / Math.sqrt(n + 1) * 1.4, cooked); }
+  if (t > 1.6 && t < 2.4) { const g = clamp((t - 1.6) / 0.3, 0, 1); ctx.fillStyle = `rgba(255,122,26,${0.35 * g * (0.6 + 0.4 * Math.sin(time * 30))})`; ctx.beginPath(); ctx.ellipse(CX, CY + 10, 50, 14, 0, 0, TAU); ctx.fill(); }
+  // the kitchen knife chopping
+  const chops = [0.55, 0.85, 1.1, 1.35];
+  if (t > 0.3 && t < 1.55) {
+    let lift = 1; for (const c of chops) { const d = t - c; if (d > -0.12 && d < 0.1) lift = d < 0 ? -d / 0.12 : d / 0.1; }
+    const i = chops.findIndex(c => t < c + 0.1), x = CX + ((i < 0 ? 3 : i) - 1.5) * 12;
+    ctx.save(); ctx.translate(x - 50, CY - 4 - lift * 60); ctx.rotate(-HALF + 0.1); ctx.scale(1.2, 1.2); drawKnifeOf('kitchen'); ctx.restore();
+  }
+}
+function getTheBird(t, b) {
+  const [x, y] = worldAt(t, b.a, R + b.len * 0.75);
+  b.bird.on = false; abil.birds = (abil.birds || 0) + 1; knivesLeft++;
+  for (let i = 0; i < 30; i++) fxp.push({ kind: 'feather', x, y, vx: rand(-260, 260), vy: rand(-300, 60), ph: rand(TAU), rot: rand(TAU), life: rand(2, 3), max: 3, c: Math.random() < 0.6 ? b.bird.col[0] : b.bird.col[1] });
+  floater('GOT THE BIRD  X' + abil.birds, x, y - 24, '#ffa04a'); sfx.squawk(); shake = Math.max(shake, 8);
+}
+
+// ---------- item tray (above the ability button) and passive tile ----------
+const ITEM_X = BTN[0], ITEM_Y0 = BTN[1] - 72, ITEM_KINDS = ['woodknife', 'bird'];
+function trayEntries() { return ITEM_KINDS.map(k => [k, abil.items.filter(i => i === k).length]).filter(e => e[1] > 0); }
+function drawTray() {
+  trayEntries().forEach(([kind, n], i) => {
+    const x = ITEM_X, y = ITEM_Y0 - i * 52, pu = 1 + Math.sin(time * 4 + i) * 0.04;
+    ctx.save(); ctx.translate(x, y); ctx.scale(pu, pu);
+    ctx.fillStyle = '#000'; rr(-21, -21, 42, 42, 6); ctx.fill(); ctx.strokeStyle = kind === 'bird' ? '#ffa04a' : '#f2cf94'; ctx.lineWidth = 2; rr(-21, -21, 42, 42, 6); ctx.stroke();
+    if (kind === 'woodknife') { ctx.save(); ctx.rotate(-0.7); ctx.scale(0.27, 0.27); ctx.translate(0, -KL / 2); drawWoodKnife(); ctx.restore(); }
+    else drawRawBird(0, 0, 0.75, true);
+    ctx.restore();
+    text('X' + n, x + 16, y + 16, 9, '#ffffff', 'center', 700);
+  });
+  if (PASSIVE) {
+    const x = BTN[0] - 58, y = BTN[1] + 14, on = PASSIVE.id === 'overvolt' ? abil.ov > 0 : (abil.birds || 0) > 0;
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = '#000'; rr(-15, -15, 30, 30, 5); ctx.fill(); ctx.strokeStyle = on ? (PASSIVE.id === 'overvolt' ? '#2ad8ff' : '#ffa04a') : '#38383f'; ctx.lineWidth = 1.5; rr(-15, -15, 30, 30, 5); ctx.stroke();
+    ctx.scale(0.55, 0.55); PASSIVE.logo(on ? '#ffffff' : '#5c5c66', '#000'); ctx.restore();
+    const n = PASSIVE.id === 'overvolt' ? abil.ov : abil.birds || 0;
+    if (n) text(String(n), x + 12, y + 12, 9, PASSIVE.id === 'overvolt' ? '#2ad8ff' : '#ffa04a', 'center', 700);
+  }
+}
+function trayHit(x, y) { const e = trayEntries(); for (let i = 0; i < e.length; i++) if (Math.abs(x - ITEM_X) < 24 && Math.abs(y - (ITEM_Y0 - i * 52)) < 24) return e[i][0]; return null; }
+function useItem(kind) {
+  if (state !== 'play') return;
+  const i = abil.items.indexOf(kind); if (i < 0) return;
+  if (kind === 'bird') {
+    if (lives >= MAX_LIVES) { floater('HEARTS FULL', ITEM_X - 40, ITEM_Y0 - 30, '#8d8d97'); sfx.denied(); return; }
+    abil.items.splice(i, 1); lives++; heartT = 1;
+    const hx = heartX(lives - 1); burst(hx, HEART_Y, 30, ['#ff2e45', '#ff6070', '#ffffff'], 260, 40, 3, 0.7); shock(hx, HEART_Y, 0.4, 50);
+    floater('+1 HEART', CX, KNIFE_Y - 40, '#ff2e45'); sfx.heal(); buzz([20, 40, 20]);
+  } else if (kind === 'woodknife') { if (throwWoodKnife()) abil.items.splice(i, 1); }
+}
+// small helper: run something after game time passes
+const gameTimers = [];
+function setTimeoutGame(f, s) { gameTimers.push({ f, t: s }); }
+function updateGameTimers(dt) { for (const g of gameTimers) { g.t -= dt; if (g.t <= 0 && !g.done) { g.done = true; g.f(); } } for (let i = gameTimers.length - 1; i >= 0; i--) if (gameTimers[i].done) gameTimers.splice(i, 1); }
+
+equip(EQUIP);
+
 let pending = [];
 function updatePending(rdt) { for (const p of pending) { p.t -= rdt; if (p.t <= 0) { p.done = true; p.f(); } } pending = pending.filter(p => !p.done); }
 
@@ -2303,6 +2827,7 @@ function drawFeatureDebris(d) {
     case 'link': ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(0, 0, 3.6, 2.2, 0, 0, TAU); ctx.stroke(); return true;
     case 'tooth': ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(0, -5); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill(); return true;
     case 'hub': ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); return true;
+    case 'woodhalf': ctx.save(); ctx.beginPath(); ctx.rect(d.side < 0 ? -12 : 0, -2, 12, KL + 4); ctx.clip(); ctx.translate(0, -KL / 2); drawWoodKnife(); ctx.restore(); ctx.fillStyle = '#fff0cc'; ctx.fillRect(d.side < 0 ? -1 : 0, -KL / 2, 1, KL); return true;
     case 'clump': ctx.fillStyle = d.c; ctx.fillRect(-d.r, -d.r, d.r * 2, d.r * 2); return true;
     case 'plate': {
       const a1 = d.a1 === undefined ? d.a0 + TAU / 12 : d.a1;
@@ -2318,7 +2843,13 @@ function drawFxp() {
   for (const p of fxp) {
     const a = clamp(p.life / p.max * 2, 0, 1);
     ctx.save(); ctx.globalAlpha = a; ctx.translate(p.x, p.y);
-    if (p.kind === 'splinter') { ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-p.len / 2, -0.9, p.len, 1.8); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-p.len / 2, 0.4, p.len, 0.6); }
+    if (p.kind === 'fly') {
+      const u = clamp(p.t / p.max, 0, 1), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      ctx.translate(-p.x, -p.y); ctx.translate(p.x + (p.tx - p.x) * e, p.y + (p.ty - p.y) * e - Math.sin(u * Math.PI) * 80); ctx.rotate(u * TAU);
+      ctx.globalAlpha = 1;
+      if (p.item === 'bird') drawRawBird(0, 0, 0.8, true); else { ctx.scale(0.3, 0.3); ctx.translate(0, -KL / 2); drawWoodKnife(); }
+    }
+    else if (p.kind === 'splinter') { ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-p.len / 2, -0.9, p.len, 1.8); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-p.len / 2, 0.4, p.len, 0.6); }
     else if (p.kind === 'leaf') { ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.beginPath(); ctx.ellipse(0, 0, 5, 2.4, 0, 0, TAU); ctx.fill(); }
     else if (p.kind === 'feather') { ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-4, -1, 8, 2); ctx.fillStyle = '#fff'; ctx.fillRect(-4, -0.3, 8, 0.6); }
     else if (p.kind === 'bee') drawBee(0, 0, p.ph);
@@ -2427,9 +2958,12 @@ function update(dt) {
     for (const k of t.stuck) if (k.wob) k.wob *= Math.exp(-dt * 4);
     emitSmoke(t, dt);
     updateFeatures(t, dt);
+    updateChain(t, dt);
+    if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
   updateSmoke(dt);
   updateFxp(dt);
+  updateGameTimers(dt);
   readyT = Math.max(0, readyT - dt);
 
   for (const k of flying) {
@@ -2532,9 +3066,10 @@ function bakeSprite(key, x, y, w, h, fn) {
   return (sprites[key] = { c, x, y, w, h });
 }
 function blit(sp) { ctx.drawImage(sp.c, sp.x, sp.y, sp.w, sp.h); }
-function drawKnife() { blit(bakeSprite('knife', -12, -2, 24, KL + 4, drawKnifeVector)); }
-function drawKnifeGlow(col = '#ffffff') {
-  blit(bakeSprite('knifeGlow' + col, -28, -18, 56, KL + 36, g => { g.shadowColor = col; g.shadowBlur = 16 * SPR; drawKnifeVector(); g.shadowBlur = 0; drawKnifeVector(); }));
+function drawKnife() { drawKnifeOf(EQUIP); }
+function drawKnifeGlow(col = '#ffffff', id = EQUIP) {
+  const f = knifeById(id).draw;
+  blit(bakeSprite('knifeGlow' + col + id, -40, -18, 80, KL + 36, g => { g.shadowColor = col; g.shadowBlur = 16 * SPR; f(); g.shadowBlur = 0; f(); }));
 }
 function drawApple(half = 0) { blit(bakeSprite('apple' + half, -22, -22, 44, 44, () => drawAppleVector(half))); }
 // apple in local space, stem pointing toward -y
@@ -2565,14 +3100,14 @@ function drawTarget() {
   ctx.save();
   ctx.translate(CX, CY - 7 * t.hit + drop);
   ctx.scale(1 + 0.05 * t.hit + 0.06 * land, 1 - 0.06 * t.hit - 0.08 * land);
-  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); drawKnife(); ctx.restore(); }
+  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
   drawLogSide(t);
   blit(bakeSprite('logShadow', -R - 40, -R - 26, 2 * R + 80, 2 * R + 80, g => {
     const sg = g.createRadialGradient(0, 14, R * 0.7, 0, 14, R + 34); sg.addColorStop(0, 'rgba(0,0,0,.6)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = sg; g.fillRect(-R - 40, -R - 26, 2 * R + 80, 2 * R + 80);
   }));
   ctx.fillStyle = t.pal.barkLo; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
-  ctx.save(); ctx.rotate(t.rot); drawFace(t); drawCraters(t); drawFeaturesOnFace(t); ctx.restore();
+  ctx.save(); ctx.rotate(t.rot); drawFace(t); drawCraters(t); drawFeaturesOnFace(t); drawBigCracks(t); drawMarker(t); ctx.restore();
   drawSawGroove(t);
   blit(bakeSprite('logShade', -R, -R, 2 * R, 2 * R, g => {
     const sh = g.createRadialGradient(-R * 0.35, -R * 0.4, 5, 0, 0, R);
@@ -2584,7 +3119,7 @@ function drawTarget() {
     if (ap.cut) continue;
     ctx.save(); ctx.rotate(t.rot + ap.a - HALF); ctx.translate(0, R + 12); ctx.rotate(Math.PI); drawApple(); ctx.restore();
   }
-  ctx.save(); ctx.rotate(t.rot); drawFeaturesOut(t); ctx.restore();
+  ctx.save(); ctx.rotate(t.rot); drawFeaturesOut(t); drawPickups(t); ctx.restore();
   ctx.restore();
 }
 
@@ -3118,6 +3653,7 @@ function drawScene() {
   drawRings();
   for (const k of flying) {
     if (k.ability) drawAbilityKnife(k);
+    else if (k.wood) { for (let g = 2; g >= 1; g--) { ctx.save(); ctx.globalAlpha = 0.25 / g; ctx.translate(CX, k.y + g * 22); drawWoodKnife(); ctx.restore(); } ctx.save(); ctx.translate(CX, k.y); drawWoodKnife(); ctx.restore(); }
     else {
       for (let g = 3; g >= 1; g--) { ctx.save(); ctx.globalAlpha = 0.28 / g; ctx.translate(CX, k.y + g * 22); drawKnife(); ctx.restore(); }
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(CX - 0.75, k.y + KL, 1.5, 70);
@@ -3125,9 +3661,13 @@ function drawScene() {
     }
   }
   drawSlash();
+  if (tgt) drawChain(tgt);
+  if (fx && fx.type === 'shadow') drawShadowFigure(fx.t);
+  if (fx && fx.type === 'cook') drawCook(fx.t);
   if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0, ky = KNIFE_Y + Math.min(off, 60);
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
+    if (abil.ov > 0) drawOvervoltAura(ky);
     ctx.save(); ctx.globalAlpha = clamp(1 - readyT / 0.15, 0.2, 1); ctx.translate(CX, ky);
     if (stunT > 0) { ctx.translate(0, KL / 2); ctx.rotate(Math.sin(time * 9) * 0.3 * Math.min(1, stunT)); ctx.translate(0, -KL / 2); ctx.globalAlpha *= 0.5; }
     if (abil.state === 'armed') drawKnifeGlow(); else drawKnife();
@@ -3144,7 +3684,7 @@ function drawScene() {
 
   ctx.restore();
   if (state === 'menu') drawMenu();
-  else { drawHUD(); drawBanner(); drawAbilityButton(); }
+  else { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); }
   drawSwirl();
   drawFloaters();
   if (state === 'impact') drawImpact();
@@ -3784,7 +4324,7 @@ function drawKnifeShowcase(x, y, sc) {
   ctx.save(); ctx.translate(x, y + bob); ctx.rotate(0.12 * Math.sin(time * 0.8));
   if (Math.abs(c) < 0.12) { ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-2, -KL * sc / 2, 4, KL * sc * 0.5); ctx.fillStyle = '#8a281c'; ctx.fillRect(-3, 0, 6, KL * sc * 0.5); }
   ctx.scale(c * sc, sc); ctx.translate(0, -KL / 2);
-  drawKnifeGlow();
+  drawKnifeGlow('#ffffff', shopKnife().id);
   if (c < 0) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.fillRect(-12, 0, 24, KL); }
   // glint sweeping along the blade
   const gl = ((time * 0.6) % 1.6) * 70 - 10;
@@ -3793,52 +4333,74 @@ function drawKnifeShowcase(x, y, sc) {
 }
 
 function tabTex(label, on) { return texFor('tab' + label + on, () => slab(92, 30, 'metal', (g, w, h) => { if (on) { g.fillStyle = 'rgba(255,46,69,.35)'; g.fillRect(4, 4, w - 8, h - 8); } etch(g, label, w / 2, h / 2 + 1, 10, on ? '#ffffff' : '#8d8d97', on ? '#ff2e45' : null); })); }
-function drawAbilityShowcase(x, y) {
-  const c = Math.cos(ui.spin * 0.8), bob = Math.sin(time * 1.6) * 8;
-  const g = ctx.createRadialGradient(x, y, 10, x, y, 150); g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(x - 150, y - 150, 300, 300);
-  drawPixelAura(x, y + bob, 88, 0.85);
-  ctx.save(); ctx.translate(x, y + bob);
-  // coin edge for thickness
-  ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.ellipse(4 * Math.sign(c || 1), 0, 72 * Math.max(0.08, Math.abs(c)), 72, 0, 0, TAU); ctx.fill();
-  ctx.scale(Math.max(0.08, Math.abs(c)) * 2.4, 2.4);
+function shopKnife() { if (ui.shopIdx === undefined) ui.shopIdx = Math.max(0, KNIVES.findIndex(k => k.id === EQUIP)); return KNIVES[ui.shopIdx]; }
+function drawCoin(x, y, r, logo, c) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.ellipse(4 * Math.sign(c || 1) * r / 72, 0, r * Math.max(0.08, Math.abs(c)), r, 0, 0, TAU); ctx.fill();
+  ctx.scale(Math.max(0.08, Math.abs(c)) * r / 30, r / 30);
   ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.stroke();
   ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 26, 0, TAU); ctx.stroke();
-  if (c > 0) drawLogo('#fff', '#000'); else { ctx.scale(-1, 1); drawLogo('#c3c3ca', '#000'); }
+  if (c > 0) logo('#fff', '#000'); else { ctx.scale(-1, 1); logo('#c3c3ca', '#000'); }
   ctx.restore();
+}
+function drawAbilityShowcase(x, y) {
+  const kn = shopKnife(), c = Math.cos(ui.spin * 0.8), bob = Math.sin(time * 1.6) * 8;
+  const g = ctx.createRadialGradient(x, y, 10, x, y, 150); g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(x - 150, y - 150, 300, 300);
+  drawPixelAura(x, y + bob, 88, 0.85);
+  drawCoin(x, y + bob, 72, kn.ability.logo, c);
+  if (kn.passive) {
+    const c2 = Math.cos(ui.spin * 0.8 + 1.2), px = x + 64, py = y + 100 + Math.sin(time * 1.9) * 5;
+    drawCoin(px, py, 30, kn.passive.logo, c2);
+    text('PASSIVE', px, py + 40, 8, '#2ad8ff', 'center', 700);
+  }
 }
 function drawShopScreen() {
   drawTitle('SHOP', 52, 34);
-  const kn = KNIVES[0], A = kn.ability, tab = ui.shopTab || 'knife';
+  const kn = shopKnife(), A = kn.ability, P = kn.passive, tab = ui.shopTab || 'knife', id = kn.id;
   const kx = CX + 6, ky = 300;
+  const actCol = '#ff2e45', pasCol = '#2ad8ff';
   let cards;
   if (tab === 'knife') {
     drawKnifeShowcase(kx, ky, 2.15);
     cards = [
-      ['stats', cardTex('shop-stats', 122, 196, 'STATS', [
-        { stat: 'DAMAGE', txt: '1', v: 0.33 }, { stat: 'SPEED', txt: 'FAST', v: 0.75, col: '#2ad8ff' }, { stat: 'WEIGHT', txt: 'LIGHT', v: 0.35, col: '#b6e05a' },
-        { stat: 'ABILITY', txt: A.kind, v: 1, col: A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff' }, { stat: 'RARITY', txt: 'COMMON', v: 0.2, col: '#c3c3ca' }]), 1, [kx - 26, ky + 20]],
-      ['lore', cardTex('shop-lore', 76, 92, 'LORE', [{ text: kn.lore, size: 7 }]), 1, [kx - 8, ky + 92]],
-      ['ability', cardTex('shop-abil2', 108, 176, kn.name, [{ text: 'Ability: ' + A.name, size: 8, col: '#ffffff' }, { text: A.kind, size: 10, col: A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff' }, { text: 'Open the ABILITY tab for details.', size: 7, col: '#8d8d97' }]), -1, [kx + 22, ky - 60]],
+      ['stats', cardTex('ks-' + id, 122, 196, 'STATS', [
+        { stat: 'DAMAGE', txt: '1', v: 0.33 }, { stat: 'SPEED', txt: kn.speed[0], v: kn.speed[1], col: '#2ad8ff' }, { stat: 'WEIGHT', txt: kn.weight[0], v: kn.weight[1], col: '#b6e05a' },
+        { stat: 'ABILITY', txt: P ? 'ACT+PAS' : 'ACTIVE', v: 1, col: actCol }, { stat: 'RARITY', txt: kn.rarity[0], v: kn.rarity[1], col: kn.rarity[2] }]), 1, [kx - 26, ky + 20]],
+      ['lore', cardTex('kl-' + id, 76, 92, 'LORE', [{ text: kn.lore, size: 7 }]), 1, [kx - 8, ky + 92]],
+      ['ability', cardTex('ka-' + id, 108, 176, kn.name, [{ text: 'ACTIVE', size: 8, col: actCol }, { text: A.name, size: 8, col: '#ffffff' },
+        { text: P ? 'PASSIVE' : 'NO PASSIVE', size: 8, col: P ? pasCol : '#5c5c66' }, ...(P ? [{ text: P.name, size: 8, col: '#ffffff' }] : []),
+        { text: 'See the ABILITY tab.', size: 7, col: '#8d8d97' }]), -1, [kx + 22, ky - 60]],
     ];
   } else {
     drawAbilityShowcase(kx, ky);
     cards = [
-      ['stats', cardTex('ab-stats', 122, 196, 'ABILITY STATS', [
-        { stat: 'TYPE', txt: A.kind, v: 1, col: A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff' }, { stat: 'DAMAGE', txt: 'X2', v: 0.66 },
-        { stat: 'RECHARGE', txt: A.need + ' HITS', v: 0.5, col: '#2ad8ff' }, { stat: 'PIERCE', txt: 'YES', v: 1, col: '#ffd23f' }, { stat: 'SLOW-MO', txt: 'YES', v: 1, col: '#b6e05a' }]), 1, [kx - 60, ky + 20]],
-      ['lore', cardTex('ab-type', 76, 92, A.kind, [{ text: A.kind === 'ACTIVE' ? 'You trigger it. Press E or tap the emblem.' : 'Always on.', size: 7 }], A.kind === 'ACTIVE' ? '#ff2e45' : '#2ad8ff'), 1, [kx - 40, ky + 60]],
-      ['ability', cardTex('ab-desc', 108, 176, A.name, [{ text: A.desc, size: 7 }, { text: 'Each log type reacts to it. See the ENCYCLOPEDIA.', size: 7, col: '#ffd23f' }]), -1, [kx + 60, ky - 40]],
+      ['stats', cardTex('as-' + id, 122, 196, 'ABILITY STATS', [
+        { stat: 'TYPE', txt: 'ACTIVE', v: 1, col: actCol }, { stat: 'USE', txt: A.mode === 'arm' ? 'ARM+THROW' : 'INSTANT', v: A.mode === 'arm' ? 0.6 : 1, col: '#ffd23f' },
+        { stat: 'RECHARGE', txt: A.need + ' HITS', v: A.need / 6, col: '#2ad8ff' }, { stat: 'PASSIVE', txt: P ? 'YES' : 'NONE', v: P ? 1 : 0.05, col: pasCol }]), 1, [kx - 60, ky + 20]],
+      ['lore', cardTex('ap-' + id, 76, 92, P ? P.name : 'PASSIVE', [{ text: P ? P.desc : 'This knife has no passive ability.', size: 6 }], P ? pasCol : '#5c5c66'), 1, [kx + 40, ky + 100]],
+      ['ability', cardTex('ad-' + id, 108, 176, A.name, [{ text: A.desc, size: 7 }], actCol), -1, [kx + 60, ky - 40]],
     ];
   }
-  for (const [id, tex, side, anchor] of cards) { const p = livePanel(SHOP[id], id); const q = drawPanel3D(tex, p, 1, (ui.hov[id] || 0) * 0.6, '#ffffff'); regPanel(id, q, p); connector(anchor[0], anchor[1] + Math.sin(time * 1.6) * 8, q, side); }
-  const lt = cardTex('shop-list2', 180, 118, 'KNIFE LIST   1/1', [{ text: '> ' + kn.name, size: 9, col: '#ffffff' }, { text: A.name + ' / ' + A.kind, size: 7, col: '#ff2e45' }, { text: 'EQUIPPED   OWNED', size: 7, col: '#b6e05a' }], '#ffd23f');
+  for (const [cid, tex, side, anchor] of cards) { const p = livePanel(SHOP[cid], cid); const q = drawPanel3D(tex, p, 1, (ui.hov[cid] || 0) * 0.6, '#ffffff'); regPanel(cid, q, p); connector(anchor[0], anchor[1] + Math.sin(time * 1.6) * 8, q, side); }
+  const lt = texFor('klist-' + ui.shopIdx + EQUIP, () => slab(180, 118, 'metal', (g, w, h) => {
+    g.fillStyle = '#ffd23f'; g.fillRect(6, 6, w - 12, 3);
+    etch(g, 'KNIFE LIST   ' + (ui.shopIdx + 1) + '/' + KNIVES.length, 10, 17, 10, '#fff', '#ffd23f', 'left');
+    KNIVES.forEach((k, i) => {
+      const y = 36 + i * 15, sel = i === ui.shopIdx;
+      if (sel) { g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(8, y - 7, w - 16, 14); }
+      g.font = `400 8px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = sel ? '#fff' : '#8d8d97';
+      g.fillText((sel ? '> ' : '  ') + k.name, 12, y);
+      g.textAlign = 'right'; g.fillStyle = k.id === EQUIP ? '#b6e05a' : sel ? '#ffd23f' : '#5c5c66';
+      g.fillText(k.id === EQUIP ? 'EQUIPPED' : sel ? 'TAP=EQUIP' : '', w - 10, y);
+    });
+  }));
   let p = livePanel(SHOP.list, 'list'); regPanel('list', drawPanel3D(lt, p, 1, (ui.hov.list || 0) * 0.6, '#ffd23f'), p);
-  for (const id of ['prev', 'next']) { p = livePanel(SHOP[id], id); regPanel(id, drawPanel3D(arrowTex(id === 'prev' ? -1 : 1), p, 1, (ui.hov[id] || 0), '#ff2e45'), p); }
-  for (const [id, label, key] of [['tabK', 'KNIFE', 'knife'], ['tabA', 'ABILITY', 'ability']]) { p = livePanel(SHOP[id], id); regPanel(id, drawPanel3D(tabTex(label, tab === key), p, 1, (ui.hov[id] || 0), '#ff2e45'), p); }
+  for (const bid of ['prev', 'next']) { p = livePanel(SHOP[bid], bid); regPanel(bid, drawPanel3D(arrowTex(bid === 'prev' ? -1 : 1), p, 1, (ui.hov[bid] || 0), '#ff2e45'), p); }
+  for (const [bid, label, key] of [['tabK', 'KNIFE', 'knife'], ['tabA', 'ABILITY', 'ability']]) { p = livePanel(SHOP[bid], bid); regPanel(bid, drawPanel3D(tabTex(label, tab === key), p, 1, (ui.hov[bid] || 0), '#ff2e45'), p); }
   p = livePanel(SHOP.back, 'back'); regPanel('back', drawPanel3D(backTex(), p, 1, (ui.hov.back || 0), '#ffffff'), p);
   ctx.save(); ctx.translate(W - 70, 50); ctx.scale(0.8, 0.8); drawApple(); ctx.restore(); text(String(ui.bank), W - 52, 51, 14, '#fff', 'left', 700);
-  text(tab === 'knife' ? 'DRAG THE BLADE' : 'DRAG THE EMBLEM', kx, 470, 8, 'rgba(255,255,255,.4)', 'center', 400);
+  text(id === EQUIP ? 'EQUIPPED' : 'TAP THE LIST TO EQUIP', kx, 470, 8, id === EQUIP ? '#b6e05a' : '#ffd23f', 'center', 700);
 }
 
 function drawEncyScreen() {
@@ -4008,8 +4570,12 @@ function menuDown(x, y) {
   if (hit.id === 'back') { go('main'); return; }
   if (ui.screen === 'shop') {
     if (hit.id === 'tabK' || hit.id === 'tabA') { const nt = hit.id === 'tabK' ? 'knife' : 'ability'; if (nt !== (ui.shopTab || 'knife')) { ui.shopTab = nt; ui.spinV = 14; sfx.cardFlip(); } }
-    else if (hit.id === 'prev' || hit.id === 'next') { ui.spinV = hit.id === 'next' ? 16 : -16; sfx.menuTick(); floater('1 / 1', CX, 560, '#fff'); }
-    else if (hit.id === 'list') { floater('EQUIPPED', 300, 540, '#b6e05a'); sfx.menuTick(); }
+    else if (hit.id === 'prev' || hit.id === 'next') { shopKnife(); ui.shopIdx = (ui.shopIdx + (hit.id === 'next' ? 1 : -1) + KNIVES.length) % KNIVES.length; ui.spinV = hit.id === 'next' ? 16 : -16; sfx.cardFlip(); }
+    else if (hit.id === 'list') {
+      shopKnife(); const [, v] = uvAt(hit.p, x, y), row = Math.round((v * 118 - 36) / 15);
+      if (row >= 0 && row < KNIVES.length && row !== ui.shopIdx) { ui.shopIdx = row; ui.spinV = 14; sfx.cardFlip(); }
+      else { const kn = KNIVES[ui.shopIdx]; if (kn.id !== EQUIP) { equip(kn.id); floater('EQUIPPED ' + kn.name, CX, 540, '#b6e05a'); sfx.pickup(); ui.tex = {}; } else { floater('ALREADY EQUIPPED', CX, 540, '#8d8d97'); sfx.menuTick(); } }
+    }
     else { ui.spinV = 9; sfx.menuTick(); }
   } else {
     if (hit.id === 'prev' || hit.id === 'next') flipTo(ui.idx + (hit.id === 'next' ? 1 : -1));
@@ -4091,6 +4657,7 @@ view.addEventListener('pointerdown', e => {
   if (Math.hypot(x - (W - 34), y - 34) < 24) { muted = !muted; save('knaife.muted', muted); ac(); return; }
   if (state === 'menu') { ac(); menuDown(x, y); return; }
   if (state === 'over' && overT <= 0 && y > 600 && y < 650 && Math.abs(x - CX) < 90) { startToMenu(x, y); return; }
+  if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
 });
@@ -4101,7 +4668,8 @@ window.addEventListener('keydown', e => {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
     if (ui.screen === 'ency' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { flipTo(ui.idx + (e.code === 'ArrowRight' ? 1 : -1)); return; }
-    if (ui.screen === 'shop' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { ui.spinV = e.code === 'ArrowRight' ? 16 : -16; sfx.menuTick(); return; }
+    if (ui.screen === 'shop' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { shopKnife(); ui.shopIdx = (ui.shopIdx + (e.code === 'ArrowRight' ? 1 : -1) + KNIVES.length) % KNIVES.length; ui.spinV = e.code === 'ArrowRight' ? 16 : -16; sfx.cardFlip(); return; }
+    if (ui.screen === 'shop' && e.code === 'Enter') { const kn = shopKnife(); equip(kn.id); floater('EQUIPPED ' + kn.name, CX, 540, '#b6e05a'); sfx.pickup(); ui.tex = {}; return; }
     if (ui.screen === 'intro' && e.code !== 'KeyM') { menuDown(CX, 450); return; }
   }
   if (state === 'over' && e.code === 'Escape' && overT <= 0) { startToMenu(CX, 625); return; }
@@ -4109,6 +4677,8 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp') { e.preventDefault(); action(); }
   else if (e.code === 'KeyM') { muted = !muted; save('knaife.muted', muted); }
   else if (e.code === 'KeyE' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { ac(); activateAbility(); }
+  else if (e.code === 'Digit1') useItem('woodknife');
+  else if (e.code === 'Digit2') useItem('bird');
 });
 
 // ---------- loop ----------
