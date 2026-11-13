@@ -251,6 +251,13 @@ const sfx = {
   flicker() { for (const d of [0, 0.09, 0.2, 0.28, 0.41, 0.5, 0.62]) { noise(0.03, 3200, 2, 0.35, 'bandpass', { delay: d }); tone('sawtooth', 100, 100, 0.05, 0.04, { delay: d }); } },
   lightsOff() { noise(0.05, 1400, 3, 0.9, 'bandpass', { drive: true, wet: 1.2 }); tone('square', 80, 40, 0.12, 0.35, { drive: true, wet: 1 }); tone('sine', 100, 30, 0.6, 0.2, { wet: 0.8 }); },
   tick() { tone('square', 1800, 1700, 0.025, 0.04); },
+  ratchet() { tone('square', 2400, 1900, 0.025, 0.05); noise(0.03, 3500, 3, 0.18, 'bandpass'); tone('sine', 180, 120, 0.05, 0.12); },
+  servo() { tone('sawtooth', 180, 620, 0.55, 0.05, { wet: 0.4 }); noise(0.5, 1200, 2, 0.15, 'bandpass', { sweepTo: 3200 }); },
+  splat() { noise(0.3, 600, 0.8, 0.9, 'lowpass', { drive: true, wet: 0.5 }); tone('sine', 150, 45, 0.28, 0.6, { drive: true }); noise(0.45, 2600, 1, 0.3, 'bandpass', { delay: 0.05, sweepTo: 500, curve: 1.5 }); },
+  gearClank() { tone('square', 95, 42, 0.32, 0.3, { drive: true, wet: 0.6 }); tone('triangle', 1320, 1250, 0.6, 0.08, { wet: 1 }); tone('triangle', 1870, 1800, 0.5, 0.05, { wet: 1, delay: 0.01 }); noise(0.15, 2000, 1, 0.6, 'bandpass', { drive: true }); },
+  chainSnap() { noise(0.3, 3600, 1, 0.85, 'bandpass', { drive: true, wet: 0.7 }); tone('square', 1900, 260, 0.22, 0.16); for (let i = 0; i < 10; i++) tone('triangle', rand(1800, 4200), rand(1500, 3000), 0.07, 0.06, { delay: 0.06 + i * 0.045, wet: 0.6 }); },
+  dataChirp() { tone('square', 1500 + Math.floor(Math.random() * 6) * 300, 1500, 0.025, 0.025); },
+  gearGrind() { tone('sawtooth', 62, 48, 1.1, 0.16, { drive: true, wet: 0.8 }); noise(1.0, 1400, 3, 0.35, 'bandpass', { sweepTo: 600, drive: true }); for (let i = 0; i < 9; i++) tone('square', 2200, 1800, 0.02, 0.05, { delay: i * 0.1 }); },
   menuTick() { tone('triangle', 900, 600, 0.06, 0.12); noise(0.03, 3000, 2, 0.15, 'bandpass'); },
   menuSelect() { tone('sine', 120, 40, 0.5, 0.7, { drive: true, wet: 0.6 }); noise(0.5, 400, 1, 0.5, 'bandpass', { sweepTo: 3000, wet: 0.6 }); tone('triangle', 660, 660, 0.4, 0.08, { delay: 0.05, wet: 0.9 }); },
   cardFlip() { noise(0.12, 2500, 1.5, 0.35, 'bandpass', { sweepTo: 900 }); tone('triangle', 500, 900, 0.08, 0.06, { delay: 0.18 }); },
@@ -410,6 +417,7 @@ function updateMusic(rdt) {
   else if (state === 'over') { rate = 0.75; cut = 900; vol = 0.35; }
   else if (state === 'rewind') { rate = rewindT < REW_SWITCH ? 0.7 : 1; cut = rewindT < REW_SWITCH ? 500 : 20000; }
   else if (fx && fx.type === 'tankintro') { rate = 1; cut = fx.t < SHOT.reveal ? 900 + 2600 * clamp(fx.t / SHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'gearintro') { rate = 1; cut = fx.t < GSHOT.reveal ? 700 + 3200 * clamp(fx.t / GSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
   if (zapT > 0) cut = 900;
   if (music.cur === 'boss') vol *= 1.1;
@@ -611,10 +619,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -790,10 +798,10 @@ function newStage() {
   const stuck = placeAngles(pre, 0.6, []);
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
-  const tanker = boss && isTankStage(stage);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage);
   const pal = boss ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss), stuck, appleAngles, boss);
-  const type = tanker ? 'plain' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB ? 'plain' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   fxp = []; pending = []; zapT = 0;
   if (abil.state === 'used' && !fx) { abil.state = 'cooldown'; abil.charge = 0; }
@@ -803,6 +811,7 @@ function newStage() {
   state = 'play';
   waterTarget = 0;
   if (tanker) { setupTanker(tgt); knivesTotal = knivesLeft = TANK_HP; banner.t = 0; startTankIntro(tgt); }
+  if (gearB) { setupGear(tgt); knivesTotal = knivesLeft = GEAR_HP; banner.t = 0; startGearIntro(tgt); }
 }
 
 function startGame() {
@@ -819,7 +828,7 @@ function startGame() {
 function throwKnife() {
   if (state !== 'play' || knivesLeft <= 0 || readyT > 0.04 || abil.state === 'arming') return;
   if (stunT > 0) { sfx.denied(); return; }
-  if (abil.state === 'armed') {
+  if (abil.state === 'armed' && !gearLaneBlocked()) {
     if (ABILITY.id === 'strong') { abilityThrow(); return; }
     knivesLeft--; flying.push({ y: KNIFE_Y, done: false, ab: ABILITY.id }); abil.state = 'used';
     readyT = knivesLeft > 0 ? 0.12 : 0; sfx.heavyThrow(); return;
@@ -851,6 +860,7 @@ function stepKnife(k) {
   if (!t) { if (k.y < -KL - 60) k.done = true; return; }
   const tip = k.y;
   if (k.ability) k.trail.push(tip);
+  if (t.gear && gearChainHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -968,6 +978,7 @@ function breakTarget(t, power = 1, halves = false) {
 function clearStage() {
   const t = tgt;
   if (t.tank && !t.tank.dead) { t.tank.dead = true; startTankDeath(t); return; }
+  if (t.gear && !t.gear.dead) { t.gear.dead = true; startGearDeath(t); return; }
   state = 'clearing'; clearT = CLEAR_TOTAL; clearCues = {};
   breakTarget(t);
   if (t.boss) { banner = { text: 'BOSS DOWN!', sub: '+5 bonus', t: 1.1, color: '#ffd35c' }; score += 5; }
@@ -989,7 +1000,7 @@ function resetAbility() {
   abil.state = 'ready'; abil.charge = 0; abil.swirl = null; abil.flash = 0;
   fx = null; tscale = 1; fxFilter = null; slash = 0; ripple = null;
   smoke = []; screenHits = []; floaters = []; rings = [];
-  waterLevel = waterTarget = 0; screenDrops = []; splashFlash = 0;
+  waterLevel = waterTarget = 0; screenDrops = []; splashFlash = 0; paints = [];
   abil.items = []; abil.birds = 0; abil.ov = 0; abil.need = ABILITY.need; gameTimers.length = 0;
   stunT = 0; stunMax = 2; abil.pauseT = 0; fxp = []; pending = []; zapT = 0; camFocus(CX, CY, 1); cam.kz = cam.kr = 0; cinema(false); aberr = zblur = 0;
 }
@@ -1233,9 +1244,10 @@ function drawStageLights() {
 function drawFloaters() {
   for (const f of floaters) {
     const u = f.t / 1.1, sc = f.t < 0.12 ? 1.8 - 0.8 * f.t / 0.12 : 1;
-    ctx.save(); ctx.globalAlpha = clamp((1 - u) * 2, 0, 1); ctx.translate(f.x, f.y - 40 * u); ctx.scale(sc, sc);
+    ctx.save(); ctx.font = `700 30px ${FONT}`; const fit = Math.min(1, (W - 28) / (f.w || (f.w = ctx.measureText(f.text).width)));
+    ctx.globalAlpha = clamp((1 - u) * 2, 0, 1); ctx.translate(clamp(f.x, 14 + f.w * fit / 2, W - 14 - f.w * fit / 2), f.y - 40 * u); ctx.scale(sc * fit, sc * fit);
     ctx.lineWidth = 5; ctx.strokeStyle = '#000';
-    ctx.font = `700 30px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.strokeText(f.text, 0, 0); ctx.fillStyle = f.color; ctx.fillText(f.text, 0, 0);
     ctx.restore();
   }
@@ -1498,6 +1510,9 @@ function updateFx(rdt) {
     case 'tankintro': updateTankIntro(t); break;
     case 'tankdeath': updateTankDeath(t); break;
     case 'tankphase': updateTankPhase(t); break;
+    case 'gearintro': updateGearIntro(t); break;
+    case 'geardeath': updateGearDeath(t); break;
+    case 'gearsnap': updateGearSnap(t); break;
     case 'catch': updateCatchFx(t); break;
     case 'slice':
       fxFilter = TWO_TONE;
@@ -3294,6 +3309,639 @@ function drawTankIntro(t) {
   if (fx.cutFlash > 0) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${fx.cutFlash})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
 }
 
+// ======================= BOSS: GEARBOX =======================
+const GEAR_PAL = { name: 'GEARBOX', style: 'gear', bark: '#2a2a31', barkHi: '#8d8d97', barkLo: '#0d0d10', sap: '#c89a1a', heart: '#5c5c66',
+  ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.1)', light: '#dcdce2', dark: '#4a4a53', knot: '#2a2a31' };
+const GEAR_HP = 16, GEAR_Y = CY + R + 84, SAT_R = 46, SAT_X = [64, W - 64], CHAIN_Y = GEAR_Y + SAT_R + 5, GEAR_TEETH = 26;
+// how often it swaps, how long the swap holds, how many links you must crack, how much it repairs if you are too slow
+const GSWAP = {
+  1: { every: [8, 10], hold: 6, chain: 3, heal: 3, speed: 105, masters: [0.2, 0.7], sleeves: [[0.32, 0.45], [0.82, 0.95]] },
+  2: { every: [6, 7.5], hold: 5, chain: 4, heal: 4, speed: 140, masters: [0.45], sleeves: [[0.05, 0.2], [0.3, 0.4], [0.55, 0.7], [0.8, 0.93]] },
+};
+const isGearStage = n => n % 25 === 10;           // the second boss slot of each cycle
+const gearPhase = () => knivesLeft > 8 ? 1 : 2;
+let paints = [], beltCache = null;
+
+// ---------- drawing kit: cogs, belts, paint ----------
+function cogPath(r, teeth, th) {
+  const s = TAU / teeth;
+  ctx.beginPath();
+  for (let i = 0; i < teeth; i++) {
+    const a0 = i * s;
+    for (const [a, rr] of [[a0, r], [a0 + s * 0.12, r + th], [a0 + s * 0.45, r + th], [a0 + s * 0.57, r]]) ctx[i || a !== a0 ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+// a gear in the current frame: o.spokes cuts windows, o.wire draws a blueprint outline, light stays fixed while it turns
+function drawCog(x, y, r, teeth, rot, o = {}) {
+  const th = o.th || Math.max(3, r * 0.16);
+  ctx.save(); ctx.translate(x, y); if (o.squash) ctx.scale(o.squash, 1); ctx.rotate(rot);
+  cogPath(r, teeth, th);
+  const n = o.spokes || 0;
+  if (n) { const half = 0.5 / n * 1.2; for (let i = 0; i < n; i++) { const a1 = i / n * TAU + half, a2 = (i + 1) / n * TAU - half; ctx.moveTo(Math.cos(a1) * r * 0.74, Math.sin(a1) * r * 0.74); ctx.arc(0, 0, r * 0.74, a1, a2); ctx.arc(0, 0, r * 0.32, a2, a1, true); ctx.closePath(); } }
+  else { ctx.moveTo(r * 0.16, 0); ctx.arc(0, 0, r * 0.16, 0, TAU, true); }
+  if (o.wire) { ctx.strokeStyle = o.wire; ctx.lineWidth = o.lw || 1.5; ctx.stroke(); ctx.restore(); return; }
+  ctx.fillStyle = o.body || '#727280'; ctx.fill('evenodd');
+  if (o.shade !== false) {
+    const lx = Math.cos(-rot) * -0.6 - Math.sin(-rot) * -0.8, ly = Math.sin(-rot) * -0.6 + Math.cos(-rot) * -0.8, rr = r + th;
+    const g = ctx.createLinearGradient(lx * rr, ly * rr, -lx * rr, -ly * rr); g.addColorStop(0, 'rgba(255,255,255,.38)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.42)');
+    ctx.fillStyle = g; ctx.fill('evenodd');
+  }
+  ctx.strokeStyle = o.lo || '#16161b'; ctx.lineWidth = Math.max(1, r * 0.025); ctx.stroke();
+  if (r > 18) { ctx.strokeStyle = o.hi || 'rgba(255,255,255,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, r * 0.86, 0, TAU); ctx.stroke(); }
+  if (o.hub !== null) {
+    ctx.fillStyle = o.hub || '#c89a1a'; ctx.beginPath(); ctx.arc(0, 0, r * (n ? 0.26 : 0.3), 0, TAU); ctx.arc(0, 0, r * 0.1, 0, TAU, true); ctx.fill('evenodd');
+    if (r > 30) { ctx.fillStyle = '#16161b'; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.fillRect(Math.cos(a) * r * 0.19 - 1.2, Math.sin(a) * r * 0.19 - 1.2, 2.4, 2.4); } }
+  }
+  ctx.restore();
+}
+// baked cogs for big crowds: one sprite per look, drawn rotated
+const cogSprites = new Map();
+function drawCogFast(x, y, r, teeth, rot, o = {}) {
+  const key = [Math.round(r), teeth, o.spokes || 0, o.body, o.hub, o.shade !== false].join('|');
+  let c = cogSprites.get(key);
+  if (!c) {
+    const k = 1.3, h = Math.ceil((r * 1.2 + 3) * k); c = document.createElement('canvas'); c.width = c.height = h * 2;
+    const saved = ctx; ctx = c.getContext('2d'); ctx.translate(h, h); ctx.scale(k, k); drawCog(0, 0, r, teeth, 0, o); ctx = saved;
+    c.h = h / k; cogSprites.set(key, c);
+  }
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.drawImage(c, -c.h, -c.h, c.h * 2, c.h * 2); ctx.restore();
+}
+// extruded: stacked darker copies behind the face give it real thickness
+function drawCog3D(x, y, r, teeth, rot, depth, o = {}) {
+  const n = o.layers || 4;
+  for (let i = n; i >= 1; i--) drawCog(x + depth[0] * i / n, y + depth[1] * i / n, r, teeth, rot, { spokes: o.spokes, body: i === n ? '#08080a' : '#2a2a31', hub: '#45210b', shade: false, hi: 'rgba(0,0,0,0)', lo: '#08080a' });
+  drawCog(x, y, r, teeth, rot, o);
+}
+// a chain loop around two wheels: returns its length and a point+heading for any distance along it
+function beltPath(x1, y1, r1, x2, y2, r2) {
+  const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx), al = Math.acos(clamp((r1 - r2) / d, -1, 1));
+  const P = (cx, cy, r, a) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+  const A0 = P(x1, y1, r1, th + al), A1 = P(x2, y2, r2, th + al), B0 = P(x2, y2, r2, th - al), B1 = P(x1, y1, r1, th - al);
+  const LA = Math.hypot(A1[0] - A0[0], A1[1] - A0[1]), L2 = r2 * 2 * al, L1 = r1 * (TAU - 2 * al), L = LA * 2 + L2 + L1;
+  const hA = Math.atan2(A1[1] - A0[1], A1[0] - A0[0]), hB = Math.atan2(B1[1] - B0[1], B1[0] - B0[0]);
+  const at = s => {
+    s = ((s % L) + L) % L;
+    if (s < LA) { const u = s / LA; return [A0[0] + (A1[0] - A0[0]) * u, A0[1] + (A1[1] - A0[1]) * u, hA]; }
+    s -= LA; if (s < L2) { const a = th + al - s / r2; return [x2 + Math.cos(a) * r2, y2 + Math.sin(a) * r2, a - HALF]; }
+    s -= L2; if (s < LA) { const u = s / LA; return [B0[0] + (B1[0] - B0[0]) * u, B0[1] + (B1[1] - B0[1]) * u, hB]; }
+    s -= LA; const a = th - al - s / r1; return [x1 + Math.cos(a) * r1, y1 + Math.sin(a) * r1, a - HALF];
+  };
+  return { L, LA, at };
+}
+function drawBeltLinks(B, scroll, sp = 8, sc = 1, kind) {
+  const n = Math.floor(B.L / sp);
+  for (let i = 0; i < n; i++) {
+    const c = i * sp, [x, y, a] = B.at(c + scroll), k = kind ? kind(c, i) : 0;
+    if (k === -1) continue;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(sc, sc);
+    if (k === 2) { ctx.fillStyle = '#16161b'; ctx.fillRect(-5, -5, 10, 10); ctx.fillStyle = (i >> 1) % 2 ? '#ffd23f' : '#16161b'; ctx.fillRect(-4, -4, 8, 8); ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(-4, -4, 8, 1.5); }
+    else if (i % 2) {
+      ctx.fillStyle = '#08080a'; ctx.fillRect(-5.5, -3.6, 11, 7.2);
+      ctx.fillStyle = k === 1 ? '#ff2e45' : k === 3 ? '#ff7a1a' : '#8d8d97'; ctx.fillRect(-4.5, -2.6, 9, 5.2);
+      ctx.fillStyle = k === 1 ? '#ffe680' : '#dcdce2'; ctx.fillRect(-4, -0.7, 1.4, 1.4); ctx.fillRect(2.6, -0.7, 1.4, 1.4);
+      if (k === 3) { ctx.fillStyle = '#08080a'; ctx.fillRect(-0.6, -3.6, 1.2, 7.2); }
+    } else { ctx.fillStyle = k === 1 ? '#a3122a' : k === 3 ? '#a85e28' : '#4a4a53'; ctx.fillRect(-4.5, -2, 9, 4); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(-4.5, -2, 9, 1); }
+    ctx.restore();
+    if (k === 1 && i % 2) { ctx.fillStyle = `rgba(255,46,69,${0.22 + 0.18 * Math.sin(time * 10)})`; ctx.beginPath(); ctx.arc(x, y, 11, 0, TAU); ctx.fill(); }
+  }
+}
+function drawSplat(x, y, r, c, seed, age, alpha = 1) {
+  if (age < 0) return;
+  const g = clamp(age / 0.08, 0, 1), rr = r * (0.3 + 0.7 * (1 - Math.pow(1 - g, 3))), dr = clamp((age - 0.08) / 1.4, 0, 1);
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.fillStyle = c;
+  const pts = [];
+  for (let j = 0; j < 24; j++) { const an = j / 24 * TAU, k = 0.78 + 0.22 * hash(j, seed, 1) + (hash(j, seed, 2) > 0.78 ? 0.3 * hash(j, seed, 9) + 0.12 : 0); pts.push([x + Math.cos(an) * rr * k, y + Math.sin(an) * rr * k * 0.9]); }
+  ctx.beginPath(); ctx.moveTo((pts[23][0] + pts[0][0]) / 2, (pts[23][1] + pts[0][1]) / 2);
+  for (let j = 0; j < 24; j++) { const p = pts[j], q = pts[(j + 1) % 24]; ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2); }
+  ctx.closePath(); ctx.fill();
+  for (let i = 0; i < 16; i++) { const an = hash(i, seed, 3) * TAU, d = rr * (1.05 + hash(i, seed, 4) * 0.95), s = (2 + hash(i, seed, 5) * 9) * r / 140; ctx.beginPath(); ctx.arc(x + Math.cos(an) * d, y + Math.sin(an) * d, s * g, 0, TAU); ctx.fill(); }
+  for (let i = 0; i < 6; i++) {
+    const ddx = (hash(i, seed, 6) - 0.5) * rr * 1.3, len = dr * (30 + hash(i, seed, 7) * 100) * r / 140, w = (4 + hash(i, seed, 8) * 6) * r / 140;
+    const y0 = y + Math.sqrt(Math.max(0, 1 - Math.pow(ddx / (rr * 0.8), 2))) * rr * 0.7;
+    ctx.fillRect(x + ddx - w / 2, y0, w, len); ctx.beginPath(); ctx.arc(x + ddx, y0 + len, w * 0.75, 0, TAU); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(x - rr * 0.3, y - rr * 0.35, rr * 0.26, rr * 0.09, -0.5, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function addPaint(x, y, r, c) { paints.push({ x, y, r, c, seed: Math.floor(rand(1e6)), born: time }); }
+function drawPaints() {
+  for (const p of paints) { const age = time - p.born; drawSplat(p.x, p.y, p.r, p.c, p.seed, age, clamp((3.2 - age) / 0.8, 0, 1) * 0.92); }
+  paints = paints.filter(p => time - p.born < 3.2);
+}
+function brackets(x, y, w, h, c, l = 9) {
+  ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.beginPath();
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const px = x + sx * w / 2, py = y + sy * h / 2; ctx.moveTo(px, py - sy * l); ctx.lineTo(px, py); ctx.lineTo(px - sx * l, py); }
+  ctx.stroke();
+}
+
+// ---------- the boss face ----------
+function makeGearTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 4, 0, 0, R);
+  gr.addColorStop(0, '#a8a8b2'); gr.addColorStop(0.5, '#5c5c66'); gr.addColorStop(1, '#1e1e24');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 0.6; for (let r = 5; r < R; r += 2) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+  // six spoke windows with the machine visible behind
+  for (let i = 0; i < 6; i++) {
+    const a1 = i / 6 * TAU + 0.2, a2 = (i + 1) / 6 * TAU - 0.2;
+    g.save(); g.beginPath(); g.arc(0, 0, R - 17, a1, a2); g.arc(0, 0, R * 0.38, a2, a1, true); g.closePath();
+    g.fillStyle = '#08080a'; g.fill(); g.clip();
+    const am = (a1 + a2) / 2, cx = Math.cos(am) * R * 0.62, cy = Math.sin(am) * R * 0.62;
+    g.fillStyle = '#45210b'; g.beginPath(); g.arc(cx + 8, cy + 6, 16, 0, TAU); g.fill();
+    g.strokeStyle = '#c89a1a'; g.lineWidth = 3; g.setLineDash([3, 3]); g.beginPath(); g.arc(cx + 8, cy + 6, 15, 0, TAU); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#16161b'; g.beginPath(); g.arc(cx + 8, cy + 6, 4, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.75)'; g.lineWidth = 8; g.beginPath(); g.arc(0, 0, R - 17, a1, a2); g.arc(0, 0, R * 0.38, a2, a1, true); g.closePath(); g.stroke();
+    g.restore();
+    g.strokeStyle = '#c3c3ca'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R - 17, a1, a2); g.stroke();
+    g.strokeStyle = '#16161b'; g.lineWidth = 1.2; g.beginPath(); g.arc(0, 0, R * 0.38, a1, a2); g.stroke();
+  }
+  // spokes: rivets and a lit edge
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * TAU;
+    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(Math.cos(a - 0.14) * R * 0.4, Math.sin(a - 0.14) * R * 0.4); g.lineTo(Math.cos(a - 0.1) * (R - 18), Math.sin(a - 0.1) * (R - 18)); g.stroke();
+    for (const rr of [R * 0.5, R * 0.63, R * 0.76]) { g.fillStyle = '#16161b'; g.beginPath(); g.arc(Math.cos(a) * rr + 0.5, Math.sin(a) * rr + 0.5, 1.8, 0, TAU); g.fill(); g.fillStyle = '#dcdce2'; g.beginPath(); g.arc(Math.cos(a) * rr, Math.sin(a) * rr, 1.3, 0, TAU); g.fill(); }
+  }
+  // rim band: bolts and a stamped plate
+  g.strokeStyle = '#16161b'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R - 16, 0, TAU); g.stroke();
+  for (let i = 0; i < 30; i++) { const a = i / 30 * TAU, rr = R - 8; g.fillStyle = '#16161b'; g.fillRect(Math.cos(a) * rr - 1.8, Math.sin(a) * rr - 1.8, 3.6, 3.6); g.fillStyle = '#a8a8b2'; g.fillRect(Math.cos(a) * rr - 1.2, Math.sin(a) * rr - 1.4, 2.4, 2.4); }
+  g.save(); g.rotate(-0.55); g.font = `700 6px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(255,210,63,.8)'; g.fillText('GBX-02  //  900 RPM', 0, -R + 4.5); g.restore();
+  // brass hub ring
+  const hg = g.createRadialGradient(-6, -8, 2, 0, 0, R * 0.38); hg.addColorStop(0, '#ffe680'); hg.addColorStop(0.6, '#c89a1a'); hg.addColorStop(1, '#5e2e10');
+  g.fillStyle = hg; g.beginPath(); g.arc(0, 0, R * 0.36, 0, TAU); g.fill();
+  g.fillStyle = '#16161b'; g.beginPath(); g.arc(0, 0, R * 0.24, 0, TAU); g.fill();
+  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + 0.2; g.fillStyle = '#5e2e10'; g.beginPath(); g.arc(Math.cos(a) * R * 0.3, Math.sin(a) * R * 0.3, 2, 0, TAU); g.fill(); g.fillStyle = '#fff0cc'; g.fillRect(Math.cos(a) * R * 0.3 - 0.8, Math.sin(a) * R * 0.3 - 1, 1.2, 1.2); }
+  // scuffs
+  const rnd = mulberry(t.seed);
+  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 0.6;
+  for (let i = 0; i < 22; i++) { const a = rnd() * TAU, r0 = R * (0.4 + rnd() * 0.5); g.beginPath(); g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); g.lineTo(Math.cos(a + 0.1) * r0 + rnd() * 6, Math.sin(a + 0.1) * r0 + rnd() * 6); g.stroke(); }
+  return c;
+}
+function drawGearLive(t) {
+  const T = t.gear, s = TAU / GEAR_TEETH, hw0 = s * R * 0.32, hw1 = s * R * 0.2;
+  for (let i = 0; i < GEAR_TEETH; i++) {
+    if (T.lost.has(i)) continue;
+    ctx.save(); ctx.rotate(i * s);
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(R - 3, -hw0 - 1); ctx.lineTo(R + 12, -hw1 - 1); ctx.lineTo(R + 12, hw1 + 1); ctx.lineTo(R - 3, hw0 + 1); ctx.fill();
+    ctx.fillStyle = T.seize > 0 ? shadeRGB([255, 122, 26], 0.5 + T.seize * 0.5) : '#727280'; ctx.beginPath(); ctx.moveTo(R - 2, -hw0); ctx.lineTo(R + 11, -hw1); ctx.lineTo(R + 11, hw1); ctx.lineTo(R - 2, hw0); ctx.fill();
+    ctx.fillStyle = '#c3c3ca'; ctx.fillRect(R + 8, -hw1, 2.5, hw1 * 2); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(R - 2, 0, 13, hw1);
+    ctx.restore();
+  }
+  // counter-rotating inner cog behind the eye
+  drawCog(0, 0, R * 0.17, 10, -T.inner * 3 - t.rot * 2, { body: '#c89a1a', hub: null, lo: '#5e2e10', shade: true });
+  ctx.save(); ctx.rotate(-t.rot);
+  const col = T.jam > 0 ? [124, 255, 79] : T.sw ? [255, 210, 63] : [255, 46, 69], pul = 0.65 + 0.35 * Math.sin(time * (T.sw ? 16 : 5));
+  const eg = ctx.createRadialGradient(0, 0, 1, 0, 0, 22); eg.addColorStop(0, `rgba(${col},${pul})`); eg.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = eg; ctx.fillRect(-22, -22, 44, 44);
+  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = `rgb(${col})`; ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(-2.5, -3, 2, 2);
+  ctx.restore();
+  if (T.jam > 0) { ctx.fillStyle = 'rgba(124,255,79,.15)'; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+  if (T.seize > 0) {
+    ctx.strokeStyle = `rgba(255,122,26,${T.seize})`; ctx.lineWidth = 1 + T.seize * 2;
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.4, Math.sin(a) * R * 0.4); ctx.lineTo(Math.cos(a + 0.15) * R * 0.65, Math.sin(a + 0.15) * R * 0.65); ctx.lineTo(Math.cos(a + 0.05) * R * 0.95, Math.sin(a + 0.05) * R * 0.95); ctx.stroke(); }
+  }
+}
+
+// ---------- setup and spin ----------
+function setupGear(t) {
+  t.gear = { phase: 1, next: 4, sw: null, ox: 0, oy: 0, s: 1, sats: [], dec: null, jam: 0, seize: 0, lost: new Set(), hide: false, inner: 0, tick: 0, flashHP: 0 };
+  t.pal = GEAR_PAL; t.tex = null; t.stuck = [{ a: 0.7 }, { a: 3.9 }]; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pat = tt => gearSpin(t, tt);
+}
+// a ratcheting escapement: it lurches forward in jolts; in phase 2 the jolts are harder and the drive reverses
+function gearSpin(t, tt) {
+  const T = t.gear; if (!T) return 0;
+  if (T.seize > 0) return Math.sin(tt * 60) * 3 * T.seize;
+  if (T.sw && T.sw.st !== 'build' && T.sw.st !== 'retract') return 2.6;
+  if (T.jam > 0) return Math.sin(tt * 40) * 1.2;
+  const p2 = T.phase === 2, dir = p2 ? (Math.sin(tt * 0.7) >= 0 ? 1 : -1) : 1;
+  return dir * (0.3 + (p2 ? 6.2 : 5) * Math.pow(Math.max(0, Math.sin(tt * (p2 ? 4 : 3.3))), 4));
+}
+const gearBelt = () => beltCache || (beltCache = beltPath(SAT_X[0], GEAR_Y, SAT_R + 5, SAT_X[1], GEAR_Y, SAT_R + 5));
+const chainLive = sw => sw && (sw.st === 'swap' || sw.st === 'held' || sw.st === 'return');
+const gearLaneBlocked = () => !!(tgt && tgt.gear && chainLive(tgt.gear.sw));
+
+// ---------- the special: summon two gears, chain them, swap places with one ----------
+function startSwap(t) {
+  const T = t.gear, ph = T.phase, side = Math.random() < 0.5 ? 0 : 1;
+  T.sw = { st: 'build', t: 0, side, ph, hp: GSWAP[ph].chain, max: GSWAP[ph].chain, scroll: 0, feed: 0, cracks: [] };
+  T.sats = [0, 1].map(i => ({ side: i, x: SAT_X[i], y: GEAR_Y, rot: rand(TAU), dir: i ? -1 : 1, u: 0 }));
+  floater('GEAR SWAP!', CX, CY + R + 46, '#ffd23f'); sfx.servo(); sfx.alarm(); kick(0.08, 0.02, 0.6);
+}
+function placeSwap(T, side, e) {
+  const hx = SAT_X[side], hy = GEAR_Y, bul = Math.sin(e * Math.PI) * 70, sd = side ? 1 : -1;
+  T.ox = (hx - CX) * e + sd * bul * 0.4; T.oy = (hy - CY) * e - bul; T.s = 1 + (SAT_R / R - 1) * e;
+  const D = T.dec; D.x = hx + (CX - hx) * e - sd * bul * 0.4; D.y = hy + (CY - hy) * e + bul * 0.5; D.s = SAT_R / R + (1 - SAT_R / R) * e;
+}
+function updateGear(t, dt) {
+  const T = t.gear;
+  if (fx && (fx.type === 'gearintro' || fx.type === 'geardeath' || fx.type === 'gearsnap')) return;
+  T.inner += dt * 3; T.jam = Math.max(0, T.jam - dt); T.flashHP = Math.max(0, T.flashHP - dt);
+  const pk = Math.floor(t.t * (T.phase === 2 ? 4 : 3.3) / TAU);
+  if (pk !== T.tick) { T.tick = pk; if (!T.sw && T.jam <= 0) sfx.ratchet(); }
+  if (T.phase === 1 && gearPhase() === 2 && state === 'play') {
+    T.phase = 2; floater('OVERDRIVE', CX, CY - R - 30, '#ff2e45'); sfx.alarm(); sfx.gearGrind();
+    shake = Math.max(shake, 14); kick(0.25, 0.06, 1.2, 0.6); shocks(CX, CY, 2, 200); burst(CX, CY, 40, ['#ffd23f', '#ff7a1a', '#ffffff'], 600, 40, 3, 0.6);
+    if (!T.sw) T.next = Math.min(T.next, 2);
+  }
+  const sw = T.sw;
+  if (!sw) { if (state === 'play') { T.next -= dt; if (T.next <= 0) startSwap(t); } return; }
+  const C = GSWAP[sw.ph], A = T.sats[sw.side];
+  sw.t += dt;
+  if (sw.st !== 'build' || sw.t > 0.5) sw.scroll += dt * C.speed;
+  for (const S of T.sats) S.rot += dt * C.speed / SAT_R * S.dir * (sw.st === 'build' ? 0.5 : 1);
+  if (sw.st === 'build') {
+    for (const S of T.sats) S.u = clamp(sw.t / 1.0, 0, 1);
+    sw.feed = clamp((sw.t - 0.5) / 0.7, 0, 1);
+    if (Math.floor(sw.t * 14) !== sw.tk && sw.t < 1.2) { sw.tk = Math.floor(sw.t * 14); sfx.rivet(); }
+    if (sw.t > 0.5 && !sw.chainSnd) { sw.chainSnd = true; sfx.chain(); }
+    if (sw.t >= 1.3) { sw.st = 'swap'; sw.t = 0; A.dec = true; T.dec = { x: A.x, y: A.y, s: SAT_R / R, rot: A.rot }; sfx.servo(); sfx.gearClank(); }
+  } else if (sw.st === 'swap' || sw.st === 'return') {
+    const dur = sw.st === 'swap' ? 1.0 : 0.8, u = clamp(sw.t / dur, 0, 1), e = easeIO(sw.st === 'swap' ? u : 1 - u);
+    placeSwap(T, sw.side, e); T.dec.rot += dt * 6;
+    if (u > 0.5 && !sw.mid) {
+      sw.mid = true; sfx.gearClank(); sfx.ratchet(); shake = Math.max(shake, 12); kick(0.12, 0.04, 0.8);
+      const mx = CX + T.ox, my = CY + T.oy; burst((mx + T.dec.x) / 2, (my + T.dec.y) / 2, 30, ['#ffd23f', '#ffffff', '#ff7a1a'], 520, 60, 3, 0.5);
+    }
+    if (u >= 1) {
+      sw.mid = false;
+      if (sw.st === 'swap') { sw.st = 'held'; sw.t = 0; floater('SNAP THE CHAIN!', CX, CHAIN_Y + 44, '#ffd23f'); sfx.heatWarn(); }
+      else {
+        const before = knivesLeft; knivesLeft = Math.min(GEAR_HP, knivesLeft + C.heal); T.flashHP = 1.2; T.ox = T.oy = 0; T.s = 1;
+        floater('REPAIRED +' + (knivesLeft - before), CX, CY - R - 30, '#7cff4f'); sfx.heal(); sfx.gearClank(); shocks(CX, CY, 2, 150);
+        A.dec = false; T.dec = null; sw.st = 'retract'; sw.t = 0; sfx.servo();
+      }
+    }
+  } else if (sw.st === 'held') {
+    T.dec.rot += dt * 7;
+    if (Math.random() < dt * 20) { const [x, y] = gearBelt().at(rand(gearBelt().L)); parts.push({ x, y, vx: rand(-60, 60), vy: rand(-120, -20), life: 0.3, max: 0.3, c: '#ffd23f', s: 2, rot: 0, vr: 0 }); }
+    if (sw.t >= C.hold) { sw.st = 'return'; sw.t = 0; sfx.servo(); floater('TOO SLOW', CX, CHAIN_Y + 44, '#ff2e45'); }
+  } else if (sw.st === 'retract') {
+    for (const S of T.sats) S.u = clamp(1 - sw.t / 0.6, 0, 1);
+    sw.feed = clamp(1 - sw.t / 0.45, 0, 1);
+    if (sw.t >= 0.6) { T.sw = null; T.sats = []; T.next = rand(...C.every); }
+  }
+}
+// knives meet the drive chain before anything else while the swap is live
+function gearChainHit(k, t) {
+  const T = t.gear, sw = T && T.sw;
+  if (!chainLive(sw) || k.y > CHAIN_Y + 4) return false;
+  const B = gearBelt(), C = GSWAP[sw.ph], c = (((CX - SAT_X[0]) - sw.scroll) % B.L + B.L) % B.L;
+  const cd = (a, b) => { const d = Math.abs(a - b) % B.L; return Math.min(d, B.L - d); };
+  k.done = true; if (!k.wood && !k.ability) knivesLeft++;
+  if (k.ability || C.masters.some(m => cd(c, m * B.L) < 11)) { floater(k.ability ? 'CLEAVED!' : 'MASTER LINK!', CX, CHAIN_Y + 40, '#ff2e45'); snapChain(t); return true; }
+  if (C.sleeves.some(([p, q]) => c >= p * B.L - 4 && c <= q * B.L + 4)) {
+    const sd = Math.random() < 0.5 ? -1 : 1;
+    debris.push({ kind: 'knife', x: CX, y: k.y, vx: sd * rand(420, 600), vy: rand(-480, -260), rot: 0, vr: sd * rand(22, 30) });
+    burst(CX, CHAIN_Y, 22, ['#ffffff', '#ffd23f'], 480, 60, 2.5, 0.4);
+    stunT = 1.1; stunMax = 1.1; shake = Math.max(shake, 8); kick(0.05, 0.02, 0.4);
+    floater('ARMOURED LINK', CX, CHAIN_Y + 40, '#ffd23f'); sfx.ping(); sfx.stun(); buzz([15, 40, 15]);
+    return true;
+  }
+  sw.hp--; sw.cracks.push(c);
+  debris.push({ kind: 'knife', x: CX + rand(-4, 4), y: k.y, vx: rand(-140, 140), vy: rand(-240, -100), rot: 0, vr: rand(-14, 14) });
+  burst(CX, CHAIN_Y, 26, ['#ffd23f', '#ffffff', '#ff7a1a'], 500, 80, 2.5, 0.45); shock(CX, CHAIN_Y, 0.3, 50);
+  shake = Math.max(shake, 7); sfx.clank(); sfx.chain(); buzz(12);
+  if (sw.hp <= 0) snapChain(t); else floater('LINK CRACKED ' + (sw.max - sw.hp) + '/' + sw.max, CX, CHAIN_Y + 40, '#ffa04a');
+  return true;
+}
+function snapChain(t) {
+  const T = t.gear, sw = T.sw, B = gearBelt(), n = Math.floor(B.L / 8);
+  for (let i = 0; i < n; i++) {
+    const [x, y, a] = B.at(i * 8 + sw.scroll), dx = x - CX, dy = y - CHAIN_Y, d = Math.hypot(dx, dy) || 1, sp = rand(250, 800) * (1 - Math.min(1, d / 520) * 0.55);
+    parts.push({ x, y, vx: dx / d * sp + rand(-80, 80), vy: dy / d * sp - rand(150, 420), life: rand(0.8, 1.5), max: 1.5, c: i % 2 ? '#8d8d97' : '#16161b', s: rand(3, 6), rot: a, vr: rand(-14, 14) });
+  }
+  sw.st = 'snapped';
+  for (const S of T.sats) if (!S.dec) { S.fall = true; S.vx = (S.x < CX ? -1 : 1) * rand(140, 240); S.vy = rand(-420, -260); S.vr = rand(-9, 9); }
+  if (!T.dec) T.dec = { x: CX, y: CY, s: 0.01, rot: 0 };
+  fx = { type: 'gearsnap', t: 0, lt: 0, freeze: 0.16, x: CX, y: CHAIN_Y, lines: impactLinesFor(26, 1000), tg: t, from: [T.ox, T.oy, T.s] };
+  state = 'fx'; cinema(true, 1); camFocus(CX, (CY + CHAIN_Y) / 2, 1.15); kick(0.4, 0.1, 1.8, 1.2);
+  shake = 26; shocks(CX, CHAIN_Y, 3, 160); burst(CX, CHAIN_Y, 60, ['#ffd23f', '#ffffff', '#ff7a1a', '#8d8d97'], 900, 60, 3, 0.7);
+  sfx.chainSnap(); sfx.subDrop(); buzz([60, 30, 100]);
+  floater('CHAIN SNAPPED!', CX, CHAIN_Y - 30, '#ffd23f');
+}
+function updateGearSnap(t) {
+  const tg = fx.tg, T = tg.gear, dt = t - fx.lt; fx.lt = t;
+  tscale = t < 0.6 ? 0.3 : 1;
+  const u = clamp((t - 0.1) / 0.35, 0, 1), e = u * u, [x0, y0, s0] = fx.from;
+  T.ox = x0 * (1 - e); T.oy = y0 * (1 - e); T.s = s0 + (1 - s0) * e;
+  for (const S of T.sats) if (S.fall) { S.vy += 1500 * dt; S.x += S.vx * dt; S.y += S.vy * dt; S.rot += S.vr * dt; }
+  if (u >= 1 && !fx.slam) {
+    fx.slam = true;
+    const D = T.dec;
+    if (D && D.s > 0.05) for (let i = 0; i < 28; i++) { const a = rand(TAU), r = rand(10, R * D.s); debris.push({ kind: i % 3 ? 'tooth' : 'cog', r: rand(5, 10), x: D.x + Math.cos(a) * r, y: D.y + Math.sin(a) * r, vx: Math.cos(a) * rand(300, 750), vy: Math.sin(a) * rand(300, 750) - 300, rot: rand(TAU), vr: rand(-20, 20) }); }
+    T.dec = null;
+    const dmg = Math.min(2, knivesLeft); knivesLeft -= dmg; T.jam = 3; T.flashHP = 1;
+    floater('JAMMED  -' + dmg, CX, CY - R - 30, '#7cff4f');
+    shake = 26; kick(0.45, 0.1, 2, 1.4); shocks(CX, CY, 3, 240); burst(CX, CY, 50, ['#ffd23f', '#ffffff', '#c3c3ca'], 800, 60, 3, 0.6);
+    sfx.stamp(); sfx.gearClank(); sfx.subDrop(); buzz([40, 30, 80]);
+  }
+  if (t > 1.15) { T.sw = null; T.sats = []; T.ox = T.oy = 0; T.s = 1; T.next = rand(...GSWAP[T.phase].every) + 2; endFx('play'); }
+}
+function drawSat(S) {
+  const u = S.u, r = SAT_R - 7; if (u <= 0) return;
+  if (u < 1) {
+    ctx.save(); ctx.globalAlpha = 1 - u; drawCog(S.x, S.y, r, 14, S.rot, { wire: '#7cff4f', spokes: 4 }); brackets(S.x, S.y, r * 2.6, r * 2.6, '#7cff4f'); ctx.restore();
+    ctx.save(); ctx.translate(S.x, S.y);
+    for (let i = 0; i < 14; i++) {
+      const k = clamp(u * 1.7 - i / 14 * 0.7, 0, 1), e = 1 - Math.pow(1 - k, 3); if (k <= 0) continue;
+      const a = S.rot + (i + 0.28) / 14 * TAU + (1 - e) * 2.2 * S.dir, rr = r + 3 + (1 - e) * (120 + hash(i, S.side, 91) * 140);
+      ctx.save(); ctx.rotate(a); ctx.translate(rr, 0); ctx.rotate((1 - e) * 8); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-3, -3.5, 8, 7); ctx.fillStyle = '#16161b'; ctx.fillRect(-3, 2.5, 8, 1.5); ctx.restore();
+    }
+    ctx.restore();
+  }
+  const hb = clamp((u - 0.35) / 0.65, 0, 1);
+  if (hb > 0) { ctx.save(); ctx.globalAlpha *= hb; drawCog(S.x, S.y, r * (0.7 + 0.3 * hb), 14, S.rot, { spokes: 4, body: '#8d8d97', hub: '#ff2e45' }); ctx.restore(); }
+}
+function drawGearRig(t) {
+  const T = t.gear; if (!T || T.hide) return;
+  const sw = T.sw;
+  for (const S of T.sats) if (!S.dec) drawSat(S);
+  const D = T.dec;
+  if (D && D.s > 0.05) {
+    const r = (R - 4) * D.s;
+    drawCog(D.x + 5 * D.s, D.y + 6 * D.s, r, 24, D.rot, { spokes: 6, body: '#16161b', hub: '#16161b', shade: false, hi: 'rgba(0,0,0,0)' });
+    drawCog(D.x, D.y, r, 24, D.rot, { spokes: 6, body: '#5c5c66', hub: '#ffd23f' });
+    if (D.s > 0.7) {
+      ctx.save(); ctx.strokeStyle = `rgba(255,46,69,${0.5 + 0.4 * Math.sin(time * 9)})`; ctx.lineWidth = 2.5; ctx.setLineDash([7, 6]); ctx.lineDashOffset = -time * 30;
+      ctx.beginPath(); ctx.arc(D.x, D.y, r + 22, 0, TAU); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(D.x - 28, D.y + r * 0.5 - 9, 56, 16); text('DECOY', D.x, D.y + r * 0.5, 11, '#ff2e45', 'center', 700);
+    }
+  }
+  if (sw && sw.st !== 'snapped') {
+    const B = gearBelt(), C = GSWAP[sw.ph], fl = sw.feed * B.L, cd = (a, b) => { const d = Math.abs(a - b) % B.L; return Math.min(d, B.L - d); };
+    drawBeltLinks(B, sw.scroll, 8, 1, c => {
+      if (c > fl) return -1;
+      if (C.masters.some(m => cd(c, m * B.L) < 6)) return 1;
+      if (C.sleeves.some(([p, q]) => c >= p * B.L && c <= q * B.L)) return 2;
+      if (sw.cracks.some(q => cd(c, q) < 6)) return 3;
+      return 0;
+    });
+    if (sw.st === 'held') {
+      ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(CX, CHAIN_Y + 8); ctx.lineTo(CX, KNIFE_Y - 6); ctx.stroke(); ctx.restore();
+      brackets(CX, CHAIN_Y, 26, 18, Math.sin(time * 12) > 0 ? '#ffd23f' : '#ffffff', 5);
+    }
+  }
+}
+function drawGearHUD() {
+  const t = tgt; if (!t || !t.gear || t.gear.hide) return;
+  const T = t.gear, x0 = CX - 100, y = 104, fill = fx && fx.type === 'gearintro' ? clamp((fx.t - GSHOT.reveal - 0.1) / 0.9, 0, 1) : 1, cw = 200 / GEAR_HP;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  for (let i = 0; i < GEAR_HP; i++) { const on = i < Math.min(knivesLeft, Math.floor(GEAR_HP * fill)); ctx.fillStyle = on ? (T.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i >= 8 ? '#ffd23f' : '#ff2e45') : '#1e1e24'; ctx.fillRect(x0 + i * cw, y, cw - 2, 8); }
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x0 + 8 * cw - 1.5, y - 3, 1, 14);
+  text('PHASE ' + T.phase, x0 - 30, y + 4, 8, T.phase === 2 ? '#ff2e45' : '#ffd23f', 'center', 700);
+  const sw = T.sw;
+  if (sw && sw.st === 'held') { const left = Math.max(0, GSWAP[sw.ph].hold - sw.t); text('SNAP THE CHAIN  ' + left.toFixed(1) + 's', CX, y + 22, 11, left < 2 && Math.sin(time * 14) > 0 ? '#ff2e45' : '#ffd23f', 'center', 700); }
+  else if (sw && (sw.st === 'build' || sw.st === 'swap')) text('GEAR SWAP!', CX, y + 22, 11, Math.sin(time * 16) > 0 ? '#ffd23f' : '#ffffff', 'center', 700);
+  else if (T.jam > 0) text('JAMMED - HIT IT NOW', CX, y + 22, 10, '#7cff4f', 'center', 700);
+  else text(T.phase === 2 ? 'OVERDRIVE' : 'WATCH FOR THE SWAP', CX, y + 22, 9, T.phase === 2 ? '#ff7a1a' : '#8d8d97', 'center', 700);
+  if (chainLive(sw)) {
+    for (let i = 0; i < sw.max; i++) { ctx.fillStyle = i < sw.max - sw.hp ? '#ff7a1a' : '#8d8d97'; ctx.fillRect(CX - sw.max * 8 + i * 16 + 2, y + 32, 12, 5); }
+    text('CRACK ' + sw.max + ' LINKS  /  RED LINK SNAPS IT', CX, y + 46, 7, '#c3c3ca', 'center', 700);
+  }
+}
+
+// ---------- death: seize, teeth shear off, it bursts into cogs and paint ----------
+function startGearDeath(t) {
+  const T = t.gear; T.sw = null; T.sats = []; T.dec = null; T.ox = T.oy = 0; T.s = 1;
+  fx = { type: 'geardeath', t: 0, lt: 0, freeze: 0.22, x: CX, y: CY, lines: impactLinesFor(30, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.2); sfx.gearGrind(); sfx.subDrop();
+}
+function updateGearDeath(t) {
+  const tg = fx.tg, T = tg.gear;
+  tscale = t < 1.45 ? 0.35 : 0.6;
+  T.seize = clamp((t - 0.22) / 1.2, 0, 1);
+  if (t < 1.45) {
+    shake = Math.max(shake, 4 + T.seize * 14); T.ox = rand(-3, 3) * T.seize;
+    if (Math.random() < 0.3 + T.seize * 0.5 && T.lost.size < GEAR_TEETH) {
+      let i = Math.floor(rand(GEAR_TEETH)); while (T.lost.has(i)) i = (i + 1) % GEAR_TEETH;
+      T.lost.add(i); const a = i / GEAR_TEETH * TAU, [x, y] = worldAt(tg, a, R + 5), w = tg.rot + a;
+      debris.push({ kind: 'tooth', x, y, vx: Math.cos(w) * rand(300, 600), vy: Math.sin(w) * rand(300, 600) - 200, rot: rand(TAU), vr: rand(-20, 20) }); sfx.rivet();
+      burst(x, y, 6, ['#ffd23f', '#ff7a1a', '#ffffff'], 300, 40, 2, 0.35);
+    }
+  }
+  if (t > 0.8 && !fx.grind) { fx.grind = true; sfx.gearGrind(); sfx.alarm(); }
+  if (t >= 1.45 && !fx.boom) {
+    fx.boom = true; T.ox = 0;
+    breakTarget(tg, 2.6); tgt = null;
+    for (let i = 0; i < 26; i++) { const a = rand(TAU), sp = rand(300, 1000); debris.push({ kind: i % 2 ? 'cog' : 'coil', r: rand(6, 14), x: CX + Math.cos(a) * 20, y: CY + Math.sin(a) * 20, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 300, rot: rand(TAU), vr: rand(-16, 16) }); }
+    addPaint(rand(70, 150), rand(170, 280), rand(85, 110), '#2ad8ff');
+    pending.push({ t: 0.12, f: () => { addPaint(rand(270, 350), rand(340, 460), rand(90, 120), '#ff2e88'); sfx.splat(); shake = Math.max(shake, 20); } });
+    pending.push({ t: 0.24, f: () => { addPaint(rand(130, 290), rand(520, 620), rand(80, 105), '#7cff4f'); sfx.splat(); shake = Math.max(shake, 20); } });
+    scheduleScreenHits(10, ['#c3c3ca', '#8d8d97', '#ffd23f', '#16161b'], 0.7);
+    shocks(CX, CY, 4, 320); kick(0.7, 0.14, 2.2, 2); shake = 48;
+    floater('GEARBOX DOWN', CX, CY - R - 30, '#ffd23f'); setMusic('main');
+    sfx.logExplode(); sfx.splat(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 1.6 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 2.9) endFx('clearing');
+}
+function drawGearDebris(d) {
+  if (d.kind === 'cog') { drawCog(0, 0, d.r || 7, 8, 0, { body: '#8d8d97', hub: '#c89a1a' }); return true; }
+  if (d.kind === 'coil') {
+    const L = (d.r || 8) * 2.4; ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1.6; ctx.beginPath();
+    for (let i = 0; i <= 10; i++) ctx[i ? 'lineTo' : 'moveTo'](-L / 2 + i * L / 10, i % 2 ? -4 : 4); ctx.stroke(); return true;
+  }
+  return false;
+}
+
+// ======================= GEARBOX cinematic =======================
+// blueprint signal -> wireframe lock-on -> hero gear and chain with a live readout -> pull back onto a wall of machinery -> paint
+const GSHOT = { wire: 1.25, hero: 2.3, pull: 4.1, paint: 5.4, reveal: 6.7 };
+const GI_END = GSHOT.reveal + 1.7, HOLO = '#7cff4f';
+const GSPLATS = [{ t: 5.5, x: 110, y: 250, r: 150, c: '#2ad8ff' }, { t: 5.85, x: 320, y: 430, r: 175, c: '#ff2e88' }, { t: 6.2, x: 170, y: 590, r: 160, c: '#7cff4f' }];
+const HERO = { r: 150, sx: 198, sy: -50, sr: 24 };
+let gearWall = null, heroBelt = null, wallBelts = null;
+function makeGearWall() {
+  const out = [], rnd = mulberry(90210);
+  for (let tries = 0; out.length < 40 && tries < 3000; tries++) {
+    const r = 24 + rnd() * 100, x = (rnd() - 0.5) * 1400, y = (rnd() - 0.5) * 1800, layer = rnd() < 0.35 ? 0 : 1;
+    if (layer && (Math.hypot(x, y) < HERO.r + r + 14 || Math.hypot(x - HERO.sx, y - HERO.sy) < HERO.sr + r + 14)) continue;
+    if (out.some(o => o.layer === layer && Math.hypot(o.x - x, o.y - y) < o.r + r + 4)) continue;
+    out.push({ x, y, r, layer, teeth: Math.max(8, Math.round(r / 5)), dir: rnd() < 0.5 ? -1 : 1, spokes: r > 48 ? 5 + Math.floor(rnd() * 2) : 0, ph: rnd() * TAU });
+  }
+  return out;
+}
+function startGearIntro(t) {
+  fx = { type: 'gearintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
+  t.gear.hide = true; cinema(true, 0.9);
+  setMusic('boss'); sfx.staticBurst();
+}
+function skipGearIntro() { if (fx && fx.type === 'gearintro' && fx.t < GSHOT.reveal) { fx.t = GSHOT.reveal - 0.01; fx.skipped = true; } }
+function updateGearIntro(t) {
+  tscale = 0; const T = fx.tg.gear;
+  fx.cutFlash = Math.max(0, (fx.cutFlash || 0) - 0.12);
+  const at = (k, tt) => { if (t >= tt && !fx[k]) { fx[k] = true; return true; } return false; };
+  if (t < GSHOT.wire - 0.2 && Math.floor(t * 16) !== fx.chirp) { fx.chirp = Math.floor(t * 16); sfx.dataChirp(); }
+  if (at('icon', 0.85)) sfx.pop();
+  if (cutAt('wire', GSHOT.wire)) { sfx.servo(); sfx.riser(); }
+  if (at('lock', GSHOT.wire + 0.25)) sfx.markerOn();
+  if (at('burst', GSHOT.wire + 0.42)) { sfx.whoosh(); sfx.chain(); shake = 8; }
+  if (cutAt('hero', GSHOT.hero)) sfx.servo();
+  if (at('fill', GSHOT.hero + 0.35)) { sfx.gearClank(); sfx.subDrop(); shake = 12; }
+  if (t > GSHOT.hero + 0.35 && t < GSHOT.pull && Math.floor(t * 8) !== fx.rt) { fx.rt = Math.floor(t * 8); sfx.ratchet(); }
+  if (cutAt('pull', GSHOT.pull)) { sfx.groanFar(); sfx.rumble(); }
+  if (t > GSHOT.pull && t < GSHOT.reveal && Math.floor(t * 12) !== fx.rt2) { fx.rt2 = Math.floor(t * 12); sfx.ratchet(); if (fx.rt2 % 4 === 0) sfx.rumble(); }
+  GSPLATS.forEach((s, i) => { if (at('sp' + i, s.t)) { sfx.splat(); shake = 18; kick(0.15, 0.05, 1.2, 0.6); buzz(30); } });
+  if (t >= GSHOT.reveal && !fx.revealed) {
+    fx.revealed = true; T.hide = false; fx.cutFlash = 0;
+    shake = 22; kick(0.35, 0.06, 1.6, 1); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.land(); sfx.gearClank(); buzz([60, 30, 90]);
+  }
+  fxFilter = t >= GSHOT.reveal && t < GSHOT.reveal + 0.1 ? (Math.floor(t * 40) % 2 ? TWO_TONE : INVERT) : null;
+  if (t > GI_END) { T.next = 4; endFx('play'); floater('SNAP THE CHAIN WHEN IT SWAPS', CX, CY + R + 80, '#ffd23f'); }
+}
+function drawStudio() {
+  const g = ctx.createRadialGradient(CX, CY + 60, 30, CX, CY + 60, 640);
+  g.addColorStop(0, '#f0f0f4'); g.addColorStop(0.5, '#c3c3ca'); g.addColorStop(1, '#5c5c66');
+  ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
+}
+function drawHeroRig(x, y, z, rot, t, wire, layers = 5) {
+  if (!heroBelt) heroBelt = beltPath(0, 0, HERO.r + 6, HERO.sx, HERO.sy, HERO.sr + 5);
+  ctx.save(); ctx.translate(x, y); ctx.scale(z, z);
+  // contact shadow
+  if (layers > 2) { const sg = ctx.createRadialGradient(10, HERO.r + 30, 10, 10, HERO.r + 30, HERO.r * 1.2); sg.addColorStop(0, 'rgba(0,0,0,.35)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg; ctx.fillRect(-HERO.r * 1.3, HERO.r - 30, HERO.r * 2.8, 120); }
+  const srot = -rot * HERO.r / HERO.sr;
+  if (wire < 1) {
+    ctx.save(); ctx.setLineDash([2400 * wire, 4000]);
+    drawCog(0, 0, HERO.r, 32, rot, { wire: HOLO, spokes: 6, lw: 2.5 / z }); drawCog(HERO.sx, HERO.sy, HERO.sr, 12, srot, { wire: HOLO, lw: 2 / z });
+    ctx.restore();
+  } else {
+    if (layers > 2) drawCog3D(0, 0, HERO.r, 32, rot, [12, 8], { spokes: 6, body: '#8d8d97', hub: '#c89a1a', layers });
+    else { drawCogFast(12, 8, HERO.r, 32, rot, { spokes: 6, body: '#08080a', hub: '#45210b', shade: false, hi: 'rgba(0,0,0,0)', lo: '#08080a' }); drawCogFast(0, 0, HERO.r, 32, rot, { spokes: 6, body: '#8d8d97', hub: '#c89a1a' }); }
+    drawCog3D(HERO.sx, HERO.sy, HERO.sr, 12, srot, [4, 3], { body: '#a8a8b2', hub: '#ff2e45', layers: 2 });
+    drawBeltLinks(heroBelt, rot * (HERO.r + 6), 9, 1.15);
+    const fl = clamp(1 - (t - GSHOT.hero - 0.35) / 0.25, 0, 1);
+    if (fl > 0) { ctx.save(); ctx.globalAlpha = fl; drawCog(0, 0, HERO.r, 32, rot, { spokes: 6, body: '#ffffff', shade: false, hub: '#ffffff' }); ctx.restore(); }
+  }
+  ctx.restore();
+}
+function drawGearIntro(t) {
+  if (t < GSHOT.reveal) {
+    ctx.save();
+    if (t < GSHOT.wire) {
+      // SHOT 1: signal. Streams of telemetry converge out of a blank studio and resolve into one small gear.
+      drawStudio();
+      ctx.strokeStyle = 'rgba(0,0,0,.07)'; ctx.lineWidth = 1;
+      for (let i = 0; i < 9; i++) { const x = (i * 53 + t * 24) % (W + 60) - 30; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      const cols = [HOLO, '#2ad8ff', '#ff2e45', '#5c5c66', '#ffa04a'], tags = ['0x3F2A', 'TQ 41.2', 'RPM 900', 'Y 115.0', 'SYNC', 'ERR 0'];
+      for (let i = 0; i < 52; i++) {
+        const d0 = hash(i, 1, 21) * 0.6, u = clamp((t - d0) / 0.5, 0, 1); if (u <= 0 || u >= 1) continue;
+        const ang = -0.6 + (hash(i, 1, 22) - 0.5) * 0.6, dist = 560 * Math.pow(1 - u, 1.4), len = 30 + hash(i, 1, 23) * 130, col = cols[i % 5];
+        const hx = CX + Math.cos(ang) * dist, hy = CY + 40 + Math.sin(ang) * dist + (hash(i, 1, 24) - 0.5) * 160 * (1 - u);
+        ctx.globalAlpha = 0.85 * (1 - u * 0.5); ctx.strokeStyle = col; ctx.lineWidth = 1 + hash(i, 1, 25) * 1.6;
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(ang) * len, hy + Math.sin(ang) * len); ctx.stroke();
+        if (i % 3 === 0) text(tags[i % 6], hx + Math.cos(ang) * len * 0.5, hy + Math.sin(ang) * len * 0.5 - 7, 7, col, 'center', 700);
+      }
+      ctx.globalAlpha = 1;
+      if (t > 0.6 && t < 0.95) { const u = (t - 0.6) / 0.35; ctx.strokeStyle = `rgba(124,255,79,${1 - u})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, CY + 40, 6 + u * 60, 0, TAU); ctx.stroke(); }
+      if (t > 0.85) {
+        const u = clamp((t - 0.85) / 0.25, 0, 1), s = 1 + 0.4 * Math.sin(u * Math.PI) * (1 - u);
+        drawCog(CX, CY + 40, 14 * s, 10, t * 3, { body: '#16161b', hub: '#c89a1a', shade: false, hi: 'rgba(255,255,255,.2)' });
+        ctx.strokeStyle = HOLO; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(CX, CY + 40, 26, t * 4, t * 4 + 4.6); ctx.stroke();
+        text('OBJ-02', CX + 50, CY + 30, 8, HOLO, 'center', 700);
+      }
+      text(typed('GEARWORKS  //  SYS.CALIBRATE', 0.1, t, 34), CX, 112, 11, '#2f9a1f', 'center', 700);
+      text('X ' + (hash(Math.floor(t * 20), 0, 5) * 999).toFixed(1) + '   Y ' + (hash(Math.floor(t * 20), 0, 6) * 999).toFixed(1), CX, 132, 8, '#4a4a53', 'center', 700);
+    } else if (t < GSHOT.hero) {
+      // SHOT 2: lock-on. The gear grows, the reticle locks, then the wireframe bursts open in 3D rings and chain swirls.
+      const u = (t - GSHOT.wire) / (GSHOT.hero - GSHOT.wire);
+      drawStudio();
+      ctx.save(); ctx.translate(CX, CY + 40); ctx.rotate(Math.sin(u * Math.PI) * 0.22 - u * 0.1);
+      const gr = 14 + 22 * easeIO(clamp(u / 0.35, 0, 1));
+      for (let i = 0; i < 7; i++) {
+        const k = clamp((u - 0.38) / 0.6 - i * 0.05, 0, 1); if (k <= 0) continue;
+        const rad = 30 + Math.pow(k, 0.7) * (220 + i * 70), tilt = 0.18 + 0.6 * hash(i, 0, 31);
+        ctx.save(); ctx.rotate(i * 0.8 + u * 2.4); ctx.globalAlpha = 1 - k * 0.7; ctx.strokeStyle = i % 2 ? HOLO : '#38383f'; ctx.lineWidth = (1 - k) * 6 + 0.6;
+        ctx.beginPath(); ctx.ellipse(0, 0, rad, rad * tilt, 0, 0.3, TAU - 0.4 * i % 2); ctx.stroke(); ctx.restore();
+      }
+      if (u > 0.4) {
+        ctx.save(); ctx.setLineDash([7, 5]); ctx.lineDashOffset = -t * 300; ctx.lineWidth = 6; ctx.strokeStyle = '#2a2a31';
+        for (let i = 0; i < 3; i++) { const k = (u - 0.4) / 0.6, a = i * 2.1 + k * 3; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 40, Math.sin(a) * 40); ctx.bezierCurveTo(Math.cos(a + 1) * 200 * k, Math.sin(a + 1) * 260 * k, Math.cos(a + 2) * 320 * k, Math.sin(a + 2) * 120, Math.cos(a + 2.6) * 420 * k, Math.sin(a + 2.6) * 420 * k); ctx.stroke(); }
+        ctx.restore();
+      }
+      drawCog(0, 0, gr, 10, t * 5, { body: '#16161b', hub: '#c89a1a', shade: false, hi: 'rgba(255,255,255,.2)' });
+      const lk = clamp((u - 0.2) / 0.15, 0, 1);
+      ctx.strokeStyle = HOLO; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, gr + 14 + (1 - lk) * 30, -t * 3, -t * 3 + 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, gr + 14 + (1 - lk) * 30, -t * 3 + Math.PI, -t * 3 + Math.PI + 2); ctx.stroke();
+      if (lk >= 1) { brackets(0, 0, gr * 2 + 44, gr * 2 + 44, HOLO); text('LOCK', gr + 44, -gr - 20, 9, HOLO, 'center', 700); }
+      ctx.restore();
+      if (u > 0.82) { ctx.fillStyle = 'rgba(255,255,255,.7)'; for (let i = 0; i < 18; i++) ctx.fillRect(-W, hash(i, Math.floor(t * 30), 41) * H, W * 3, 1 + hash(i, 0, 42) * 3); }
+    } else if (t < GSHOT.pull) {
+      // SHOT 3: the hero gear materialises, chain drives a sprocket, the readout climbs
+      const u = (t - GSHOT.hero) / (GSHOT.pull - GSHOT.hero), push = 1 + 0.12 * u;
+      drawStudio();
+      ctx.translate(CX, CY); ctx.scale(push, push); ctx.translate(-CX - 20 * u, -CY);
+      const wire = clamp((t - GSHOT.hero) / 0.35, 0, 1) < 1 ? clamp((t - GSHOT.hero) / 0.35, 0, 1) : 1;
+      drawHeroRig(150, CY + 80, 1, t * 0.55, t, wire);
+      const sx = 150 + HERO.sx, sy = CY + 80 + HERO.sy;
+      if (wire >= 1) {
+        brackets(sx, sy, 70, 70, HOLO);
+        ctx.save(); ctx.translate(sx - 88, sy + 4); ctx.rotate(-0.12);
+        text('Y', 0, 0, 36, HOLO, 'center', 700); text((115 + u * 76).toFixed(1), 54, 0, 24, HOLO, 'center', 700);
+        ctx.restore();
+        text('SPROCKET.A  //  1 : 6.25', sx, sy + 50, 8, '#2f9a1f', 'center', 700);
+        const pa = time * 5; ctx.fillStyle = HOLO; ctx.fillRect(sx + Math.cos(pa) * 34 - 2, sy + Math.sin(pa) * 34 - 2, 4, 4);
+      }
+      text(typed('DRIVE TRAIN ONLINE.', GSHOT.hero + 0.4, t, 30), CX + 20 * u, 120, 12, '#16161b', 'center', 700);
+    } else {
+      // SHOTS 4-5: pull back onto a whole wall of meshing machinery, then the paint hits
+      if (!gearWall) { gearWall = makeGearWall(); wallBelts = []; const fr = gearWall.filter(g => g.layer); for (let i = 0; i < fr.length && wallBelts.length < 6; i++) for (let j = i + 1; j < fr.length; j++) { const a = fr[i], b = fr[j], d = Math.hypot(a.x - b.x, a.y - b.y); if (d > a.r + b.r + 60 && d < 420 && wallBelts.length < 6 && !wallBelts.some(w => w.i === i || w.j === j)) { wallBelts.push({ i, j, B: beltPath(a.x, a.y, a.r + 4, b.x, b.y, b.r + 4), r: a.r }); break; } } wallBelts.forEach(w => { w.a = fr[w.i]; }); }
+      const u = clamp((t - GSHOT.pull) / (GSHOT.paint - GSHOT.pull), 0, 1), ez = easeIO(u), pu = clamp((t - GSHOT.paint) / (GSHOT.reveal - GSHOT.paint), 0, 1);
+      let z = 1.7 + (0.5 - 1.7) * ez + 0.03 * pu; const hx = CX + 50 * (1 - ez), hy = CY + 40;
+      if (pu > 0.82) z *= 1 + Math.pow((pu - 0.82) / 0.18, 2) * 1.5;
+      drawStudio();
+      ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(hx, hy); ctx.rotate(-0.08 * ez + 0.02 * Math.sin(t)); ctx.scale(z, z);
+      const spin = t * 40, vis = (x, y, r) => { const sx = hx + x * z, sy = hy + y * z, rr = r * 1.25 * z + 20; return sx > -rr && sx < W + rr && sy > -rr && sy < H + rr; };
+      ctx.globalAlpha = 0.75;
+      for (const g of gearWall) if (!g.layer && vis(g.x * 0.82, g.y * 0.82, g.r * 0.82)) drawCogFast(g.x * 0.82, g.y * 0.82, g.r * 0.82, g.teeth, g.ph + g.dir * spin / g.r, { spokes: g.spokes, body: '#4a4a53', hub: '#5c5c66', shade: false, hi: 'rgba(255,255,255,.1)' });
+      ctx.globalAlpha = 1;
+      // the paint: three hits splash the wall behind and coat every gear they touch
+      const ra = -0.08 * ez + 0.02 * Math.sin(t), rc = Math.cos(ra), rs = Math.sin(ra);
+      const toScr = (x, y) => [hx + (x * rc - y * rs) * z, hy + (x * rs + y * rc) * z];
+      const inv = (x, y) => { const dx = (x - hx) / z, dy = (y - hy) / z; return [dx * rc + dy * rs, -dx * rs + dy * rc]; };
+      for (const sp of GSPLATS) { const [lx, ly] = inv(sp.x, sp.y); drawSplat(lx, ly, sp.r / z, sp.c, Math.floor(sp.t * 100), t - sp.t, 0.9); }
+      for (const g of gearWall) if (g.layer && vis(g.x, g.y, g.r)) {
+        const [gx, gy] = toScr(g.x, g.y), hit = GSPLATS.find(sp => t >= sp.t && Math.hypot(gx - sp.x, gy - sp.y) < sp.r * 0.95 + g.r * z * 0.3);
+        const gr2 = g.ph + g.dir * spin / g.r;
+        drawCogFast(g.x + 5, g.y + 4, g.r, g.teeth, gr2, { spokes: g.spokes, body: '#08080a', hub: '#45210b', shade: false, hi: 'rgba(0,0,0,0)', lo: '#08080a' });
+        drawCogFast(g.x, g.y, g.r, g.teeth, gr2, { spokes: g.spokes, body: hit ? hit.c : '#8d8d97', hub: hit ? '#ffffff' : g.r > 60 ? '#c89a1a' : '#5c5c66' });
+        if (hit) { ctx.fillStyle = hit.c; const dl = clamp((t - hit.t) / 0.9, 0, 1) * g.r * 0.6; for (let i = 0; i < 3; i++) { const dx = (hash(i, g.ph * 100, 3) - 0.5) * g.r; ctx.fillRect(g.x + dx - 2, g.y + g.r * 0.7, 4, dl * (0.5 + hash(i, g.ph * 100, 4))); } }
+      }
+      for (const w of wallBelts) drawBeltLinks(w.B, w.a.dir * spin * (w.a.r + 4) / w.a.r, 9, 1.1);
+      ctx.restore();
+      ctx.save(); ctx.imageSmoothingEnabled = false; drawHeroRig(hx, hy, z, t * 0.55, t, 1, 2); ctx.restore();
+      // flung droplets in front of everything
+      for (const sp of GSPLATS) { const age = t - sp.t; if (age < 0 || age > 0.6) continue; ctx.fillStyle = sp.c; for (let i = 0; i < 14; i++) { const an = hash(i, sp.t * 10, 1) * TAU, d = sp.r * (0.4 + age * 3 * (0.5 + hash(i, sp.t * 10, 2))), r = 3 + hash(i, sp.t * 10, 3) * 8; ctx.beginPath(); ctx.arc(sp.x + Math.cos(an) * d, sp.y + Math.sin(an) * d + age * age * 400, r * (1 - age), 0, TAU); ctx.fill(); } }
+      text('Y ' + (191 + u * 220 + pu * 900).toFixed(1), W - 70, 120, 14, HOLO, 'center', 700);
+      if (pu > 0.82) { ctx.fillStyle = `rgba(3,3,5,${clamp((pu - 0.82) / 0.18, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); }
+    }
+    // soft vignette and grain over every shot
+    const vg = ctx.createRadialGradient(CX, CY + 60, 200, CX, CY + 60, 620); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)');
+    ctx.fillStyle = vg; ctx.fillRect(-W, -H, W * 3, H * 3);
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 0; i < 110; i++) ctx.fillRect(rand(-60, W + 60), rand(0, H), 1.2, 1.2);
+    ctx.restore();
+    text('TAP TO SKIP', W - 50, H - 14, 8, 'rgba(0,0,0,.5)', 'center', 700);
+  } else {
+    ctx.save(); ctx.fillStyle = `rgba(3,3,5,${clamp(1 - (t - GSHOT.reveal) / 0.45, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore();
+  }
+  // title slam over three fresh splats
+  if (t > GSHOT.reveal && t < GSHOT.reveal + 2.2) {
+    const s0 = t - GSHOT.reveal, a = clamp(s0 / 0.06, 0, 1) * clamp((2.2 - s0) / 0.35, 0, 1), sl = clamp(s0 / 0.22, 0, 1), sc = 1 + 1.8 * Math.pow(1 - sl, 3);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(CX, CY + R + 120);
+    drawSplat(-95, -6, 50, '#2ad8ff', 11, s0 - 0.05, 0.9); drawSplat(100, 4, 46, '#ff2e88', 12, s0 - 0.12, 0.9); drawSplat(0, 14, 40, '#7cff4f', 13, s0 - 0.19, 0.9);
+    ctx.scale(sc, sc); ctx.rotate(-0.05 * (1 - sl));
+    for (let d = 10; d >= 1; d--) text('GEARBOX', d * 0.7, d * 0.9, 40, d > 6 ? '#08080a' : '#38383f', 'center', 700);
+    text('GEARBOX', -2, 0, 40, '#2ad8ff', 'center', 700); text('GEARBOX', 2, 0, 40, '#ff2e88', 'center', 700); text('GEARBOX', 0, 0, 40, '#ffffff', 'center', 700);
+    text(typed('SUMMONS GEARS  /  SNAP THE CHAIN  /  ' + GEAR_HP + ' HITS', 0.15, s0, 50), 0, 34, 9, '#ffffff', 'center', 700);
+    ctx.restore();
+  }
+  if (fx.cutFlash > 0) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${fx.cutFlash})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
+}
+
 // ---- EAT: the meal flies to the empty heart slot and the heart re-forms ----
 function eatMeal() {
   const slot = lives, hx = heartX(slot);
@@ -3675,6 +4323,7 @@ function drawFeatureDebris(d) {
       ctx.fillStyle = '#ffd23f'; for (let i = -2; i <= 2; i++) ctx.fillRect(-8 + Math.abs(i), i * 4.5 - 1, 16 - Math.abs(i) * 2, 2);
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-3, -10); ctx.lineTo(1, -2); ctx.lineTo(-2, 6); ctx.stroke(); return true;
     case 'link': ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(0, 0, 3.6, 2.2, 0, 0, TAU); ctx.stroke(); return true;
+    case 'cog': case 'coil': return drawGearDebris(d);
     case 'tooth': ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(0, -5); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill(); return true;
     case 'hub': ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); return true;
     case 'woodhalf': ctx.save(); ctx.beginPath(); ctx.rect(d.side < 0 ? -12 : 0, -2, 12, KL + 4); ctx.clip(); ctx.translate(0, -KL / 2); drawWoodKnife(); ctx.restore(); ctx.fillStyle = '#fff0cc'; ctx.fillRect(d.side < 0 ? -1 : 0, -KL / 2, 1, KL); return true;
@@ -3813,6 +4462,7 @@ function update(dt) {
     updateFeatures(t, dt);
     updateChain(t, dt);
     if (t.tank) updateTank(t, dt);
+    if (t.gear) updateGear(t, dt);
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
   updateSmoke(dt);
@@ -3853,7 +4503,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank) { tgt.smooth = true; tgt.landed = true; } lightIn = LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear) { tgt.smooth = true; tgt.landed = true; } lightIn = LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   lightIn = Math.max(0, lightIn - dt);
   updatePieces(dt);
@@ -3958,7 +4608,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if (tgt.tank && tgt.tank.hide) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide)) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -3966,6 +4616,7 @@ function drawTarget() {
   ctx.globalAlpha = se;
   const sw = t.tank ? t.tank.swell : 0, swS = 1 + 0.35 * sw * sw + Math.sin(time * 45) * 0.025 * sw;
   ctx.translate(CX + (sw ? rand(-3, 3) * sw : 0), CY - 7 * t.hit + drop + (t.tank ? t.tank.introY : 0));
+  if (t.gear) { ctx.translate(t.gear.ox, t.gear.oy); ctx.scale(t.gear.s, t.gear.s); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
   drawLogSide(t);
@@ -4066,12 +4717,12 @@ function drawHUD() {
     else ctx.arc(x, y, s === stage ? 7 : 5.5, 0, TAU);
     ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 56, 14, bossName ? '#ff8a95' : 'rgba(255,255,255,.7)', 'center', 700);
   drawTypeMeter();
-  drawTankHUD();
+  drawTankHUD(); drawGearHUD();
   // remaining knives
-  if (!(tgt && tgt.tank)) for (let i = 0; i < knivesTotal; i++) {
+  if (!(tgt && (tgt.tank || tgt.gear))) for (let i = 0; i < knivesTotal; i++) {
     ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
     ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
     drawKnife(); ctx.restore();
@@ -4514,6 +5165,7 @@ function drawScene() {
   drawBackdrop();
 
   if (tgt) drawTarget();
+  if (tgt && tgt.gear) drawGearRig(tgt);
   drawSawmill(tgt);
   if (tgt) drawLeakStreams(tgt);
   drawSmoke();
@@ -4539,6 +5191,7 @@ function drawScene() {
   drawLaneFog();
   if (fx && fx.type === 'tankphase') drawTankPhase(fx.t);
   if (fx && fx.type === 'tankintro') drawTankIntro(fx.t);
+  if (fx && fx.type === 'gearintro') drawGearIntro(fx.t);
   if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0, ky = KNIFE_Y + Math.min(off, 60);
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
@@ -4559,14 +5212,14 @@ function drawScene() {
 
   ctx.restore();
   if (state === 'menu') drawMenu();
-  else if (!(fx && fx.type === 'tankintro' && fx.t < SHOT.reveal)) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal)))) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
   if (state === 'impact') drawImpact();
   if (fx && fx.t < fx.freeze) { ctx.save(); applyCam(); drawFxImpactFrame(); ctx.restore(); }
   drawScreenHits();
-  drawScreenDrops();
+  drawScreenDrops(); drawPaints();
   drawMute();
 }
 
@@ -4613,6 +5266,7 @@ const PALETTE = [
   '#ffe680', '#ffd23f', '#c89a1a', '#ffa04a', '#ff7a1a',                                             // gold / ember
   '#c8f4ff', '#2ad8ff', '#3a7bff', '#1f5fd1', '#163a80', '#c4a8ff', '#9466ff', '#5c3aa8',            // cool + boss accents
   '#d6f08a', '#b6e05a', '#7fbf3a', '#3d6b1f', '#1f3a10',                                             // greens
+  '#ff2e88', '#a8125a', '#7cff4f', '#2f9a1f',                                                         // paint + holo
 ].map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v / 16 - 0.5) * 18);
 const LUT = new Uint8Array(32768);
@@ -4932,7 +5586,8 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5. Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 7s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5. Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 10. Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you.', abil: 'Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -4956,6 +5611,7 @@ function demoFor(e) {
   if (e.type === 'plain' || e.boss !== undefined) t.stuck = [{ a: 0.6 }, { a: 2.4 }];
   if (e.apple) t.apples = [{ a: 0, cut: false }, { a: 2.1, cut: false }, { a: 4.2, cut: false }];
   if (e.graze) t.stuck = [{ a: HALF, tilt: 0.3 }];
+  if (e.gear) setupGear(t);
   if (e.tanker) { setupTanker(t); t.tank.leaks = [{ a: 1, age: 9 }, { a: 3.6, age: 2 }]; t.tank.flood = 40; }
   return t;
 }
@@ -5538,6 +6194,7 @@ view.addEventListener('pointerdown', e => {
   if (state === 'menu') { ac(); menuDown(x, y); return; }
   if (state === 'over' && overT <= 0 && y > 600 && y < 650 && Math.abs(x - CX) < 90) { startToMenu(x, y); return; }
   if (fx && fx.type === 'tankintro') { skipTankIntro(); return; }
+  if (fx && fx.type === 'gearintro') { skipGearIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -5545,7 +6202,7 @@ view.addEventListener('pointerdown', e => {
 view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (state === 'menu') menuMove(x, y); });
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
-  if (fx && fx.type === 'tankintro' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
