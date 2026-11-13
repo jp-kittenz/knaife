@@ -140,6 +140,37 @@ const sfx = {
     tone('sawtooth', 55, 27, 2.5, 0.18, { delay: 0.25, wet: 0.9, attack: 0.08 });
     for (const [f, d] of [[392, 0.3], [311, 0.5], [233, 0.7]]) tone('triangle', f, f * 0.97, 1.4, 0.1, { delay: d, wet: 0.9 });
   },
+  rewind() {
+    // reversed glass: swelling hiss and tinkles that bunch up as the rings land
+    noise(0.9, 900, 0.7, 0.5, 'highpass', { rise: true, sweepTo: 9000, wet: 0.6 });
+    tone('sine', 40, 140, 0.9, 0.35, { attack: 0.8 });
+    for (let j = 8; j >= 0; j--) {
+      const land = (8 - j) * 0.045 + 0.44;
+      tone('triangle', 2400 + j * 500, 2600 + j * 500, 0.08, 0.06, { delay: land, wet: 0.5 });
+      noise(0.03, 5000, 2, 0.12, 'bandpass', { delay: land });
+    }
+    tone('sine', 60, 40, 0.25, 0.6, { delay: 0.86, drive: true });
+  },
+  flash() {
+    for (const f of [1800, 2700, 4050, 6075]) tone('sine', f, f, 1.2, 0.07, { wet: 1 });
+    noise(0.25, 7000, 0.5, 0.4, 'highpass', { wet: 0.8 });
+  },
+  lightSwitch() {
+    // heavy breaker lever slamming into place, echoing through a warehouse
+    noise(0.04, 1600, 4, 1, 'bandpass', { drive: true, wet: 1.2 });
+    tone('square', 90, 40, 0.09, 0.45, { drive: true, wet: 1 });
+    noise(0.25, 180, 0.8, 0.9, 'lowpass', { drive: true, wet: 1, curve: 3 });
+    noise(0.03, 2600, 5, 0.6, 'bandpass', { delay: 0.07, wet: 1 });
+    // flicker ticks and the mains hum coming up
+    for (const d of [0.05, 0.11, 0.15, 0.19]) noise(0.015, 4000, 2, 0.35, 'bandpass', { delay: d, wet: 0.6 });
+    tone('sawtooth', 50, 50, 1.6, 0.06, { delay: 0.19, attack: 0.05, wet: 0.5 });
+    tone('square', 100, 100, 1.3, 0.025, { delay: 0.19, attack: 0.05, wet: 0.5 });
+  },
+  popBreak() {
+    noise(0.7, 3500, 0.5, 0.7, 'highpass', { wet: 0.6, curve: 2 });
+    tone('sine', 110, 40, 0.4, 0.6, { drive: true, wet: 0.3 });
+    for (let i = 0; i < 28; i++) { const f = rand(2500, 9000); tone('sine', f, f, rand(0.04, 0.18), rand(0.03, 0.08), { delay: Math.pow(Math.random(), 1.7) * 0.6, wet: 0.6 }); }
+  },
   heart() { tone('square', 330, 160, 0.25, 0.08, { delay: 0.15 }); tone('square', 247, 110, 0.35, 0.08, { delay: 0.3, wet: 0.5 }); },
   unfreeze() { noise(0.6, 250, 1.5, 0.35, 'bandpass', { sweepTo: 4500, rise: true, wet: 0.5 }); tone('sine', 80, 300, 0.6, 0.12, { attack: 0.4 }); },
 };
@@ -174,11 +205,15 @@ let impactT = 0, impactY = 0, gray = 0, impactLines = [], frac = null, unfrozen 
 // final heart: longer freeze, everything explodes, then the screen itself shatters into the losing screen
 const FINAL_HITSTOP = 0.24, FINAL_SNAP = 0.62;
 let finale = false, exploded = false, snapReq = false, pieces = [], overAge = 0, gridFrac = null;
+// retry: fragments fly back, lock together, flash, lights switch on, START sign shatters
+const REW_FLASH = 0.92, REW_SWITCH = 1.32, REW_BREAK = 2.1;
+let rewindT = 0, needRewindSnap = false, rewFlashed = false, rewSwitched = false, popCanvas = null, popPos = [0, 0];
 const hitstopLen = () => finale ? FINAL_HITSTOP : HITSTOP;
 
 // polar grid of cracks covering the whole screen; the same vertices cut the screen into pieces
-function makeGridFracture() {
-  const n = 12, radii = [0, 34, 80, 140, 220, 330, 480, 700, 1000, 1500], V = [];
+function makeGridFracture() { return makeGrid(12, [0, 34, 80, 140, 220, 330, 480, 700, 1000, 1500]); }
+function makeGrid(n, radii) {
+  const V = [];
   const base = rand(TAU);
   for (let i = 0; i < n; i++) {
     const a = base + i / n * TAU + rand(-0.12, 0.12), col = [];
@@ -296,7 +331,7 @@ function throwKnife() {
 function action() {
   ac();
   if (state === 'menu') { startGame(); return; }
-  if (state === 'over') { if (overT <= 0) startGame(); return; }
+  if (state === 'over') { if (overT <= 0) startRewind(); return; }
   throwKnife();
 }
 
@@ -437,7 +472,7 @@ function update(dt) {
     }
   }
   const t = tgt;
-  if (t) {
+  if (t && state !== 'rewind') {
     t.t += dt;
     t.pop = Math.min(1, t.pop + dt / 0.35);
     t.rot += t.pat(t.t) * dt;
@@ -461,16 +496,15 @@ function update(dt) {
   banner.t = Math.max(0, banner.t - dt);
 
   if (state === 'dying') { overT -= dt; if (overT <= 0) { state = 'over'; overT = 0.6; sfx.over(); } }
-  else if (state === 'over') {
-    overT = Math.max(0, overT - dt); overAge += dt;
-    const g = 2600 * dpr * scale;
-    for (const p of pieces) {
-      if (overAge < p.delay) continue;
-      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += g * dt; p.rot += p.vr * dt;
-    }
-    pieces = pieces.filter(p => p.y - p.r < cv.height * 1.2 && p.x + p.r > -cv.width * 0.2 && p.x - p.r < cv.width * 1.2);
+  else if (state === 'over') { overT = Math.max(0, overT - dt); overAge += dt; }
+  else if (state === 'rewind') {
+    rewindT += dt;
+    if (!rewFlashed && rewindT >= REW_FLASH) { rewFlashed = true; pieces = []; sfx.flash(); buzz(20); }
+    if (!rewSwitched && rewindT >= REW_SWITCH) { rewSwitched = true; makePopup(); sfx.lightSwitch(); shake = 6; buzz([30, 50, 15, 40, 15]); }
+    if (rewindT >= REW_BREAK) { shatterPopup(); sfx.popBreak(); shake = 10; state = 'play'; readyT = 0.25; buzz(25); }
   }
   else if (state === 'clearing') { clearT -= dt; if (clearT <= 0) { stage++; newStage(); } }
+  updatePieces(dt);
 }
 
 // ---------- drawing ----------
@@ -692,34 +726,147 @@ function drawGridFracture() {
 }
 
 // freeze the current two-tone frame and cut it into glass pieces along the grid cracks
-function shatterScreen() {
+function thresholdSnapshot() {
   const w = cv.width, h = cv.height;
   let img;
-  try { img = ctx.getImageData(0, 0, w, h); } catch (e) { pieces = []; return; }
+  try { img = ctx.getImageData(0, 0, w, h); } catch (e) { return null; }
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) { const v = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) > 128 ? 255 : 0; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
   const snap = document.createElement('canvas'); snap.width = w; snap.height = h; snap.getContext('2d').putImageData(img, 0, 0);
-  const k = dpr * scale, icx = dpr * (ox + CX * scale), icy = dpr * (oy + impactY * scale);
-  const toDev = p => [icx + p[0] * k, icy + p[1] * k];
-  const g = gridFrac; pieces = [];
+  return snap;
+}
+
+// cut an image (drawn at device sx,sy) into pieces along grid g centred at device gcx,gcy (k = device px per grid unit)
+function cutPieces(src, sx, sy, g, gcx, gcy, k, edge) {
+  const out = [], toDev = p => [gcx + p[0] * k, gcy + p[1] * k];
   for (let j = 0; j < g.radii.length - 1; j++) for (let i = 0; i < g.n; i++) {
     const A = g.V[i], B = g.V[(i + 1) % g.n];
     const poly = (j === 0 ? [A[0], A[1], B[1]] : [A[j], A[j + 1], B[j + 1], B[j]]).map(toDev);
     const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
-    const bx = Math.max(0, Math.floor(Math.min(...xs))), by = Math.max(0, Math.floor(Math.min(...ys)));
-    const bw = Math.min(w, Math.ceil(Math.max(...xs))) - bx, bh = Math.min(h, Math.ceil(Math.max(...ys))) - by;
+    const bx = Math.max(sx, Math.floor(Math.min(...xs))), by = Math.max(sy, Math.floor(Math.min(...ys)));
+    const bw = Math.min(sx + src.width, Math.ceil(Math.max(...xs))) - bx, bh = Math.min(sy + src.height, Math.ceil(Math.max(...ys))) - by;
     if (bw <= 1 || bh <= 1) continue;
     const c = document.createElement('canvas'); c.width = bw; c.height = bh;
     const cx2 = c.getContext('2d');
     cx2.translate(-bx, -by); cx2.beginPath(); poly.forEach((p, q) => cx2[q ? 'lineTo' : 'moveTo'](p[0], p[1])); cx2.closePath();
-    cx2.save(); cx2.clip(); cx2.drawImage(snap, 0, 0); cx2.restore();
-    cx2.strokeStyle = '#fff'; cx2.lineWidth = 2.5 * dpr; cx2.stroke();
+    cx2.save(); cx2.clip(); cx2.drawImage(src, sx, sy); cx2.restore();
+    cx2.strokeStyle = '#fff'; cx2.lineWidth = edge; cx2.stroke();
     const mx = xs.reduce((a, b) => a + b) / xs.length, my = ys.reduce((a, b) => a + b) / ys.length;
-    let dx = mx - icx, dy = my - icy; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-    const sp = rand(350, 900) * k;
-    pieces.push({ c, ox: bx - mx, oy: by - my, x: mx, y: my, r: Math.hypot(bw, bh) / 2,
-      vx: dx * sp + rand(-80, 80) * k, vy: dy * sp - rand(150, 450) * k, rot: 0, vr: rand(-5, 5) * (j < 3 ? 2 : 1), delay: j * 0.025 });
+    out.push({ c, j, ox: bx - mx, oy: by - my, x: mx, y: my, hx: mx, hy: my, r: Math.hypot(bw, bh) / 2, rot: 0, vr: 0, vx: 0, vy: 0, age: 0, delay: 0 });
   }
+  return out;
+}
+
+function launch(pcs, gcx, gcy, k, lo, hi, stagger) {
+  for (const p of pcs) {
+    let dx = p.x - gcx, dy = p.y - gcy; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    const sp = rand(lo, hi) * k;
+    p.vx = dx * sp + rand(-80, 80) * k; p.vy = dy * sp - rand(150, 450) * k;
+    p.vr = rand(-5, 5) * (p.j < 3 ? 2 : 1); p.delay = p.j * stagger;
+  }
+}
+
+function updatePieces(dt) {
+  const g = 2600 * dpr * scale;
+  for (const p of pieces) {
+    p.age += dt;
+    if (p.home || p.age < p.delay) continue;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += g * dt; p.rot += p.vr * dt;
+  }
+  pieces = pieces.filter(p => p.home || (p.y - p.r < cv.height * 1.2 && p.x + p.r > -cv.width * 0.2 && p.x - p.r < cv.width * 1.2));
+}
+
+function shatterScreen() {
+  const snap = thresholdSnapshot();
+  if (!snap) { pieces = []; return; }
+  const k = dpr * scale, icx = dpr * (ox + CX * scale), icy = dpr * (oy + impactY * scale);
+  pieces = cutPieces(snap, 0, 0, gridFrac, icx, icy, k, 2.5 * dpr);
+  launch(pieces, icx, icy, k, 350, 900, 0.025);
+}
+
+function startRewind() {
+  startGame();
+  state = 'rewind'; rewindT = 0; needRewindSnap = true; rewFlashed = false; rewSwitched = false; popCanvas = null;
+  banner.t = 0; tgt.pop = 1; readyT = 0; pieces = [];
+  sfx.rewind();
+}
+
+function buildRewindPieces() {
+  const snap = thresholdSnapshot();
+  if (!snap) { pieces = []; return; }
+  const k = dpr * scale, gcx = dpr * (ox + CX * scale), gcy = dpr * (oy + CY * scale);
+  pieces = cutPieces(snap, 0, 0, makeGridFracture(), gcx, gcy, k, 2.5 * dpr);
+  const far = Math.max(cv.width, cv.height);
+  for (const p of pieces) {
+    let dx = p.hx - gcx, dy = p.hy - gcy; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    const dist = far * rand(0.7, 1.2);
+    p.home = true; p.sx = p.hx + dx * dist + rand(-0.15, 0.15) * far; p.sy = p.hy + dy * dist + rand(0, 0.3) * far;
+    p.rot0 = rand(-6, 6); p.dur = 0.42; p.delay = (8 - p.j) * 0.045 + rand(0, 0.05);
+  }
+}
+
+const POP_W = 260, POP_H = 104;
+function makePopup() {
+  const k = dpr * scale, m = 12, c = document.createElement('canvas');
+  c.width = Math.ceil((POP_W + m * 2) * k); c.height = Math.ceil((POP_H + m * 2) * k);
+  const g = c.getContext('2d'), saved = ctx;
+  g.scale(k, k); g.translate(m, m);
+  // hazard-striped steel sign
+  g.save(); g.beginPath(); g.rect(0, 0, POP_W, POP_H); g.clip();
+  g.fillStyle = '#ffc61a'; g.fillRect(0, 0, POP_W, POP_H);
+  g.fillStyle = '#111'; for (let x = -POP_H; x < POP_W + POP_H; x += 26) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 13, 0); g.lineTo(x + 13 - POP_H, POP_H); g.lineTo(x - POP_H, POP_H); g.closePath(); g.fill(); }
+  g.restore();
+  const pg = g.createLinearGradient(0, 12, 0, POP_H - 12); pg.addColorStop(0, '#3a3e46'); pg.addColorStop(1, '#1b1d22');
+  g.fillStyle = pg; g.fillRect(12, 12, POP_W - 24, POP_H - 24);
+  g.fillStyle = '#8b919b'; for (const [x, y] of [[20, 20], [POP_W - 20, 20], [20, POP_H - 20], [POP_W - 20, POP_H - 20]]) { g.beginPath(); g.arc(x, y, 3, 0, TAU); g.fill(); }
+  g.font = '900 60px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = 'rgba(255,214,90,.8)'; g.shadowBlur = 18; g.fillStyle = '#fff';
+  if ('letterSpacing' in g) g.letterSpacing = '8px';
+  g.fillText('START', POP_W / 2 + 4, POP_H / 2 + 3);
+  popCanvas = c;
+  popPos = [dpr * (ox + CX * scale), dpr * (oy + 455 * scale)];
+}
+
+function shatterPopup() {
+  if (!popCanvas) return;
+  const k = dpr * scale, [px, py] = popPos;
+  const shards = cutPieces(popCanvas, Math.round(px - popCanvas.width / 2), Math.round(py - popCanvas.height / 2), makeGrid(9, [0, 22, 55, 100, 160, 240]), px, py, k, 1.2 * dpr);
+  launch(shards, px, py, k, 250, 700, 0.012);
+  pieces = shards; popCanvas = null;
+  for (let i = 0; i < 14; i++) {
+    const a = rand(TAU), sp = rand(200, 600), pts = [];
+    for (let j = 0; j < 3; j++) { const r = rand(3, 10), ang = j / 3 * TAU + rand(-0.5, 0.5); pts.push([Math.cos(ang) * r, Math.sin(ang) * r]); }
+    debris.push({ kind: 'glass', x: CX + rand(-60, 60), y: 455 + rand(-20, 20), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, rot: rand(TAU), vr: rand(-14, 14), pts });
+  }
+}
+
+function drawRewind() {
+  const t = rewindT;
+  if (needRewindSnap) { drawScene(); buildRewindPieces(); needRewindSnap = false; }
+  let f;
+  if (t < REW_FLASH) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+    for (const p of pieces) {
+      const u = clamp((t - p.delay) / p.dur, 0, 1), e = 1 - Math.pow(1 - u, 3);
+      ctx.save(); ctx.translate(p.sx + (p.hx - p.sx) * e, p.sy + (p.hy - p.sy) * e); ctx.rotate(p.rot0 * (1 - e));
+      ctx.drawImage(p.c, p.ox, p.oy); ctx.restore();
+    }
+    f = 'grayscale(1)';
+  } else {
+    drawScene();
+    const s = t - REW_SWITCH;
+    const lit = s >= 0 && !(s >= 0.05 && s < 0.11) && !(s >= 0.15 && s < 0.19);   // fluorescent flicker on
+    f = lit ? 'none' : 'grayscale(1) contrast(40)';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const fa = clamp(1 - (t - REW_FLASH) / 0.3, 0, 1);
+    if (fa > 0) { ctx.fillStyle = `rgba(255,255,255,${fa})`; ctx.fillRect(0, 0, cv.width, cv.height); }
+    if (s >= 0 && popCanvas) {
+      const u = clamp(s / 0.2, 0, 1), sc = 0.4 + 0.6 * easeOutBack(u), jit = s < 0.3 ? (0.3 - s) * 20 * dpr : 0;
+      ctx.save(); ctx.translate(popPos[0] + rand(-jit, jit), popPos[1] + rand(-jit, jit)); ctx.scale(sc, sc);
+      ctx.drawImage(popCanvas, -popCanvas.width / 2, -popCanvas.height / 2); ctx.restore();
+    }
+  }
+  if (cv.style.filter !== f) cv.style.filter = f;
 }
 
 function drawPieces() {
@@ -818,13 +965,7 @@ function drawMenu() {
 }
 
 
-function draw() {
-  if (state === 'over') {
-    drawOverScreen(); drawPieces();
-    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); drawMute();
-    if (cv.style.filter !== 'grayscale(1)') cv.style.filter = 'grayscale(1)';
-    return;
-  }
+function drawScene() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const bg = ctx.createLinearGradient(0, 0, 0, cv.height);
   bg.addColorStop(0, '#2b1c52'); bg.addColorStop(1, '#0e0a1c');
@@ -841,7 +982,7 @@ function draw() {
   drawFracture(); drawGridFracture();
   for (const d of debris) drawDebris(d);
   for (const k of flying) { ctx.save(); ctx.translate(CX, k.y); drawKnife(); ctx.restore(); }
-  if ((state === 'play' && knivesLeft > 0) || state === 'menu') {
+  if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0;
     ctx.save(); ctx.globalAlpha = clamp(1 - readyT / 0.15, 0.2, 1); ctx.translate(CX, KNIFE_Y + Math.min(off, 60)); drawKnife(); ctx.restore();
   }
@@ -854,6 +995,17 @@ function draw() {
   else { drawHUD(); drawBanner(); }
   if (state === 'impact') drawImpact();
   drawMute();
+}
+
+function draw() {
+  if (state === 'over') {
+    drawOverScreen(); drawPieces();
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); drawMute();
+    if (cv.style.filter !== 'grayscale(1)') cv.style.filter = 'grayscale(1)';
+    return;
+  }
+  if (state === 'rewind') { drawRewind(); return; }
+  drawScene();
   const el = IMPACT_TOTAL - impactT;
   // pure two-tone black & white (inverted on the impact frame), easing back to colour
   if (snapReq && state === 'impact') {
@@ -865,6 +1017,7 @@ function draw() {
   const f = state === 'impact' && el < hitstopLen() ? 'grayscale(1) contrast(40) invert(1)'
     : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 39 * Math.pow(gray, 3)).toFixed(3)})` : 'none';
   if (cv.style.filter !== f) cv.style.filter = f;
+  if (pieces.length) drawPieces();
 }
 
 // ---------- input ----------
