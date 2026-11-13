@@ -643,7 +643,7 @@ let state = 'menu';
 let stage = 1, score = 0, apples = 0, best = load('knaife.best', 0), newBest = false;
 let tgt = null, flying = [], debris = [], parts = [];
 let knivesLeft = 0, knivesTotal = 0, readyT = 0, shake = 0, overT = 0, clearT = 0, time = 0;
-const CLEAR_HOLD = 2, CLEAR_FLICK = 0.75, CLEAR_OFF = 0.4, CLEAR_TOTAL = CLEAR_HOLD + CLEAR_FLICK + CLEAR_OFF;
+const CLEAR_HOLD = 0.5, CLEAR_FLICK = 0.75, CLEAR_OFF = 0.4, CLEAR_TOTAL = CLEAR_HOLD + CLEAR_FLICK + CLEAR_OFF;
 let clearCues = {}, lightIn = 0;
 let banner = { text: '', sub: '', t: 0, color: '#fff' };
 const MAX_LIVES = 3;
