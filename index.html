@@ -221,6 +221,17 @@ const sfx = {
   chop() { noise(0.06, 1200, 1.5, 0.9, 'bandpass', { drive: true }); tone('sine', 160, 60, 0.12, 0.6, { drive: true }); },
   sizzle() { noise(0.9, 5000, 0.6, 0.35, 'highpass', { curve: 0.6 }); for (let i = 0; i < 16; i++) noise(0.02, rand(3000, 8000), 2, 0.25, 'bandpass', { delay: rand(0, 0.8) }); },
   heal() { for (const [f, d] of [[523, 0], [659, 0.08], [784, 0.16], [1046, 0.24]]) tone('sine', f, f, 0.4, 0.1, { delay: d, wet: 0.8 }); },
+  siren() { for (let i = 0; i < 6; i++) { tone('sawtooth', 600, 900, 0.32, 0.07, { delay: i * 0.33, wet: 0.8 }); tone('sawtooth', 900, 600, 0.01, 0.0001, { delay: i * 0.33 + 0.32 }); } },
+  alarm() { for (let i = 0; i < 4; i++) tone('square', i % 2 ? 660 : 880, i % 2 ? 660 : 880, 0.14, 0.06, { delay: i * 0.16 }); },
+  popOut() { tone('square', 200, 900, 0.08, 0.2, { drive: true }); noise(0.06, 2500, 2, 0.5, 'bandpass'); },
+  gush() { noise(0.9, 1200, 0.7, 0.55, 'lowpass', { sweepTo: 500, wet: 0.5 }); noise(0.5, 3500, 1, 0.2, 'highpass', { curve: 1.5 }); },
+  plunk() { tone('sine', 520, 180, 0.18, 0.4, { wet: 0.8 }); noise(0.2, 900, 1.5, 0.4, 'lowpass', { delay: 0.05, wet: 0.7 }); },
+  heatWarn() { for (let i = 0; i < 3; i++) tone('triangle', 1200, 1200, 0.05, 0.05, { delay: i * 0.12 }); noise(0.4, 4000, 1, 0.15, 'highpass', { rise: true }); },
+  tankGroan() { tone('sawtooth', 70, 45, 1.2, 0.18, { drive: true, wet: 1 }); tone('sine', 140, 95, 1, 0.12, { wet: 1, attack: 0.2 }); },
+  floodRush() { noise(1.8, 600, 0.6, 0.7, 'lowpass', { rise: true, sweepTo: 1600, wet: 0.7 }); noise(1.6, 3000, 0.8, 0.25, 'highpass', { curve: 0.8, wet: 0.6 }); },
+  pipeBolt() { tone('square', 900, 700, 0.05, 0.12); noise(0.04, 4000, 2, 0.4, 'bandpass'); tone('sine', 120, 80, 0.15, 0.3, { drive: true }); },
+  rivet() { tone('square', 1400 + rand(0, 800), 900, 0.04, 0.06); },
+  splash() { noise(1.2, 900, 0.5, 0.9, 'lowpass', { wet: 0.9, curve: 1.5 }); noise(0.8, 4000, 0.7, 0.4, 'highpass', { curve: 2, wet: 0.6 }); for (let i = 0; i < 20; i++) tone('sine', rand(400, 1400), rand(200, 600), 0.08, 0.05, { delay: rand(0.1, 1.2), wet: 0.6 }); },
   breaker() {
     noise(0.07, 1100, 2, 1.3, 'bandpass', { drive: true, wet: 1.8 });          // the lever slamming home
     tone('square', 72, 34, 0.22, 0.6, { drive: true, wet: 1.5 });
@@ -572,10 +583,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  drawLive(t);
+  if (t.tank) drawTankLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -751,9 +762,10 @@ function newStage() {
   const stuck = placeAngles(pre, 0.6, []);
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
-  const pal = boss ? BOSSES[(stage / 5 - 1) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
-  tgt = makeTarget(pal, makePattern(stage, boss), stuck, appleAngles, boss);
-  const type = forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const tanker = boss && isTankStage(stage);
+  const pal = boss ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
+  tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss), stuck, appleAngles, boss);
+  const type = tanker ? 'plain' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   fxp = []; pending = []; zapT = 0;
   if (abil.state === 'used' && !fx) { abil.state = 'cooldown'; abil.charge = 0; }
@@ -761,6 +773,8 @@ function newStage() {
   banner = boss ? { text: 'BOSS', sub: pal.name + (tn ? ' / ' + tn : ''), t: 1.8, color: '#ff5d6c' } : { text: 'STAGE ' + stage, sub: tn, t: 1.4, color: '#fff' };
   readyT = 0.3;
   state = 'play';
+  waterTarget = 0;
+  if (tanker) { setupTanker(tgt); knivesTotal = knivesLeft = TANK_HP; banner.t = 0; startTankIntro(tgt); }
 }
 
 function startGame() {
@@ -833,6 +847,7 @@ function stepKnife(k) {
       }
     }
   }
+  if (t.tank && !k.ability && !k.wood && tankPipeHit(k, t)) return;
   if (!k.ability && !k.wood && featureHits(k, t)) return;
   for (const p of (t.pickups || []).slice()) { const w = t.rot + p.a; if (angDiff(w, HALF) < 0.2 && tip <= CY + R + 30) collectPickup(t, p, w); }
   // slice apples
@@ -923,6 +938,7 @@ function breakTarget(t, power = 1, halves = false) {
 
 function clearStage() {
   const t = tgt;
+  if (t.tank && !t.tank.dead) { t.tank.dead = true; startTankDeath(t); return; }
   state = 'clearing'; clearT = CLEAR_TOTAL; clearCues = {};
   breakTarget(t);
   if (t.boss) { banner = { text: 'BOSS DOWN!', sub: '+5 bonus', t: 1.1, color: '#ffd35c' }; score += 5; }
@@ -944,6 +960,7 @@ function resetAbility() {
   abil.state = 'ready'; abil.charge = 0; abil.swirl = null; abil.flash = 0;
   fx = null; tscale = 1; fxFilter = null; slash = 0; ripple = null;
   smoke = []; screenHits = []; floaters = []; rings = [];
+  waterLevel = waterTarget = 0; screenDrops = []; splashFlash = 0;
   abil.items = []; abil.birds = 0; abil.ov = 0; abil.need = ABILITY.need; gameTimers.length = 0;
   stunT = 0; stunMax = 2; abil.pauseT = 0; fxp = []; pending = []; zapT = 0; camFocus(CX, CY, 1); cam.kz = cam.kr = 0; cinema(false); aberr = zblur = 0;
 }
@@ -1449,6 +1466,8 @@ function updateFx(rdt) {
     case 'shadow': updateShadowFx(t); break;
     case 'cook': updateCookFx(t); break;
     case 'carve': updateCarveFx(t); break;
+    case 'tankintro': updateTankIntro(t); break;
+    case 'tankdeath': updateTankDeath(t); break;
     case 'catch': updateCatchFx(t); break;
     case 'slice':
       fxFilter = TWO_TONE;
@@ -1724,11 +1743,23 @@ function featureHits(k, t) {
 // ---------- rim hits: where the knife lands decides what happens ----------
 function stickNormal(k, t) {
   const F = t.f, a = normA(HALF - t.rot);
+  if (t.tank) {
+    const T = t.tank;
+    if (T.heat > 0.55) { floater('SCALDED!', CX, CY + R + 50, '#ff7a1a'); for (let i = 0; i < 12; i++) smoke.push({ x: CX + rand(-10, 10), y: CY + R, vx: rand(-60, 60), vy: rand(-120, -40), r: rand(4, 8), life: 0.9, max: 0.9, g: 230, c: 'rgba(240,240,244,.6)' }); sfx.hiss(); fail(k); return; }
+    const leak = T.leaks.find(l => inArc(a, l.a, 0.13));
+    if (leak && leak.age >= 7) {
+      k.done = true; score++; t.hit = 0.6; chargeAbility();
+      for (let i = 0; i < 30; i++) waterDrop(CX, CY + R, rand(-200, 200), rand(-360, -120));
+      shock(CX, CY + R, 0.3, 50); floater('INTO THE TANK!', CX, CY + R + 50, '#2ad8ff'); sfx.plunk();
+      return;
+    }
+  }
   if (F && F.treehole && inArc(a, F.treehole.a, F.treehole.w)) { swallow(k, t); return; }
   let ovTrigger = PASSIVE && PASSIVE.id === 'overvolt' && inChainArc(t, a);
   if (F) for (const z of F.arcs) if (inArc(a, z.a, z.w)) { if (PASSIVE && PASSIVE.id === 'overvolt') { ovTrigger = true; break; } electrocute(k, t); return; }
   k.done = true; chargeAbility();
   const s = { a, wob: 0.09 }; t.stuck.push(s); addMark(t, a);
+  if (t.tank) { s.detach = 2; t.tank.dents.push(a); if (t.tank.dents.length > 24) t.tank.dents.shift(); sfx.clank(); }
   t.hit = 1; score++;
   burst(CX, CY + R, 8, [t.pal.light, t.pal.dark, t.pal.bark], 260, 60, 5, 0.55);
   for (let i = 0; i < 9; i++) splinter(CX + rand(-4, 4), CY + R - 4, t, 340);
@@ -2020,6 +2051,7 @@ function updateFxp(dt) {
       p.vx *= 1 - dt * 2; p.vy *= 1 - dt * 2; p.x += (p.vx + Math.sin(p.ph * 3) * 80) * dt; p.y += (p.vy + Math.cos(p.ph * 2.3) * 60) * dt;
     } else if (p.kind === 'bird') { p.vy -= 60 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
     else if (p.kind === 'fly') { p.t += dt; if (p.t >= p.max && !p.fired) { p.fired = true; p.then(); } }
+    else if (p.kind === 'drop') { p.vy += 900 * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (waterLevel > 0.01 && p.y > waterSurfaceY()) p.life = 0; }
     else if (p.kind === 'curl') { p.vy += 500 * dt; p.vx *= 1 - dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
     else if (p.kind === 'star') { p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; p.x += p.vx * dt; p.y += p.vy * dt; }
     else if (p.kind === 'splinter') { p.vy += 1100 * dt; p.vx *= 1 - dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
@@ -2749,6 +2781,293 @@ function drawCookScene(t) {
   }
 }
 
+// ======================= BOSS: WATER TANKER =======================
+const TANK_PAL = { name: 'WATER TANKER', style: 'tank', bark: '#38383f', barkHi: '#8d8d97', barkLo: '#16161b', sap: '#c3c3ca', heart: '#5c5c66',
+  ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.1)', light: '#dcdce2', dark: '#4a4a53', knot: '#2a2a31' };
+const TANK_HP = 20, FLOOD_TIME = 60, HEAT_PERIOD = 4, HEAT_WARN = 2.3, HEAT_ON = 2.75;
+let waterLevel = 0, waterTarget = 0, screenDrops = [], splashFlash = 0;
+const isTankStage = n => n === 5 || (n % 5 === 0 && n % 25 === 5);   // the first boss slot of each cycle
+
+function setupTanker(t) {
+  t.tank = { leaks: [], flood: null, cycle: 0, heat: 0, hot: false, warn: false, pipeA: rand(TAU), pipeGrow: 1, introY: 0, swell: 0, dents: [], valve: 0, gauge: 0.3 };
+  t.pal = TANK_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+}
+function makeTankTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  // steel end-cap with a brushed radial gradient
+  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 4, 0, 0, R);
+  gr.addColorStop(0, '#a8a8b2'); gr.addColorStop(0.5, '#727280'); gr.addColorStop(1, '#38383f');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 0.6; for (let r = 6; r < R; r += 2.2) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+  // hazard band and rolled rim
+  g.save(); g.beginPath(); g.arc(0, 0, R - 1, 0, TAU); g.arc(0, 0, R - 10, 0, TAU, true); g.clip();
+  for (let i = 0; i < 40; i++) { g.fillStyle = i % 2 ? '#16161b' : '#ffd23f'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, i / 40 * TAU, (i + 1) / 40 * TAU); g.closePath(); g.fill(); }
+  g.restore();
+  g.strokeStyle = '#16161b'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R - 10, 0, TAU); g.stroke();
+  g.strokeStyle = '#c3c3ca'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R - 0.6, Math.PI * 1.05, Math.PI * 1.7); g.stroke();
+  // rivet rings
+  for (const [rr2, n] of [[R - 14, 36], [R * 0.52, 20]]) for (let i = 0; i < n; i++) { const a = i / n * TAU; g.fillStyle = '#2a2a31'; g.beginPath(); g.arc(Math.cos(a) * rr2 + 0.4, Math.sin(a) * rr2 + 0.4, 1.6, 0, TAU); g.fill(); g.fillStyle = '#dcdce2'; g.beginPath(); g.arc(Math.cos(a) * rr2, Math.sin(a) * rr2, 1.2, 0, TAU); g.fill(); }
+  // welded cross seams
+  g.strokeStyle = '#4a4a53'; g.lineWidth = 2.2; for (const a of [0.4, 0.4 + HALF]) { g.beginPath(); g.moveTo(Math.cos(a) * (R - 14), Math.sin(a) * (R - 14)); g.lineTo(-Math.cos(a) * (R - 14), -Math.sin(a) * (R - 14)); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 0.6; for (const a of [0.4, 0.4 + HALF]) { g.beginPath(); g.moveTo(Math.cos(a) * (R - 14) + 1, Math.sin(a) * (R - 14)); g.lineTo(-Math.cos(a) * (R - 14) + 1, -Math.sin(a) * (R - 14)); g.stroke(); }
+  // stencilled marking
+  g.save(); g.rotate(-0.4); g.font = `700 14px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(42,216,255,.75)'; g.fillText('H2O', 0, -R * 0.68); g.font = `700 6px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText('MAX 40 BAR', 0, -R * 0.56); g.restore();
+  // rust streaks
+  const rnd = mulberry(t.seed);
+  for (let i = 0; i < 9; i++) { const a = rnd() * TAU, r0 = (0.3 + rnd() * 0.5) * R; const x = Math.cos(a) * r0, y = Math.sin(a) * r0; const rg = g.createLinearGradient(x, y, x, y + 18); rg.addColorStop(0, 'rgba(168,94,40,.55)'); rg.addColorStop(1, 'rgba(168,94,40,0)'); g.fillStyle = rg; g.fillRect(x - 1.5, y, 3 + rnd() * 2, 16 + rnd() * 10); }
+  return c;
+}
+// live parts drawn in the tank's rotating frame: valve, gauge, leak holes, heat glow
+function drawTankLive(t) {
+  const T = t.tank;
+  // leak holes
+  for (const l of T.leaks) {
+    ctx.save(); ctx.rotate(l.a); ctx.translate(R - 13, 0);
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 5.5, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#a8a8b2'; ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 5); ctx.lineTo(Math.cos(a + 0.2) * 7.5, Math.sin(a + 0.2) * 8.5); } ctx.stroke();
+    ctx.fillStyle = 'rgba(42,216,255,.5)'; ctx.fillRect(-12, -1, 9, 2);
+    if (l.age >= 7) { ctx.strokeStyle = `rgba(42,216,255,${0.5 + 0.5 * Math.sin(time * 8)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+  }
+  // pressure gauge
+  ctx.save(); ctx.translate(-R * 0.3, R * 0.25);
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#f0f0f4'; ctx.beginPath(); ctx.arc(0, 0, 10.5, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(0, 0, 8, -0.2, 0.9); ctx.stroke();
+  for (let i = 0; i <= 8; i++) { const a = Math.PI * 0.75 + i / 8 * Math.PI * 1.5; ctx.strokeStyle = '#16161b'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 9.5, Math.sin(a) * 9.5); ctx.lineTo(Math.cos(a) * 7.5, Math.sin(a) * 7.5); ctx.stroke(); }
+  const na = Math.PI * 0.75 + clamp(T.gauge, 0, 1.1) * Math.PI * 1.5 + Math.sin(time * 30) * 0.03 * T.heat;
+  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(na) * 8.5, Math.sin(na) * 8.5); ctx.stroke();
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 1.6, 0, TAU); ctx.fill();
+  ctx.restore();
+  // red valve wheel
+  ctx.save(); ctx.translate(R * 0.28, R * 0.18); ctx.rotate(T.valve);
+  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 1.6; ctx.stroke();
+  for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.fillStyle = '#a3122a'; ctx.fillRect(-1.2, 0, 2.4, 12); }
+  ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, TAU); ctx.fill();
+  ctx.restore();
+  // dents from hits
+  for (const d of T.dents) { ctx.save(); ctx.rotate(d); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(R - 22, 0, 6, 3, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(R - 26, -3.5, 7, 1); ctx.restore(); }
+  // heat: the steel glows from the rim inward
+  if (T.heat > 0.01) {
+    const hg = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R);
+    hg.addColorStop(0, `rgba(255,122,26,${0.15 * T.heat})`); hg.addColorStop(0.7, `rgba(255,46,69,${0.45 * T.heat})`); hg.addColorStop(1, `rgba(255,230,128,${0.6 * T.heat})`);
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  }
+  if (T.warn && Math.floor(time * 12) % 2) { ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 1, 0, TAU); ctx.stroke(); }
+  // swelling before the blast: glowing seams
+  if (T.swell > 0) { ctx.strokeStyle = `rgba(255,230,128,${T.swell})`; ctx.lineWidth = 1 + T.swell * 2; for (const a of [0.4, 0.4 + HALF]) { ctx.beginPath(); ctx.moveTo(Math.cos(a) * (R - 14), Math.sin(a) * (R - 14)); ctx.lineTo(-Math.cos(a) * (R - 14), -Math.sin(a) * (R - 14)); ctx.stroke(); } }
+}
+// the pipe: bolted to the rim, elbows out, rides the spin
+function drawPipe(t) {
+  const T = t.tank, gw = clamp(T.pipeGrow, 0, 1); if (gw <= 0) return;
+  ctx.save(); ctx.rotate(T.pipeA);
+  const jit = T.heat > 0.5 ? rand(-0.6, 0.6) : 0;
+  const segs = [[R - 4, 0, R + 30, 0], [R + 30, 0, R + 30, 22], [R + 30, 22, R + 52, 22]];
+  ctx.lineCap = 'butt';
+  segs.forEach(([x1, y1, x2, y2], i) => {
+    const u = clamp(gw * 3 - i, 0, 1); if (u <= 0) return;
+    const ex = x1 + (x2 - x1) * u, ey = y1 + (y2 - y1) * u;
+    ctx.strokeStyle = '#16161b'; ctx.lineWidth = 13; ctx.beginPath(); ctx.moveTo(x1 + jit, y1); ctx.lineTo(ex + jit, ey); ctx.stroke();
+    ctx.strokeStyle = '#727280'; ctx.lineWidth = 10; ctx.stroke();
+    ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x1 + jit + (y2 !== y1 ? -2.5 : 0), y1 - (y2 === y1 ? 2.5 : 0)); ctx.lineTo(ex + jit + (y2 !== y1 ? -2.5 : 0), ey - (y2 === y1 ? 2.5 : 0)); ctx.stroke();
+    if (u >= 1) { ctx.fillStyle = '#4a4a53'; ctx.fillRect(x2 - 7 + jit, y2 - 7, 14, 14); ctx.fillStyle = '#c3c3ca'; for (const [bx, by] of [[-5, -5], [5, -5], [-5, 5], [5, 5]]) ctx.fillRect(x2 + bx - 1 + jit, y2 + by - 1, 2, 2); }
+  });
+  if (gw >= 1) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(R + 53, 22, 3, 6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(42,216,255,.6)'; ctx.fillRect(R + 52, 26 + (time * 40) % 10, 2, 4); }
+  ctx.restore();
+}
+function tankPipeHit(k, t) {
+  const T = t.tank; if (T.pipeGrow < 1) return false;
+  const a = normA(HALF - t.rot);
+  if (inArc(a, normA(T.pipeA + 0.12), 0.2) && k.y <= CY + R + 56) {
+    const [x, y] = worldAt(t, T.pipeA + 0.12, R + 30);
+    burst(x, y, 30, ['#ffffff', '#ffd23f', '#c3c3ca'], 500, 40, 3, 0.5); floater('PIPE!', x, y - 24, '#ff2e45'); sfx.clank();
+    fail(k); return true;
+  }
+  return false;
+}
+// knives get spat back out after 2s and leave a gushing leak behind
+function detachTankKnife(t, s) {
+  const T = t.tank, w = t.rot + s.a, sp = rand(520, 720);
+  t.stuck.splice(t.stuck.indexOf(s), 1);
+  debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 200, rot: w - HALF, vr: rand(-18, 18) });
+  if (!T.leaks.some(l => angDiff(l.a, s.a) < 0.1)) T.leaks.push({ a: s.a, age: 0 });
+  const x = CX + Math.cos(w) * R, y = CY + Math.sin(w) * R;
+  for (let i = 0; i < 40; i++) waterDrop(x, y, Math.cos(w) * rand(200, 520) + rand(-80, 80), Math.sin(w) * rand(200, 520) + rand(-120, 40));
+  shock(x, y, 0.3, 50); shake = Math.max(shake, 6); sfx.popOut(); sfx.gush();
+  if (T.flood === null) { T.flood = FLOOD_TIME; floater('IT\'S FLOODING!', CX, CY - R - 40, '#2ad8ff'); sfx.alarm(); }
+}
+function waterDrop(x, y, vx, vy) { fxp.push({ kind: 'drop', x, y, vx, vy, life: 1.6, max: 1.6, ph: 0, rot: 0 }); }
+function updateTank(t, dt) {
+  const T = t.tank;
+  if (fx && fx.type === 'tankintro') return;
+  T.valve += dt * (0.5 + T.heat * 6);
+  // heat cycle: warning, scalding, cool down
+  T.cycle += dt; const ph = T.cycle % HEAT_PERIOD;
+  const warn = ph >= HEAT_WARN && ph < HEAT_ON, hot = ph >= HEAT_ON;
+  if (warn && !T.warn) sfx.heatWarn();
+  if (hot && !T.hot) { sfx.hiss(); sfx.tankGroan(); floater('HOT!', CX, CY - R - 20, '#ff7a1a'); }
+  T.warn = warn; T.hot = hot;
+  T.heat += ((hot ? 1 : 0) - T.heat) * Math.min(1, dt * (hot ? 10 : 4));
+  T.gauge += ((0.3 + (T.flood !== null ? 0.4 * (1 - T.flood / FLOOD_TIME) : 0) + T.heat * 0.4) - T.gauge) * Math.min(1, dt * 3);
+  if (T.heat > 0.3 && Math.random() < dt * 30) { const a = rand(TAU), [x, y] = worldAt(t, a, R); smoke.push({ x, y, vx: Math.cos(t.rot + a) * 60, vy: -rand(40, 110), r: rand(4, 8), life: 1, max: 1.2, g: 230, c: 'rgba(240,240,244,.45)' }); }
+  // stuck knives get forced back out
+  for (const s of t.stuck.slice()) { if (s.detach === undefined) continue; s.detach -= dt; s.wob = Math.max(s.wob || 0, 0.08 * (1 - s.detach / 2)); if (s.detach <= 0) detachTankKnife(t, s); }
+  // leaks spray
+  for (const l of T.leaks) {
+    l.age += dt;
+    if (Math.random() < dt * 30) { const w = t.rot + l.a, x = CX + Math.cos(w) * R, y = CY + Math.sin(w) * R, om = t.pat(t.t) * R; waterDrop(x, y, Math.cos(w) * rand(150, 300) - Math.sin(w) * om * 0.5, Math.sin(w) * rand(150, 300) + Math.cos(w) * om * 0.5); }
+  }
+  // the flood clock
+  if (T.flood !== null && state === 'play') {
+    T.flood -= dt;
+    waterTarget = 0.12 + 0.88 * (1 - Math.max(0, T.flood) / FLOOD_TIME);
+    if (T.flood <= 0 && !T.drown) { T.drown = 0.001; sfx.floodRush(); floater('FLOODED', CX, CY, '#2ad8ff'); }
+  }
+  if (T.drown) { T.drown += dt; waterTarget = 1.6; if (T.drown > 1.3 && state === 'play') loseGame('THE MILL FLOODED'); }
+}
+// waterline, drawn in world space under the HUD
+function waterSurfaceY() { return H + 30 - waterLevel * (H + 30 - (CY + R + 30)); }
+function updateWater(dt) {
+  waterLevel += (waterTarget - waterLevel) * Math.min(1, dt * 1.6);
+  for (const d of screenDrops) { d.y += d.vy * dt; d.vy = Math.min(d.vy + 30 * dt, 70); d.life -= dt; }
+  screenDrops = screenDrops.filter(d => d.life > 0);
+  splashFlash = Math.max(0, splashFlash - dt * 2.5);
+}
+function drawWater() {
+  if (waterLevel < 0.005) return;
+  const y0 = waterSurfaceY(), x0 = -W, x1 = W * 2;
+  const g = ctx.createLinearGradient(0, y0, 0, H + 60); g.addColorStop(0, 'rgba(42,140,230,.55)'); g.addColorStop(1, 'rgba(10,40,110,.85)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0, H * 2);
+  for (let x = x0; x <= x1; x += 12) ctx.lineTo(x, y0 + Math.sin(x * 0.04 + time * 3) * 4 + Math.sin(x * 0.013 - time * 1.7) * 6);
+  ctx.lineTo(x1, H * 2); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,244,255,.85)'; ctx.lineWidth = 2; ctx.beginPath();
+  for (let x = x0; x <= x1; x += 12) ctx[x === x0 ? 'moveTo' : 'lineTo'](x, y0 + Math.sin(x * 0.04 + time * 3) * 4 + Math.sin(x * 0.013 - time * 1.7) * 6);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(200,244,255,.18)'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) { const yy = y0 + 20 + i * 26 + Math.sin(time * 2 + i) * 4; ctx.beginPath(); ctx.moveTo(-20 + ((time * 30 + i * 70) % 120), yy); ctx.lineTo(60 + ((time * 30 + i * 70) % 120), yy + 3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(240 + ((time * 25 + i * 50) % 140), yy + 10); ctx.lineTo(320 + ((time * 25 + i * 50) % 140), yy + 12); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(200,244,255,.6)';
+  for (let i = 0; i < 14; i++) { const x = hash(i, 0, 61) * W, sp = 30 + hash(i, 0, 62) * 50, yy = H + 40 - ((time * sp + hash(i, 0, 63) * 400) % (H + 60 - y0)); if (yy > y0 + 6) { ctx.beginPath(); ctx.arc(x, yy, 1.5 + hash(i, 0, 64) * 2, 0, TAU); ctx.fill(); } }
+}
+// streams arcing out of each leak
+function drawLeakStreams(t) {
+  if (!t.tank) return;
+  for (const l of t.tank.leaks) {
+    const w = t.rot + l.a, x = CX + Math.cos(w) * R, y = CY + Math.sin(w) * R, vx = Math.cos(w) * 260, vy = Math.sin(w) * 260;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let i = 1; i <= 10; i++) { const tt = i * 0.04; ctx.lineTo(x + vx * tt + Math.sin(time * 30 + i) * 1.5, y + vy * tt + 600 * tt * tt); }
+    ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(42,140,230,.7)'; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = 'rgba(220,250,255,.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+function drawScreenDrops() {
+  for (const d of screenDrops) {
+    const a = clamp(d.life / 1.2, 0, 1);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(160,220,255,.22)'; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * 1.15, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(220,250,255,.6)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.ellipse(d.x - d.r * 0.35, d.y - d.r * 0.4, d.r * 0.22, d.r * 0.14, -0.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(160,220,255,.2)'; ctx.fillRect(d.x - d.r * 0.15, d.y, d.r * 0.3, (1 - a) * 60 + 10);
+    ctx.restore();
+  }
+  if (splashFlash > 0) { ctx.save(); ctx.globalAlpha = splashFlash * 0.6; ctx.fillStyle = '#c8f4ff'; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
+}
+
+// ---------- intro: siren, title card, crane drop, pipe assembly, flood test ----------
+function startTankIntro(t) {
+  fx = { type: 'tankintro', t: 0, freeze: 0, tg: t }; state = 'fx';
+  t.tank.introY = -420; t.tank.pipeGrow = 0; cinema(true, 0.7); sfx.siren();
+}
+function updateTankIntro(t) {
+  tscale = 0; const T = fx.tg.tank;
+  if (t > 1.7 && !fx.dropped) { fx.dropped = true; sfx.chain(); }
+  T.introY = t < 1.7 ? -420 : -420 * (1 - easeOutBounce(clamp((t - 1.7) / 0.7, 0, 1)));
+  if (t > 2.15 && !fx.landed) { fx.landed = true; shake = 18; kick(0.12, 0.03, 0.8); sfx.land(); sfx.clank(); burst(CX, CY + R, 30, ['#c3c3ca', '#ffffff'], 400, 60, 3, 0.6); }
+  T.pipeGrow = clamp((t - 2.5) / 0.8, 0, 1);
+  const seg = Math.floor(T.pipeGrow * 3); if (seg > (fx.seg || 0)) { fx.seg = seg; sfx.pipeBolt(); const [x, y] = worldAt(fx.tg, T.pipeA, R + 30); for (let i = 0; i < 8; i++) smoke.push({ x, y, vx: rand(-40, 40), vy: rand(-60, -20), r: rand(3, 6), life: 0.8, max: 0.8, g: 220, c: 'rgba(240,240,244,.5)' }); }
+  if (t > 3.4 && !fx.test) { fx.test = true; sfx.gush(); sfx.floodRush(); }
+  if (t > 3.4 && t < 4.6) { T.valve += 0.3; waterTarget = 0.22 * Math.sin(clamp((t - 3.4) / 1.2, 0, 1) * Math.PI); if (Math.random() < 0.8) { const [x, y] = worldAt(fx.tg, T.pipeA + 0.4, R + 52); waterDrop(x, y, rand(-60, 60), rand(-80, 40)); } }
+  if (t > 4.8) { waterTarget = 0; T.cycle = 0; endFx('play'); floater('FINISH IT BEFORE THE FLOOD', CX, CY + R + 80, '#2ad8ff'); }
+}
+function drawTankIntro(t) {
+  // siren sweep in the dark
+  const dark = t < 1.7 ? 0.75 : 0.75 * (1 - clamp((t - 1.7) / 0.8, 0, 1));
+  ctx.save(); ctx.fillStyle = `rgba(0,0,0,${dark})`; ctx.fillRect(-W, -H, W * 3, H * 3);
+  if (t < 3) {
+    ctx.translate(CX, 40); ctx.rotate(time * 5);
+    const sg = ctx.createRadialGradient(0, 0, 4, 0, 0, 520); sg.addColorStop(0, 'rgba(255,46,69,.55)'); sg.addColorStop(1, 'rgba(255,46,69,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 520, -0.35, 0.35); ctx.closePath(); ctx.fill();
+    ctx.rotate(Math.PI); ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 520, -0.35, 0.35); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  // title card
+  if (t > 0.35 && t < 2.6) {
+    const a = clamp((t - 0.35) / 0.15, 0, 1) * clamp((2.6 - t) / 0.3, 0, 1), sl = 1 - Math.pow(1 - clamp((t - 0.35) / 0.3, 0, 1), 3);
+    ctx.save(); ctx.globalAlpha = a;
+    for (const [y, dir] of [[CY - 70, -1], [CY + 70, 1]]) { ctx.save(); ctx.translate((1 - sl) * dir * 500, 0); ctx.beginPath(); ctx.rect(-W, y - 9, W * 3, 18); ctx.clip(); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-W, y - 9, W * 3, 18); ctx.fillStyle = '#111'; for (let x = -W + ((time * 120) % 30); x < W * 2; x += 30) { ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.lineTo(x + 15, y - 9); ctx.lineTo(x + 5, y + 9); ctx.lineTo(x - 10, y + 9); ctx.fill(); } ctx.restore(); }
+    const ts = 1 + 1.2 * Math.pow(1 - clamp((t - 0.5) / 0.18, 0, 1), 3);
+    ctx.translate(CX, CY - 8); ctx.scale(ts, ts);
+    text('WARNING', 0, -34, 14, '#ff2e45', 'center', 700);
+    text('WATER TANKER', 3, 3, 34, 'rgba(0,0,0,.7)', 'center', 700); text('WATER TANKER', 0, 0, 34, '#2ad8ff', 'center', 700);
+    for (let i = 0; i < 8; i++) { const x = -150 + i * 42, len = 6 + ((time * 40 + i * 13) % 22); ctx.fillStyle = 'rgba(42,216,255,.8)'; ctx.fillRect(x, 16, 2, len); }
+    text('PRESSURE CRITICAL  /  ' + TANK_HP + ' HITS', 0, 34, 10, '#ffffff', 'center', 700);
+    ctx.restore();
+    if (t > 0.5 && !fx.slam) { fx.slam = true; sfx.stamp(); shake = 12; }
+  }
+  // crane hook and chains holding the tank while it is lowered
+  const T = fx.tg.tank;
+  if (t > 1.6 && t < 2.9) {
+    const top = CY + T.introY - R - 6, a = clamp((2.9 - t) / 0.3, 0, 1);
+    ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = '#8d8d97'; ctx.lineWidth = 2;
+    for (const sd of [-1, 1]) { ctx.beginPath(); for (let y = -60; y < top; y += 8) { ctx.moveTo(CX + sd * 30 + 3, y); ctx.ellipse(CX + sd * 30, y, 3, 4, 0, 0, TAU); } ctx.stroke(); }
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(CX - 40, top - 10, 80, 10); ctx.fillStyle = '#111'; for (let x = CX - 40; x < CX + 40; x += 10) ctx.fillRect(x, top - 10, 5, 10);
+    ctx.restore();
+  }
+}
+
+// ---------- death: swell, rivets pop, burst, shrapnel on the screen, splash ----------
+function startTankDeath(t) {
+  fx = { type: 'tankdeath', t: 0, freeze: 0.22, x: CX, y: CY, lines: impactLinesFor(30, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.2); sfx.tankGroan(); sfx.subDrop();
+}
+function updateTankDeath(t) {
+  const T = fx.tg.tank;
+  tscale = t < 1.45 ? 0.35 : 0.6;
+  T.swell = clamp((t - 0.22) / 1.2, 0, 1);
+  if (t < 1.45 && Math.random() < 0.25 + T.swell * 0.5) {
+    const a = rand(TAU), [x, y] = worldAt(fx.tg, a, R - 14);
+    debris.push({ kind: 'tooth', x, y, vx: rand(-300, 300), vy: rand(-420, -100), rot: rand(TAU), vr: rand(-20, 20) }); sfx.rivet();
+    for (let i = 0; i < 6; i++) waterDrop(x, y, rand(-200, 200), rand(-260, 0));
+  }
+  if (t < 1.45) shake = Math.max(shake, 4 + T.swell * 14);
+  if (t > 0.9 && !fx.hiss) { fx.hiss = true; sfx.hiss(); sfx.floodRush(); }
+  if (t >= 1.45 && !fx.boom) {
+    fx.boom = true; const tg = fx.tg;
+    breakTarget(tg, 2.6); tgt = null;
+    for (let i = 0; i < 200; i++) { const a = rand(TAU), sp = rand(200, 1100); waterDrop(CX + Math.cos(a) * 30, CY + Math.sin(a) * 30, Math.cos(a) * sp, Math.sin(a) * sp - 200); }
+    scheduleScreenHits(14, ['#c3c3ca', '#8d8d97', '#ffd23f', '#16161b'], 0.7);
+    for (let i = 0; i < 36; i++) screenDrops.push({ x: rand(-20, W + 20), y: rand(0, H), r: rand(6, 22), vy: rand(4, 20), life: rand(1.6, 3.2) });
+    splashFlash = 1; shocks(CX, CY, 4, 320); kick(0.7, 0.14, 2.2, 2); shake = 48;
+    waterTarget = 0; floater('TANKER DOWN', CX, CY - R - 30, '#2ad8ff');
+    sfx.logExplode(); sfx.splash(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 1.6 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 2.9) endFx('clearing');
+}
+
+// ---------- HUD: boss health, flood clock, heat ----------
+function drawTankHUD() {
+  const t = tgt; if (!t || !t.tank) return;
+  const T = t.tank, x0 = CX - 100, y = 104;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  for (let i = 0; i < TANK_HP; i++) { ctx.fillStyle = i < knivesLeft ? (T.heat > 0.5 ? '#ff7a1a' : '#2ad8ff') : '#1e1e24'; ctx.fillRect(x0 + i * 10, y, 8, 8); }
+  if (T.flood !== null) {
+    const s = Math.max(0, Math.ceil(T.flood)), col = s <= 10 && Math.sin(time * 12) > 0 ? '#ff2e45' : '#2ad8ff';
+    text('FLOOD ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), CX, y + 22, 11, col, 'center', 700);
+  } else text('KNIVES GET FORCED OUT', CX, y + 22, 9, '#8d8d97', 'center', 700);
+  if (T.warn || T.hot) text(T.hot ? 'HOT - DON\'T THROW' : 'HEATING...', CX, y + 36, 9, '#ff7a1a', 'center', 700);
+}
+
 // ---- EAT: the meal flies to the empty heart slot and the heart re-forms ----
 function eatMeal() {
   const slot = lives, hx = heartX(slot);
@@ -3148,7 +3467,8 @@ function drawFxp() {
   for (const p of fxp) {
     const a = clamp(p.life / p.max * 2, 0, 1);
     ctx.save(); ctx.globalAlpha = a; ctx.translate(p.x, p.y);
-    if (p.kind === 'curl') { ctx.rotate(p.rot); ctx.strokeStyle = p.c; ctx.lineWidth = 1.4; ctx.beginPath(); for (let i = 0; i <= 14; i++) { const a = i / 14 * TAU * 1.4, r = p.r * (1 - i / 18); ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); }
+    if (p.kind === 'drop') { const v = Math.hypot(p.vx, p.vy) || 1; ctx.rotate(Math.atan2(p.vy, p.vx)); ctx.fillStyle = 'rgba(120,200,255,.9)'; ctx.fillRect(-Math.min(8, v / 60), -1.2, Math.min(8, v / 60) + 2, 2.4); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, -0.6, 1.5, 1.2); }
+    else if (p.kind === 'curl') { ctx.rotate(p.rot); ctx.strokeStyle = p.c; ctx.lineWidth = 1.4; ctx.beginPath(); for (let i = 0; i <= 14; i++) { const a = i / 14 * TAU * 1.4, r = p.r * (1 - i / 18); ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); }
     else if (p.kind === 'star') { const s2 = 3 + Math.sin(p.ph + time * 20) * 1.5; ctx.fillStyle = '#ffffff'; ctx.fillRect(-s2, -0.6, s2 * 2, 1.2); ctx.fillRect(-0.6, -s2, 1.2, s2 * 2); }
     else if (p.kind === 'fly') {
       const u = clamp(p.t / p.max, 0, 1), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
@@ -3266,9 +3586,12 @@ function update(dt) {
     emitSmoke(t, dt);
     updateFeatures(t, dt);
     updateChain(t, dt);
+    if (t.tank) updateTank(t, dt);
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
   updateSmoke(dt);
+  if (!tgt) waterTarget = 0;
+  updateWater(dt);
   updateFxp(dt);
   updateGameTimers(dt);
   readyT = Math.max(0, readyT - dt);
@@ -3304,7 +3627,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); tgt.smooth = true; tgt.landed = true; lightIn = LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank) { tgt.smooth = true; tgt.landed = true; } lightIn = LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   lightIn = Math.max(0, lightIn - dt);
   updatePieces(dt);
@@ -3414,8 +3737,9 @@ function drawTarget() {
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
   ctx.save();
   ctx.globalAlpha = se;
-  ctx.translate(CX, CY - 7 * t.hit + drop);
-  ctx.scale(ss * (1 + 0.05 * t.hit + 0.06 * land), ss * (1 - 0.06 * t.hit - 0.08 * land));
+  const sw = t.tank ? t.tank.swell : 0, swS = 1 + 0.35 * sw * sw + Math.sin(time * 45) * 0.025 * sw;
+  ctx.translate(CX + (sw ? rand(-3, 3) * sw : 0), CY - 7 * t.hit + drop + (t.tank ? t.tank.introY : 0));
+  ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
   drawLogSide(t);
   blit(bakeSprite('logShadow', -R - 40, -R - 26, 2 * R + 80, 2 * R + 80, g => {
@@ -3435,7 +3759,7 @@ function drawTarget() {
     if (ap.cut) continue;
     ctx.save(); ctx.rotate(t.rot + ap.a - HALF); ctx.translate(0, R + 12); ctx.rotate(Math.PI); drawApple(); ctx.restore();
   }
-  ctx.save(); ctx.rotate(t.rot); drawFeaturesOut(t); drawPickups(t); ctx.restore();
+  ctx.save(); ctx.rotate(t.rot); drawFeaturesOut(t); drawPickups(t); if (t.tank) drawPipe(t); ctx.restore();
   ctx.restore();
 }
 
@@ -3515,11 +3839,12 @@ function drawHUD() {
     else ctx.arc(x, y, s === stage ? 7 : 5.5, 0, TAU);
     ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? BOSSES[(stage / 5 - 1) % BOSSES.length].name : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 56, 14, bossName ? '#ff8a95' : 'rgba(255,255,255,.7)', 'center', 700);
   drawTypeMeter();
+  drawTankHUD();
   // remaining knives
-  for (let i = 0; i < knivesTotal; i++) {
+  if (!(tgt && tgt.tank)) for (let i = 0; i < knivesTotal; i++) {
     ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
     ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
     drawKnife(); ctx.restore();
@@ -3963,6 +4288,7 @@ function drawScene() {
 
   if (tgt) drawTarget();
   drawSawmill(tgt);
+  if (tgt) drawLeakStreams(tgt);
   drawSmoke();
   drawFracture(); drawGridFracture();
   if (fx && fx.frac) drawFracAt(fx.frac, fx.x, fx.y, clamp(fx.t / 0.1, 0, 1), clamp(1 - (fx.t - 0.7) / 0.6, 0, 1));
@@ -3982,6 +4308,8 @@ function drawScene() {
   if (fx && fx.type === 'shadow') drawShadowFigure(fx.t);
   if (fx && fx.type === 'cook') drawCookScene(fx.t);
   if (fx && fx.type === 'catch') drawCatch(fx.t);
+  drawWater();
+  if (fx && fx.type === 'tankintro') drawTankIntro(fx.t);
   if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0, ky = KNIFE_Y + Math.min(off, 60);
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
@@ -4009,6 +4337,7 @@ function drawScene() {
   if (state === 'impact') drawImpact();
   if (fx && fx.t < fx.freeze) { ctx.save(); applyCam(); drawFxImpactFrame(); ctx.restore(); }
   drawScreenHits();
+  drawScreenDrops();
   drawMute();
 }
 
@@ -4374,6 +4703,7 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5. Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 7s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -4397,6 +4727,7 @@ function demoFor(e) {
   if (e.type === 'plain' || e.boss !== undefined) t.stuck = [{ a: 0.6 }, { a: 2.4 }];
   if (e.apple) t.apples = [{ a: 0, cut: false }, { a: 2.1, cut: false }, { a: 4.2, cut: false }];
   if (e.graze) t.stuck = [{ a: HALF, tilt: 0.3 }];
+  if (e.tanker) { setupTanker(t); t.tank.leaks = [{ a: 1, age: 9 }, { a: 3.6, age: 2 }]; t.tank.flood = 40; }
   return t;
 }
 function cardTex(key, w, h, title, body, accent = '#ff2e45') {

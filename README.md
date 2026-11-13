@@ -18,3 +18,4 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Music: `assets/music.mp3` (supplied by the project owner) loops from the entry screen; slow-mo lowers its pitch and impacts muffle it.
 - Knives (equip in the store): Regular Knife (Strong Throw), Precision Dagger (Marker), Carving Knife (Knife with a Knife),
   Conductive Knife (Chain Reaction + passive Overvolt), Kitchen Knife (Cook + passive Get the Bird). Items appear in a tray above the ability button (keys 1 / 2).
+- Boss (stage 5): WATER TANKER — knives forced out leave leaks, a 60s flood clock, heat cycles, a deadly pipe, crane intro and explosive splash finish.
