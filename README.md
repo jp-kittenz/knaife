@@ -12,3 +12,5 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Log types (random each stage from stage 2): branched (plain, swirly, burning, beehive, wired, chained, bird), weak-spot holes (x2),
   overgrown bushes (apples or hidden knives), moss armour, segmented armour plates, hungry tree hollow (swallows knives, burps one back every 3rd), an unbreakable sawmill (timer).
   The knife ability has its own interaction with each type (see `KNIFE_ABILITIES` in index.html).
+- Main menu: 3D floating PLAY / STORE / ENCYCLOPEDIA slabs in a haunted sawmill corridor. The store shows the equipped blade
+  (drag to spin) and banked apples; the encyclopedia covers every log type, branch, boss and mechanic with live demos.

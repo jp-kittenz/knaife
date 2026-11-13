@@ -22,7 +22,7 @@
 'use strict';
 // ---------- setup ----------
 const cv = document.getElementById('c');
-const ctx = cv.getContext('2d');
+let ctx = cv.getContext('2d');
 const TAU = Math.PI * 2, HALF = Math.PI / 2;
 const W = 420, H = 760;                 // virtual playfield
 const CX = W / 2, CY = 255, R = 92;     // target
@@ -31,7 +31,7 @@ const KNIFE_Y = H - 150;                // tip y of the ready knife
 const SPEED = 2600;                     // knife speed px/s
 let dpr = 1, scale = 1, ox = 0, oy = 0;
 
-const PIX = 1.5;
+let PIX = 1.5;
 const FONT = '"Silkscreen", "Courier New", monospace';                         // virtual units per art pixel
 function resize() {
   const cw = cv.clientWidth || window.innerWidth, ch = cv.clientHeight || window.innerHeight;
@@ -193,6 +193,19 @@ const sfx = {
     tone('sine', 72, 16, 2.8, 1, { drive: true, wet: 0.5 });
     noise(2.2, 700, 0.5, 0.6, 'lowpass', { wet: 1, curve: 1.2 });   // rolling thunder tail
     tone('sawtooth', 1200, 60, 0.5, 0.06, { wet: 0.8 });
+  },
+  tick() { tone('square', 1800, 1700, 0.025, 0.04); },
+  menuTick() { tone('triangle', 900, 600, 0.06, 0.12); noise(0.03, 3000, 2, 0.15, 'bandpass'); },
+  menuSelect() { tone('sine', 120, 40, 0.5, 0.7, { drive: true, wet: 0.6 }); noise(0.5, 400, 1, 0.5, 'bandpass', { sweepTo: 3000, wet: 0.6 }); tone('triangle', 660, 660, 0.4, 0.08, { delay: 0.05, wet: 0.9 }); },
+  cardFlip() { noise(0.12, 2500, 1.5, 0.35, 'bandpass', { sweepTo: 900 }); tone('triangle', 500, 900, 0.08, 0.06, { delay: 0.18 }); },
+  staticBurst() { noise(0.22, 5000, 0.5, 0.25, 'highpass'); tone('square', 60, 58, 0.2, 0.06); },
+  ambient() {
+    const r = Math.random();
+    if (r < 0.3) noise(1.4, 260, 9, 0.35, 'bandpass', { sweepTo: 170, wet: 1 });                         // timber creak
+    else if (r < 0.5) for (let i = 0; i < 4; i++) tone('triangle', 1400 + rand(0, 600), 1300, 0.05, 0.03, { delay: i * 0.09, wet: 1 });  // chain
+    else if (r < 0.75) { tone('sine', 46, 42, 4, 0.25, { attack: 1.2, wet: 0.8 }); tone('sine', 69, 66, 4, 0.08, { attack: 1.5, wet: 0.9 }); }  // drone
+    else if (r < 0.9) tone('sine', 70, 30, 0.6, 0.35, { drive: true, wet: 1 });                         // distant thud
+    else noise(1.6, 3200, 0.8, 0.06, 'highpass', { rise: true, wet: 1 });                                 // whisper of air
   },
   land() { tone('sine', 95, 38, 0.35, 0.9, { drive: true, wet: 0.3 }); noise(0.3, 400, 0.7, 0.7, 'lowpass', { curve: 2, wet: 0.4 }); noise(0.08, 1500, 1.5, 0.3, 'bandpass', { delay: 0.02 }); },
   snap() { noise(0.09, 1800, 2, 0.8, 'bandpass', { drive: true, wet: 0.3 }); tone('square', 320, 70, 0.07, 0.15); for (let i = 0; i < 4; i++) noise(0.02, rand(1500, 3500), 3, 0.3, 'bandpass', { delay: 0.02 + i * 0.03 }); },
@@ -657,6 +670,7 @@ function newStage() {
 }
 
 function startGame() {
+  setPix(PIX_GAME);
   stage = 1; score = 0; apples = 0; newBest = false;
   lives = MAX_LIVES; impactT = 0; gray = 0; finale = false; pieces = []; gridFrac = null; frac = null;
   flying = []; debris = []; parts = [];
@@ -677,7 +691,7 @@ function throwKnife() {
 
 function action() {
   ac();
-  if (state === 'menu') { startGame(); return; }
+  if (state === 'menu') { if (ui.screen === 'main') go('play', 'play'); return; }
   if (state === 'over') { if (overT <= 0) startRewind(); return; }
   throwKnife();
 }
@@ -2304,6 +2318,7 @@ function breakFeatures(t) {
 // ---------- update ----------
 function update(dt) {
   time += dt;
+  if (state === 'menu') { updateMenu(dt); return; }
   heartT = Math.max(0, heartT - dt * 1.5);
   updateAbility(dt);
   if (updateFx(dt)) return;                               // ability hit-stop freeze
@@ -2894,7 +2909,10 @@ function drawOverScreen() {
     if (newBest) { ctx.fillStyle = '#fff'; rr(CX - 80, 438, 160, 36, 4); ctx.fill(); text('NEW BEST!', CX, 457, 20, '#000', 'center', 900); }
     else text('BEST  ' + best, CX, 457, 20, '#fff', 'center', 800);
   });
-  if (overT <= 0) { ctx.save(); ctx.globalAlpha = 0.55 + 0.45 * Math.sin(time * 5); text('TAP TO RETRY', CX, 560, 26, '#fff'); ctx.restore(); }
+  if (overT <= 0) {
+    ctx.save(); ctx.globalAlpha = 0.55 + 0.45 * Math.sin(time * 5); text('TAP TO RETRY', CX, 560, 26, '#fff'); ctx.restore();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(CX - 80, 606, 160, 36); text('MAIN MENU', CX, 625, 14, '#fff', 'center', 700);
+  }
 }
 
 function drawImpact() {
@@ -2998,6 +3016,7 @@ function drawScene() {
 }
 
 function draw() {
+  if (state === 'menu') { drawMenuScreen(); if (cv.style.filter !== 'none') cv.style.filter = 'none'; pixelate(); return; }
   if (state === 'over') {
     drawOverScreen(); drawPieces();
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); drawMute();
@@ -3012,6 +3031,7 @@ function draw() {
   if (snapReq && state === 'impact') {
     shatterScreen(); snapReq = false;
     state = 'over'; overAge = 0; overT = 0.9; gray = 0; frac = null;
+    ui.bank += apples; save('knaife.bank', ui.bank); ui.tex = {};
     sfx.screenBreak(); buzz([60, 30, 60]);
     return;   // the next frame draws the losing screen under the falling pieces
   }
@@ -3102,16 +3122,586 @@ function drawBackdrop() {
   for (let y = -H; y < H * 2; y += 3) ctx.fillRect(-W, y, W * 3, 1);
 }
 
+// ======================= MAIN MENU / STORE / ENCYCLOPEDIA =======================
+const PIX_GAME = 1.5, PIX_MENU = 1.15;
+function setPix(p) { if (PIX !== p) { PIX = p; resize(); } }
+function withCtx(g, fn) { const old = ctx; ctx = g; try { fn(); } finally { ctx = old; } }
+
+const ui = { screen: 'main', mx: CX, my: 420, hover: null, trans: null, enter: 0, idx: 0, flip: 0, flipped: true, spin: 0, spinV: 1.1, drag: null,
+  amb: 2, glitch: 0, glitchT: 7, press: {}, demo: null, tex: {}, bank: load('knaife.bank', 0), hov: {}, dust: [], seenFlick: 0 };
+for (let i = 0; i < 70; i++) ui.dust.push({ x: rand(-40, W + 40), y: rand(0, H), z: rand(0.3, 1.4), ph: rand(TAU) });
+
+// ---------- 3D panels: perspective quads drawn as textured vertical strips ----------
+const FOCAL = 520;
+function pt3(p, u, v) {
+  let X = (u - 0.5) * p.w * (p.sc || 1), Y = (v - 0.5) * p.h * (p.sc || 1), Z = 0, c, s;
+  c = Math.cos(p.rz); s = Math.sin(p.rz); [X, Y] = [X * c - Y * s, X * s + Y * c];
+  c = Math.cos(p.rx); s = Math.sin(p.rx); [Y, Z] = [Y * c - Z * s, Y * s + Z * c];
+  c = Math.cos(p.ry); s = Math.sin(p.ry); [X, Z] = [X * c + Z * s, -X * s + Z * c];
+  const k = FOCAL / (FOCAL + Z + p.z);
+  return [p.x + X * k, p.y + Y * k];
+}
+function quad(p) { return [pt3(p, 0, 0), pt3(p, 1, 0), pt3(p, 1, 1), pt3(p, 0, 1)]; }
+function inQuad(q, x, y) {
+  let ins = false;
+  for (let i = 0, j = 3; i < 4; j = i++) { const [xi, yi] = q[i], [xj, yj] = q[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; }
+  return ins;
+}
+function uvAt(p, x, y) {   // invert the panel mapping numerically
+  let u = 0.5, v = 0.5;
+  for (let i = 0; i < 14; i++) {
+    const [px, py] = pt3(p, u, v), e = 0.001, [ux, uy] = pt3(p, u + e, v), [vx, vy] = pt3(p, u, v + e);
+    const a = (ux - px) / e, b = (vx - px) / e, c = (uy - py) / e, d = (vy - py) / e, det = a * d - b * c || 1e-6;
+    const dx = x - px, dy = y - py; u += (d * dx - b * dy) / det; v += (-c * dx + a * dy) / det;
+  }
+  return [u, v];
+}
+function drawPanel3D(tex, p, alpha = 1, glow = 0, glowCol = '#ff2e45') {
+  const q = quad(p);
+  ctx.save(); ctx.globalAlpha = alpha;
+  // drop shadow and slab thickness
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); q.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x + 10, y + 14)); ctx.closePath(); ctx.fill();
+  const back = { ...p, z: p.z + 9 }, qb = quad(back);
+  ctx.fillStyle = '#060608'; ctx.beginPath(); qb.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath(); ctx.fill();
+  for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; ctx.fillStyle = i % 2 ? '#1e1e24' : '#121216'; ctx.beginPath(); ctx.moveTo(...q[i]); ctx.lineTo(...q[j]); ctx.lineTo(...qb[j]); ctx.lineTo(...qb[i]); ctx.closePath(); ctx.fill(); }
+  // textured face
+  const N = Math.max(10, Math.ceil(p.w / 3)), tw = tex.width, th = tex.height, sw = tw / N;
+  for (let i = 0; i < N; i++) {
+    const u0 = i / N, u1 = (i + 1) / N, [x0, y0] = pt3(p, u0, 0), [x1, y1] = pt3(p, u1, 0), [x2, y2] = pt3(p, u0, 1);
+    ctx.save(); ctx.transform((x1 - x0) / sw, (y1 - y0) / sw, (x2 - x0) / th, (y2 - y0) / th, x0, y0);
+    ctx.drawImage(tex, i * sw, 0, Math.min(sw + 1, tw - i * sw), th, 0, 0, Math.min(sw + 1, tw - i * sw), th);
+    ctx.restore();
+  }
+  if (glow > 0.01) {
+    ctx.strokeStyle = glowCol; ctx.lineWidth = 2 + 2 * glow; ctx.globalAlpha = alpha * glow; ctx.shadowColor = glowCol; ctx.shadowBlur = 16 * glow;
+    ctx.beginPath(); q.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore();
+  return q;
+}
+
+// ---------- panel textures ----------
+const TS = 2;
+function slab(w, h, kind, paint) {
+  const c = document.createElement('canvas'); c.width = Math.ceil(w * TS); c.height = Math.ceil(h * TS);
+  const g = c.getContext('2d'); g.scale(TS, TS);
+  const r = mulberry(w * 131 + h * 7 + kind.length);
+  if (kind === 'wood') {
+    const boards = Math.max(2, Math.round(w / 38));
+    for (let i = 0; i < boards; i++) {
+      const x = i * w / boards;
+      g.fillStyle = ['#2b1c12', '#33221a', '#261810'][i % 3]; g.fillRect(x, 0, w / boards, h);
+      g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 0.7;
+      for (let k = 0; k < 7; k++) { const gx = x + r() * w / boards; g.beginPath(); g.moveTo(gx, 0); for (let y = 0; y <= h; y += 12) g.lineTo(gx + Math.sin(y * 0.05 + k) * 2, y); g.stroke(); }
+      g.fillStyle = '#0d0905'; g.fillRect(x, 0, 1.2, h);
+      g.fillStyle = 'rgba(255,220,180,.06)'; g.fillRect(x + 1.2, 0, 1, h);
+    }
+    for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.ellipse(r() * w, r() * h, 3 + r() * 4, 2 + r() * 2, r() * 3, 0, TAU); g.fill(); }
+    for (let i = 0; i < 9; i++) { g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 0.6; const x = r() * w, y = r() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 30, y + (r() - 0.5) * 10); g.stroke(); }
+  } else {
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#26262c'); gr.addColorStop(1, '#101014');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++) { g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 0.5; const x = r() * w, y = r() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 40, y + (r() - 0.5) * 6); g.stroke(); }
+    g.fillStyle = 'rgba(80,20,10,.25)'; for (let i = 0; i < 4; i++) { g.beginPath(); g.ellipse(r() * w, r() * h, 6 + r() * 10, 3 + r() * 6, 0, 0, TAU); g.fill(); }
+  }
+  // iron frame, corner brackets, nails
+  g.strokeStyle = '#0a0a0c'; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4);
+  g.strokeStyle = '#5c5c66'; g.lineWidth = 1; g.strokeRect(3.5, 3.5, w - 7, h - 7);
+  g.fillStyle = '#38383f';
+  for (const [x, y, sx, sy] of [[0, 0, 1, 1], [w, 0, -1, 1], [0, h, 1, -1], [w, h, -1, -1]]) {
+    g.fillRect(x + (sx < 0 ? -14 : 0), y + (sy < 0 ? -4 : 0), 14, 4); g.fillRect(x + (sx < 0 ? -4 : 0), y + (sy < 0 ? -14 : 0), 4, 14);
+    g.fillStyle = '#c3c3ca'; g.fillRect(x + sx * 7 - 1, y + sy * 7 - 1, 2, 2); g.fillStyle = '#38383f';
+  }
+  withCtx(g, () => paint(g, w, h));
+  const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = v; g.fillRect(0, 0, w, h);
+  return c;
+}
+function etch(g, str, x, y, size, col = '#ffffff', glow = '#ff2e45', align = 'center') {
+  g.font = `700 ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle';
+  g.fillStyle = '#000'; g.fillText(str, x + 1.5, y + 1.5);
+  if (glow) { g.save(); g.shadowColor = glow; g.shadowBlur = 8; g.fillStyle = glow; g.globalAlpha = 0.6; g.fillText(str, x, y); g.restore(); }
+  g.fillStyle = col; g.fillText(str, x, y);
+}
+function wrap(g, str, x, y, maxW, size, col, lh = size * 1.35) {
+  g.font = `400 ${size}px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = col;
+  let line = '';
+  for (const w of str.split(' ')) {
+    const t = line ? line + ' ' + w : w;
+    if (g.measureText(t).width > maxW && line) { g.fillText(line, x, y); y += lh; line = w; } else line = t;
+  }
+  if (line) { g.fillText(line, x, y); y += lh; }
+  return y;
+}
+function hazard(g, x, y, w, h) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.fillStyle = '#ffd23f'; g.fillRect(x, y, w, h); g.fillStyle = '#111'; for (let i = -h; i < w + h; i += 10) { g.beginPath(); g.moveTo(x + i, y); g.lineTo(x + i + 5, y); g.lineTo(x + i + 5 - h, y + h); g.lineTo(x + i - h, y + h); g.fill(); } g.restore(); }
+
+function texFor(key, make) { if (!ui.tex[key]) ui.tex[key] = make(); return ui.tex[key]; }
+
+const MAIN = [
+  { id: 'play',  x: 92,  y: 445, z: 0,  w: 104, h: 236, ry: 0.42,  rx: 0.05, rz: -0.06, ph: 0 },
+  { id: 'store', x: 214, y: 425, z: 20, w: 118, h: 262, ry: -0.1,  rx: 0.04, rz: 0.02,  ph: 1.7 },
+  { id: 'ency',  x: 336, y: 415, z: 0,  w: 96,  h: 232, ry: -0.5,  rx: 0.03, rz: 0.12,  ph: 3.1 },
+];
+function mainTex(id) {
+  if (id === 'play') return texFor('play' + best, () => slab(104, 236, 'wood', (g, w, h) => {
+    hazard(g, 6, 6, w - 12, 8);
+    'PLAY'.split('').forEach((ch, i) => etch(g, ch, w / 2, 50 + i * 40, 34));
+    g.save(); g.translate(w / 2, 196); g.rotate(-0.6); g.scale(0.32, 0.32); g.translate(0, -KL / 2); drawKnife(); g.restore();
+    etch(g, 'BEST ' + best, w / 2, h - 16, 9, '#ffd23f', null);
+  }));
+  if (id === 'store') return texFor('store' + ui.bank, () => slab(118, 262, 'wood', (g, w, h) => {
+    g.fillStyle = '#a3122a'; g.fillRect(6, 6, w - 12, 6);
+    'STORE'.split('').forEach((ch, i) => etch(g, ch, w / 2, 44 + i * 38, 30));
+    g.save(); g.translate(w / 2 - 16, 236); g.scale(0.9, 0.9); drawApple(); g.restore();
+    etch(g, String(ui.bank), w / 2 + 12, 236, 13, '#ffffff', null);
+  }));
+  return texFor('ency', () => slab(96, 232, 'metal', (g, w, h) => {
+    g.save(); g.translate(w / 2, h / 2 - 6); g.rotate(-1.22); etch(g, 'ENCYCLOPEDIA', 0, 0, 16); g.restore();
+    g.fillStyle = '#5c5c66'; g.fillRect(w / 2 - 14, h - 40, 28, 20); g.fillStyle = '#c3c3ca'; g.fillRect(w / 2 - 12, h - 38, 24, 16); g.fillStyle = '#a3122a'; g.fillRect(w / 2 - 1, h - 40, 2, 20);
+    etch(g, ENTRIES.length + ' ENTRIES', w / 2, h - 12, 8, '#c3c3ca', null);
+  }));
+}
+
+// ---------- encyclopedia data ----------
+const ENTRIES = [
+  { cat: 'LOG TYPE', name: 'PLAIN LOG', type: 'plain', how: 'Stick every knife in. Hitting a knife already in the log costs a heart. Clipping its side ricochets and stuns you for 2s instead.', abil: 'Double damage. If it hits a knife, that knife explodes.' },
+  { cat: 'LOG TYPE', name: 'BRANCHED LOG', type: 'branches', how: 'Break every branch AND finish the log. Hitting a branch never costs a knife.', abil: 'Tears off every branch at once. Birds are shooed first.' },
+  { cat: 'LOG TYPE', name: 'WEAK-SPOT LOG', type: 'holes', how: 'Glowing holes take 2 damage. Each works once.', abil: 'A hole hit becomes a X4 core breach.' },
+  { cat: 'LOG TYPE', name: 'OVERGROWN LOG', type: 'bushes', how: 'Bushes can hide knives - watch for a steel glint. Apple bushes drop up to 2 apples.', abil: 'Blows every bush away and blasts hidden knives out.' },
+  { cat: 'LOG TYPE', name: 'MOSSY LOG', type: 'moss', how: 'Moss soaks up to 3 hits and regrows a layer every 6s. Keep hitting it.', abil: 'Burns all moss off. The hit counts in full.' },
+  { cat: 'LOG TYPE', name: 'ARMOURED LOG', type: 'bark', how: 'Steel plates deflect knives. Two hits break a plate. Strike through the gaps.', abil: 'Blows every plate off.' },
+  { cat: 'LOG TYPE', name: 'HUNGRY HOLLOW', type: 'treehole', how: 'The hollow swallows knives. Every third knife is spat back into the log.', abil: 'It erupts: each swallowed knife deals 1 damage.' },
+  { cat: 'LOG TYPE', name: 'SAWMILL', type: 'saw', how: 'An unstoppable blade cuts in from the side. Knives pass it. Finish the log before it cuts through.', abil: 'Knocks the saw carriage back by half.' },
+  { cat: 'BRANCH', name: 'BRANCH', sub: 'plain', how: 'Snaps in one hit. Leaves and splinters everywhere.', abil: 'Torn off with the rest.' },
+  { cat: 'BRANCH', name: 'SPRING BRANCH', sub: 'swirl', how: 'The first hit bounces off. The second breaks it.', abil: 'Sprung open instantly.' },
+  { cat: 'BRANCH', name: 'BURNING BRANCH', sub: 'fire', how: 'Break it within 10s or the fire spreads to the log: game over.', abil: 'Doused in one blow.' },
+  { cat: 'BRANCH', name: 'BEEHIVE', sub: 'hive', how: 'Breaking it releases bees that jam your ability for 30s.', abil: 'Your aura scatters the bees. No jam.' },
+  { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
+  { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
+  { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
+  { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
+  { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
+  { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
+  { cat: 'BOSS', name: 'MOONWOOD', boss: 3, how: 'Pale wood full of twinkling stars.', abil: '+5 bonus when it falls.' },
+  { cat: 'BOSS', name: 'OLD GNARL', boss: 4, how: 'Wrapped in creeping vines. Chaotic spin.', abil: '+5 bonus when it falls.' },
+  { cat: 'MECHANIC', name: 'APPLES', apple: true, how: 'Slice apples on the rim for +2 score. Apples you collect are banked for the store.', abil: 'The ability slices straight through them too.' },
+  { cat: 'MECHANIC', name: 'GRAZE', graze: true, how: 'Clip the side of a stuck knife: your knife ricochets, the stuck knife tilts, and you are stunned for 2s. No heart lost.', abil: 'The ability never grazes. It pierces.' },
+];
+function demoFor(e) {
+  const pal = e.boss !== undefined ? BOSSES[e.boss] : WOODS[ENTRIES.indexOf(e) % WOODS.length];
+  const t = makeTarget(pal, () => 0.5, [], [], e.boss !== undefined);
+  t.pop = 1; t.landed = true;
+  decorate(t, e.type || (e.sub ? 'branches' : 'plain'));
+  t.labelT = 0;
+  if (e.sub) {
+    const F = t.f; F.links = [];
+    if (e.sub === 'linked') { F.branches = [makeBranch(-HALF - 0.38, 'linked'), makeBranch(-HALF + 0.38, 'linked')]; F.links.push({ i: 0, j: 1, alive: true }); F.branches[0].link = F.branches[1].link = 0; }
+    else F.branches = [makeBranch(-HALF, e.sub)];
+  }
+  if (e.type === 'saw') t.f.saws.forEach(s => s.cut = 0.3);
+  if (e.type === 'plain' || e.boss !== undefined) t.stuck = [{ a: 0.6 }, { a: 2.4 }];
+  if (e.apple) t.apples = [{ a: 0, cut: false }, { a: 2.1, cut: false }, { a: 4.2, cut: false }];
+  if (e.graze) t.stuck = [{ a: HALF, tilt: 0.3 }];
+  return t;
+}
+function cardTex(key, w, h, title, body, accent = '#ff2e45') {
+  return texFor(key, () => slab(w, h, 'metal', (g) => {
+    g.fillStyle = accent; g.fillRect(6, 6, w - 12, 3);
+    etch(g, title, 10, 18, 10, '#ffffff', accent, 'left');
+    g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(10, 27, w - 20, 1);
+    let y = 34;
+    for (const b of body) {
+      if (b.stat) {
+        g.font = `400 8px ${FONT}`; g.fillStyle = '#c3c3ca'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(b.stat, 10, y);
+        g.fillStyle = '#1e1e24'; g.fillRect(10, y + 11, w - 20, 5); g.fillStyle = b.col || accent; g.fillRect(10, y + 11, (w - 20) * b.v, 5);
+        g.textAlign = 'right'; g.fillStyle = '#fff'; g.fillText(b.txt, w - 10, y); y += 22;
+      } else y = wrap(g, b.text, 10, y, w - 20, b.size || 8, b.col || '#e0e0e6') + 4;
+    }
+  }));
+}
+
+// ---------- screens ----------
+const SHOP = {
+  stats:   { x: 76,  y: 360, z: 0, w: 122, h: 196, ry: 0.26,  rx: 0.04, rz: -0.03, ph: 0.4 },
+  lore:    { x: 172, y: 492, z: 0, w: 76,  h: 92,  ry: 0.12,  rx: 0.05, rz: 0.04,  ph: 1.4 },
+  ability: { x: 348, y: 258, z: 0, w: 108, h: 176, ry: -0.3,  rx: 0.03, rz: 0.05,  ph: 2.2 },
+  list:    { x: 300, y: 600, z: 0, w: 180, h: 118, ry: -0.08, rx: 0.06, rz: -0.02, ph: 0.9 },
+  prev:    { x: 66,  y: 690, z: 0, w: 62,  h: 56,  ry: 0.35,  rx: 0.1,  rz: -0.12, ph: 2.9 },
+  next:    { x: 368, y: 694, z: 0, w: 56,  h: 56,  ry: -0.35, rx: 0.1,  rz: 0.1,   ph: 3.7 },
+  back:    { x: 58,  y: 50,  z: 0, w: 92,  h: 34,  ry: 0.2,   rx: 0,    rz: -0.04, ph: 0.2 },
+};
+const ENCY = {
+  name:  { x: 214, y: 140, z: 0, w: 150, h: 62,  ry: 0.05,  rx: 0.08, rz: -0.02, ph: 0.3 },
+  how:   { x: 350, y: 330, z: 0, w: 116, h: 180, ry: -0.3,  rx: 0.03, rz: 0.04,  ph: 1.1 },
+  abil:  { x: 72,  y: 470, z: 0, w: 120, h: 150, ry: 0.28,  rx: 0.04, rz: -0.04, ph: 2.3 },
+  list:  { x: 300, y: 604, z: 0, w: 184, h: 122, ry: -0.08, rx: 0.06, rz: -0.02, ph: 0.9 },
+  prev:  { x: 66,  y: 690, z: 0, w: 62,  h: 56,  ry: 0.35,  rx: 0.1,  rz: -0.12, ph: 2.9 },
+  next:  { x: 368, y: 694, z: 0, w: 56,  h: 56,  ry: -0.35, rx: 0.1,  rz: 0.1,   ph: 3.7 },
+  back:  { x: 58,  y: 50,  z: 0, w: 92,  h: 34,  ry: 0.2,   rx: 0,    rz: -0.04, ph: 0.2 },
+};
+const arrowTex = dir => texFor('arrow' + dir, () => slab(60, 56, 'metal', (g, w, h) => {
+  g.fillStyle = '#ff2e45'; g.beginPath();
+  if (dir < 0) { g.moveTo(w / 2 + 9, h / 2 - 13); g.lineTo(w / 2 - 11, h / 2); g.lineTo(w / 2 + 9, h / 2 + 13); }
+  else { g.moveTo(w / 2 - 9, h / 2 - 13); g.lineTo(w / 2 + 11, h / 2); g.lineTo(w / 2 - 9, h / 2 + 13); }
+  g.closePath(); g.shadowColor = '#ff2e45'; g.shadowBlur = 8; g.fill();
+}));
+const backTex = () => texFor('back', () => slab(92, 34, 'metal', (g, w, h) => etch(g, '< BACK', w / 2, h / 2 + 1, 11)));
+
+function livePanel(def, id, extra = {}) {
+  const hv = ui.hov[id] || 0, pr = ui.press[id] || 0;
+  const par = { x: (ui.mx - CX) / W, y: (ui.my - H / 2) / H };
+  const enterK = clamp((ui.enter - (def.ph % 1) * 0.25) / 0.45, 0, 1), ein = 1 - Math.pow(1 - enterK, 3);
+  return Object.assign({
+    x: def.x + par.x * -10 + (1 - ein) * (def.x < CX ? -260 : 260),
+    y: def.y + Math.sin(time * 1.1 + def.ph) * 6 - hv * 6 + par.y * -6,
+    z: def.z - hv * 50 + pr * 40,
+    w: def.w, h: def.h, sc: 1,
+    ry: def.ry * (1 - hv * 0.6) + Math.sin(time * 0.7 + def.ph) * 0.07 + par.x * 0.35 + (1 - ein) * (def.x < CX ? -1.2 : 1.2),
+    rx: def.rx + Math.cos(time * 0.9 + def.ph) * 0.05 - par.y * 0.25,
+    rz: def.rz * (1 - hv * 0.5) + Math.sin(time * 0.6 + def.ph) * 0.03,
+  }, extra);
+}
+
+// ---------- background: the night mill corridor ----------
+function drawMenuBackdrop() {
+  const cw = cv.width, ch = cv.height;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch); ctx.restore();
+  const vx = CX - (ui.mx - CX) * 0.08, vy = 236 - (ui.my - 400) * 0.05, f = 160;
+  const SP = 110, off = (time * 22) % SP, frames = [];
+  const flick = ui.flick;
+  for (let k = 0; k < 13; k++) {
+    const z = k * SP - off + 30, s = f / (f + z);
+    frames.push({ z, s, cx: vx + (CX - vx) * s, cy: vy + (H / 2 - vy) * s * 0.9, hw: 300 * s, hh: 430 * s, k: k + Math.floor(time * 22 / SP) });
+  }
+  // far to near: walls, floor, ceiling
+  for (let i = frames.length - 2; i >= 0; i--) {
+    const A = frames[i + 1], B = frames[i], lum = Math.floor(10 + 36 * B.s * flick);
+    const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([x, y], j) => ctx[j ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath(); ctx.fill(); };
+    const wall = `rgb(${lum + 8},${lum + 2},${lum - 2})`, side = `rgb(${lum},${lum - 3},${lum - 6})`;
+    poly([[A.cx - A.hw, A.cy - A.hh], [B.cx - B.hw, B.cy - B.hh], [B.cx - B.hw, B.cy + B.hh], [A.cx - A.hw, A.cy + A.hh]], side);
+    poly([[A.cx + A.hw, A.cy - A.hh], [B.cx + B.hw, B.cy - B.hh], [B.cx + B.hw, B.cy + B.hh], [A.cx + A.hw, A.cy + A.hh]], side);
+    poly([[A.cx - A.hw, A.cy + A.hh], [A.cx + A.hw, A.cy + A.hh], [B.cx + B.hw, B.cy + B.hh], [B.cx - B.hw, B.cy + B.hh]], `rgb(${lum - 4},${lum - 6},${lum - 8})`);
+    poly([[A.cx - A.hw, A.cy - A.hh], [A.cx + A.hw, A.cy - A.hh], [B.cx + B.hw, B.cy - B.hh], [B.cx - B.hw, B.cy - B.hh]], `rgb(${Math.max(0, lum - 10)},${Math.max(0, lum - 10)},${Math.max(0, lum - 8)})`);
+    // planks
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(0.5, 1.4 * B.s);
+    for (let p = 1; p < 6; p++) { const u = p / 6 * 2 - 1;
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(A.cx + sd * A.hw, A.cy + u * A.hh); ctx.lineTo(B.cx + sd * B.hw, B.cy + u * B.hh); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(A.cx + u * A.hw, A.cy + A.hh); ctx.lineTo(B.cx + u * B.hw, B.cy + B.hh); ctx.stroke(); }
+    // frame beams
+    ctx.strokeStyle = `rgb(${lum + 20},${lum + 10},${lum})`; ctx.lineWidth = Math.max(1, 7 * B.s);
+    ctx.strokeRect(B.cx - B.hw, B.cy - B.hh, B.hw * 2, B.hh * 2);
+    // doors on alternate frames, some with red light leaking
+    if (B.k % 3 === 0) {
+      for (const sd of [-1, 1]) {
+        const mx = (A.cx + B.cx) / 2 + sd * (A.hw + B.hw) / 2, dh = (A.hh + B.hh) / 2;
+        const top = (A.cy + B.cy) / 2 - dh * 0.1, w2 = Math.abs(B.hw - A.hw) * 0.35;
+        ctx.fillStyle = '#050505'; ctx.fillRect(mx - w2, top, w2 * 2, dh * 1.1);
+        if (hash(B.k, sd, 3) < 0.4) { ctx.fillStyle = `rgba(255,46,69,${0.25 + 0.15 * Math.sin(time * 3 + B.k)})`; ctx.fillRect(mx - w2 * 0.2, top + dh * 0.05, w2 * 0.4, dh); }
+      }
+    }
+    // hanging lamps
+    if (B.k % 4 === 1) {
+      const on = flick > 0.5 && hash(B.k, Math.floor(time * 9), 7) > 0.08;
+      const lx = B.cx, ly = B.cy - B.hh, len = 60 * B.s;
+      ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(0.6, 1.5 * B.s); ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx, ly + len); ctx.stroke();
+      ctx.fillStyle = '#1e1e24'; ctx.beginPath(); ctx.moveTo(lx - 14 * B.s, ly + len + 8 * B.s); ctx.lineTo(lx + 14 * B.s, ly + len + 8 * B.s); ctx.lineTo(lx + 5 * B.s, ly + len); ctx.lineTo(lx - 5 * B.s, ly + len); ctx.fill();
+      if (on) {
+        const cone = ctx.createLinearGradient(0, ly + len, 0, B.cy + B.hh);
+        cone.addColorStop(0, 'rgba(255,226,166,.35)'); cone.addColorStop(1, 'rgba(255,226,166,0)');
+        ctx.fillStyle = cone; ctx.beginPath(); ctx.moveTo(lx - 10 * B.s, ly + len + 8 * B.s); ctx.lineTo(lx + 10 * B.s, ly + len + 8 * B.s); ctx.lineTo(lx + B.hw * 0.7, B.cy + B.hh); ctx.lineTo(lx - B.hw * 0.7, B.cy + B.hh); ctx.fill();
+        ctx.fillStyle = '#ffe2a6'; ctx.fillRect(lx - 4 * B.s, ly + len + 6 * B.s, 8 * B.s, 3 * B.s);
+        const pool = ctx.createRadialGradient(lx, B.cy + B.hh, 2, lx, B.cy + B.hh, B.hw * 0.8);
+        pool.addColorStop(0, 'rgba(255,226,166,.18)'); pool.addColorStop(1, 'rgba(255,226,166,0)'); ctx.fillStyle = pool; ctx.fillRect(lx - B.hw, B.cy + B.hh - B.hh * 0.3, B.hw * 2, B.hh * 0.6);
+      }
+    }
+  }
+  // the watcher at the end of the hall
+  const es = 0.72 * (1 + ui.glitch * 0.8);
+  const ex = vx + Math.sin(time * 0.13) * 14, ey = vy + 72;
+  const fog = ctx.createRadialGradient(vx, vy, 4, vx, vy, 90); fog.addColorStop(0, 'rgba(40,40,48,.9)'); fog.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = fog; ctx.fillRect(vx - 100, vy - 100, 200, 200);
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.moveTo(ex - 9 * es, ey); ctx.lineTo(ex - 5 * es, ey - 120 * es); ctx.lineTo(ex + 5 * es, ey - 120 * es); ctx.lineTo(ex + 9 * es, ey); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(ex, ey - 132 * es, 9 * es, 13 * es, Math.sin(time * 0.7) * 0.15, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5 * es;
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(ex + sd * 5 * es, ey - 110 * es); ctx.lineTo(ex + sd * 14 * es, ey - 60 * es); ctx.lineTo(ex + sd * 12 * es, ey - 20 * es); ctx.stroke();
+    ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1 * es; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(ex + sd * 12 * es, ey - 20 * es); ctx.lineTo(ex + sd * (12 + i * 3) * es, ey - 6 * es); ctx.stroke(); } ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5 * es; }
+  const eyeOn = (1 - flick) * 0.7 + 0.3 + ui.glitch;
+  if (Math.sin(time * 0.9) > -0.96) for (const sd of [-1, 1]) { ctx.fillStyle = `rgba(255,255,255,${Math.min(1, eyeOn)})`; ctx.fillRect(ex + sd * 4 * es - 1.5 * es, ey - 135 * es, 3 * es, 2 * es); ctx.fillStyle = `rgba(255,46,69,${Math.min(1, eyeOn)})`; ctx.fillRect(ex + sd * 4 * es - 0.6 * es, ey - 135 * es, 1.2 * es, 2 * es); }
+  // dust in the lamplight
+  for (const d of ui.dust) {
+    const x = d.x + Math.sin(time * 0.4 + d.ph) * 10 - (ui.mx - CX) * 0.04 * d.z, y = (d.y + time * 8 * d.z) % H;
+    ctx.fillStyle = `rgba(255,236,200,${0.15 + 0.35 * d.z * flick})`; ctx.fillRect(x, y, 1.2 * d.z + 0.5, 1.2 * d.z + 0.5);
+  }
+  // foreground: hanging knives on chains
+  for (const [hx, len, ph, sz] of [[26, 210, 0, 1], [398, 160, 2, 0.85], [-6, 120, 4, 0.7]]) {
+    const sw = Math.sin(time * 0.9 + ph) * 0.18, px = hx - (ui.mx - CX) * 0.12;
+    ctx.save(); ctx.translate(px, -10); ctx.rotate(sw);
+    ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 1.6;
+    for (let y = 0; y < len; y += 7) { ctx.beginPath(); ctx.ellipse(0, y, y % 14 ? 1.2 : 2.6, 3.6, 0, 0, TAU); ctx.stroke(); }
+    ctx.translate(0, len); ctx.scale(sz, sz); ctx.rotate(Math.PI); ctx.translate(0, -KL); drawKnife();
+    ctx.restore();
+  }
+  // foreground log pile
+  const lp = (ui.mx - CX) * 0.16;
+  for (const [x, y, r] of [[-20 - lp, H - 40, 70], [60 - lp, H + 10, 60], [400 - lp, H - 20, 64], [470 - lp, H - 90, 52]]) {
+    ctx.fillStyle = '#0b0705'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,70,30,.35)'; ctx.lineWidth = 1.2;
+    for (let k = 1; k < 6; k++) { ctx.beginPath(); ctx.arc(x + 3, y - 2, r * k / 6, 0, TAU); ctx.stroke(); }
+    ctx.strokeStyle = '#1e140c'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(x, y, r - 3, 0, TAU); ctx.stroke();
+  }
+  // static and a red vignette that breathes
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  for (let i = 0; i < 70; i++) ctx.fillRect(rand(-60, W + 60), rand(0, H), 1.2, 1.2);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.3, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.6);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(${40 + 30 * Math.sin(time * 0.8)},0,6,.85)`);
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch); ctx.restore();
+}
+
+function drawTitle(txt, y, size) {
+  ctx.save(); ctx.font = `700 ${size}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const j = ui.glitch > 0 ? rand(-6, 6) : (Math.floor(time * 10) % 23 === 0 ? 3 : 0);
+  ctx.fillStyle = '#ff2e45'; ctx.fillText(txt, CX - 3 - j, y + 3);
+  ctx.fillStyle = '#2ad8ff'; ctx.fillText(txt, CX + 3 + j, y - 2);
+  ctx.fillStyle = '#fff'; ctx.fillText(txt, CX, y);
+  ctx.fillStyle = '#000'; for (let yy = y - size / 2; yy < y + size / 2; yy += 5) ctx.fillRect(CX - size * 3, yy, size * 6, 1.2);
+  ctx.restore();
+}
+
+function connector(ax, ay, q, side) {
+  const [bx, by] = side < 0 ? [(q[1][0] + q[2][0]) / 2, (q[1][1] + q[2][1]) / 2] : [(q[0][0] + q[3][0]) / 2, (q[0][1] + q[3][1]) / 2];
+  const mx = ax + (bx - ax) * 0.45;
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.4; ctx.setLineDash([5, 4]); ctx.lineDashOffset = -time * 30;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(mx, ay); ctx.lineTo(mx + (bx - mx) * 0.4, by); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+  for (const [x, y] of [[ax, ay], [bx, by]]) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ---------- per-screen drawing ----------
+let hitList = [];
+function regPanel(id, q, p) { hitList.push({ id, q, p }); }
+
+function drawMainScreen() {
+  drawTitle('KNAIFE', 118, 60);
+  ctx.save(); ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 2); text('THE MILL NEVER SLEEPS', CX, 162, 10, '#c3c3ca', 'center', 400); ctx.restore();
+  const order = MAIN.map(d => d).sort((a, b) => (ui.hov[b.id] || 0) - (ui.hov[a.id] || 0)).reverse();
+  for (const d of order) {
+    let p = livePanel(d, d.id);
+    if (ui.trans && ui.trans.panel === d.id) { const u = clamp(ui.trans.t / 0.55, 0, 1); p.z -= u * u * 430; p.ry *= 1 - u; p.rz *= 1 - u; p.x += (CX - p.x) * u; p.y += (H / 2 - p.y) * u; }
+    else if (ui.trans) { p.y += ui.trans.t * ui.trans.t * 900; }
+    const hv = ui.hov[d.id] || 0;
+    const q = drawPanel3D(mainTex(d.id), p, 1, hv * (0.7 + 0.3 * Math.sin(time * 6)), d.id === 'play' ? '#ff2e45' : d.id === 'store' ? '#ffd23f' : '#2ad8ff');
+    regPanel(d.id, q, p);
+    // embers rising off a hovered slab
+    if (hv > 0.5 && Math.random() < 0.4) parts.push({ x: p.x + rand(-p.w / 2, p.w / 2), y: p.y + p.h / 2, vx: rand(-20, 20), vy: rand(-160, -60), life: 1, max: 1, c: Math.random() < 0.5 ? '#ff7a1a' : '#ffd23f', s: 2, rot: 0, vr: 0 });
+  }
+  text('TAP A SLAB', CX, H - 26, 10, 'rgba(255,255,255,.45)', 'center', 400);
+}
+
+function drawKnifeShowcase(x, y, sc) {
+  const yaw = ui.spin, c = Math.cos(yaw);
+  // pedestal light
+  const g = ctx.createRadialGradient(x, y + 150, 4, x, y + 150, 120); g.addColorStop(0, 'rgba(255,46,69,.35)'); g.addColorStop(1, 'rgba(255,46,69,0)');
+  ctx.fillStyle = g; ctx.fillRect(x - 130, y + 60, 260, 180);
+  ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x, y + 160, 50 * Math.max(0.3, Math.abs(c)), 8, 0, 0, TAU); ctx.fill(); ctx.restore();
+  const bob = Math.sin(time * 1.6) * 8;
+  drawPixelAura(x, y + bob, 74, 0.55);
+  ctx.save(); ctx.translate(x, y + bob); ctx.rotate(0.12 * Math.sin(time * 0.8));
+  if (Math.abs(c) < 0.12) { ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-2, -KL * sc / 2, 4, KL * sc * 0.5); ctx.fillStyle = '#8a281c'; ctx.fillRect(-3, 0, 6, KL * sc * 0.5); }
+  ctx.scale(c * sc, sc); ctx.translate(0, -KL / 2);
+  ctx.shadowColor = '#fff'; ctx.shadowBlur = 14; drawKnife(); ctx.shadowBlur = 0;
+  if (c < 0) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.fillRect(-12, 0, 24, KL); }
+  // glint sweeping along the blade
+  const gl = ((time * 0.6) % 1.6) * 70 - 10;
+  if (gl > 0 && gl < 58) { ctx.globalAlpha = 0.9; ctx.fillStyle = '#fff'; ctx.fillRect(-5, gl, 11, 2); }
+  ctx.restore();
+}
+
+function drawShopScreen() {
+  drawTitle('SHOP', 52, 34);
+  const kx = CX + 6, ky = 300;
+  drawKnifeShowcase(kx, ky, 2.15);
+  const A = ABILITY;
+  const cards = [
+    ['stats', cardTex('shop-stats', 122, 196, 'STATS', [
+      { stat: 'DAMAGE', txt: '1', v: 0.33 }, { stat: 'ABILITY DMG', txt: 'X2', v: 0.66 }, { stat: 'RECHARGE', txt: A.need + ' HITS', v: 0.5, col: '#2ad8ff' },
+      { stat: 'PIERCE', txt: 'YES', v: 1, col: '#ffd23f' }, { stat: 'SLOW-MO', txt: 'YES', v: 1, col: '#b6e05a' }]), 1, [kx - 26, ky + 20]],
+    ['lore', cardTex('shop-lore', 76, 92, 'LORE', [{ text: 'Forged in the dark of the old mill.', size: 7 }]), 1, [kx - 8, ky + 92]],
+    ['ability', cardTex('shop-abil', 108, 176, A.name, [{ text: 'Arm it, then throw. Time slows, the blade hits for double, and stuck knives explode instead of costing a heart.', size: 7 }, { text: 'Every log type reacts to it differently.', size: 7, col: '#ffd23f' }]), -1, [kx + 22, ky - 60]],
+  ];
+  for (const [id, tex, side, anchor] of cards) { const p = livePanel(SHOP[id], id); const q = drawPanel3D(tex, p, 1, (ui.hov[id] || 0) * 0.6, '#ffffff'); regPanel(id, q, p); connector(anchor[0], anchor[1] + Math.sin(time * 1.6) * 8, q, side); }
+  const lt = cardTex('shop-list', 180, 118, 'KNIFE LIST   1/1', [{ text: '> SHROUD BLADE', size: 9, col: '#ffffff' }, { text: 'EQUIPPED   OWNED', size: 7, col: '#b6e05a' }], '#ffd23f');
+  let p = livePanel(SHOP.list, 'list'); regPanel('list', drawPanel3D(lt, p, 1, (ui.hov.list || 0) * 0.6, '#ffd23f'), p);
+  for (const id of ['prev', 'next']) { p = livePanel(SHOP[id], id); regPanel(id, drawPanel3D(arrowTex(id === 'prev' ? -1 : 1), p, 1, (ui.hov[id] || 0), '#ff2e45'), p); }
+  p = livePanel(SHOP.back, 'back'); regPanel('back', drawPanel3D(backTex(), p, 1, (ui.hov.back || 0), '#ffffff'), p);
+  ctx.save(); ctx.translate(W - 70, 50); ctx.scale(0.8, 0.8); drawApple(); ctx.restore(); text(String(ui.bank), W - 52, 51, 14, '#fff', 'left', 700);
+  text('DRAG THE BLADE', kx, 470, 8, 'rgba(255,255,255,.4)', 'center', 400);
+}
+
+function drawEncyScreen() {
+  drawTitle('ENCYCLOPEDIA', 84, 18);
+  const e = ENTRIES[ui.idx];
+  if (!ui.demo) ui.demo = demoFor(e);
+  const lx = CX, ly = 330, fl = Math.abs(Math.cos(Math.min(1, ui.flip) * Math.PI));
+  const s = 0.6 * (0.25 + 0.75 * fl);
+  ctx.save(); const g = ctx.createRadialGradient(lx, ly, 10, lx, ly, 140); g.addColorStop(0, 'rgba(255,210,63,.18)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(lx - 150, ly - 150, 300, 300); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 150, W, 360); ctx.clip();
+  drawDemoLog(ui.demo, lx, ly + Math.sin(time * 1.3) * 6, s);
+  ctx.restore();
+  const flipRy = ui.flip > 0 ? Math.sin(Math.min(1, ui.flip) * Math.PI) * 1.4 : 0;
+  const col = e.cat === 'BOSS' ? '#ff2e45' : e.cat === 'BRANCH' ? '#7fbf3a' : e.cat === 'MECHANIC' ? '#2ad8ff' : '#ffd23f';
+  const k = 'e' + ui.idx;
+  const cards = [
+    ['name', cardTex(k + 'n', 150, 62, e.name, [{ text: e.cat + '   ' + (ui.idx + 1) + '/' + ENTRIES.length, size: 8, col }], col), 1, [lx, ly - 64]],
+    ['how', cardTex(k + 'h', 116, 180, 'HOW IT WORKS', [{ text: e.how, size: 7 }], col), -1, [lx + 62, ly + 4]],
+    ['abil', cardTex(k + 'a', 120, 150, 'WITH ABILITY', [{ text: e.abil, size: 7 }], '#ffffff'), 1, [lx - 58, ly + 30]],
+  ];
+  for (const [id, tex, side, anchor] of cards) {
+    const p = livePanel(ENCY[id], id, {}); p.ry += flipRy;
+    const q = drawPanel3D(tex, p, 1, (ui.hov[id] || 0) * 0.6, '#ffffff');
+    regPanel(id, q, p);
+    if (id === 'name') { const bx = (q[2][0] + q[3][0]) / 2, by = (q[2][1] + q[3][1]) / 2; connector(anchor[0], anchor[1], [[bx, by], [bx, by], [bx, by], [bx, by]], 1); }
+    else connector(anchor[0], anchor[1], q, side);
+  }
+  // list of nearby entries
+  const lt = (() => {
+    const key = 'list' + ui.idx;
+    return texFor(key, () => slab(184, 122, 'metal', (g, w, h) => {
+      g.fillStyle = col; g.fillRect(6, 6, w - 12, 3);
+      etch(g, 'LIST', 10, 17, 10, '#fff', col, 'left');
+      for (let r = -2; r <= 2; r++) {
+        const i = (ui.idx + r + ENTRIES.length) % ENTRIES.length, y = 40 + (r + 2) * 16;
+        if (r === 0) { g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(8, y - 7, w - 16, 14); }
+        g.font = `400 8px ${FONT}`; g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.fillStyle = r === 0 ? '#fff' : '#8d8d97'; g.fillText((r === 0 ? '> ' : '  ') + ENTRIES[i].name, 12, y);
+        g.textAlign = 'right'; g.fillStyle = '#5c5c66'; g.fillText(ENTRIES[i].cat.slice(0, 4), w - 12, y);
+      }
+    }));
+  })();
+  let p = livePanel(ENCY.list, 'list'); regPanel('list', drawPanel3D(lt, p, 1, (ui.hov.list || 0) * 0.5, col), p);
+  for (const id of ['prev', 'next']) { p = livePanel(ENCY[id], id); regPanel(id, drawPanel3D(arrowTex(id === 'prev' ? -1 : 1), p, 1, (ui.hov[id] || 0), '#ff2e45'), p); }
+  p = livePanel(ENCY.back, 'back'); regPanel('back', drawPanel3D(backTex(), p, 1, (ui.hov.back || 0), '#ffffff'), p);
+}
+
+function drawDemoLog(t, x, y, s) {
+  const saved = tgt; tgt = t;
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.translate(-CX, -CY);
+  drawTarget(); if (t.f && t.f.saws.length) drawSawmill(t);
+  if (ENTRIES[ui.idx].apple) { ctx.save(); ctx.translate(CX, CY); ctx.scale(2.4, 2.4); drawApple(); ctx.restore(); }
+  ctx.restore(); tgt = saved;
+}
+
+function drawMenuScreen() {
+  hitList = [];
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+  drawMenuBackdrop();
+  if (ui.screen === 'main') drawMainScreen();
+  else if (ui.screen === 'shop') drawShopScreen();
+  else drawEncyScreen();
+  for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
+  drawFloaters();
+  drawMute();
+  // fade between screens
+  if (ui.trans) { const u = clamp((ui.trans.t - 0.3) / 0.3, 0, 1); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${u})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
+  if (ui.enter < 0.4) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0,0,0,${1 - ui.enter / 0.4})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
+  // horizontal tear glitch
+  if (ui.glitch > 0) {
+    fxBuf = canvasLike(fxBuf); const b = fxBuf.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(cv, 0, 0);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    for (let i = 0; i < 7; i++) { const y = rand(0, cv.height), h = rand(2, 18), dx = rand(-30, 30); ctx.drawImage(fxBuf, 0, y, cv.width, h, dx, y, cv.width, h); }
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25; ctx.drawImage(fxBuf, 4, 0); ctx.restore();
+  }
+}
+
+// ---------- update & input ----------
+function updateMenu(dt) {
+  ui.enter = Math.min(2, ui.enter + dt);
+  for (const k in ui.press) ui.press[k] = Math.max(0, ui.press[k] - dt * 5);
+  // hover targets
+  let top = null;
+  for (let i = hitList.length - 1; i >= 0; i--) if (inQuad(hitList[i].q, ui.mx, ui.my)) { top = hitList[i].id; break; }
+  if (top !== ui.hover) { if (top && ui.hasPointer) sfx.tick(); ui.hover = top; }
+  for (const h of hitList) ui.hov[h.id] = (ui.hov[h.id] || 0) + (((h.id === ui.hover && ui.hasPointer) ? 1 : 0) - (ui.hov[h.id] || 0)) * Math.min(1, dt * 10);
+  // knife spin with drag inertia
+  if (!ui.drag) { ui.spinV += (1.1 - ui.spinV) * Math.min(1, dt * 1.2); ui.spin += ui.spinV * dt; }
+  if (ui.flip > 0) {
+    const before = ui.flip; ui.flip += dt * 2.4;
+    if (before < 0.5 && ui.flip >= 0.5) { ui.idx = ui.pendingIdx; ui.demo = demoFor(ENTRIES[ui.idx]); }
+    if (ui.flip >= 1) ui.flip = 0;
+  }
+  if (ui.demo) { ui.demo.t += dt; ui.demo.rot += 0.45 * dt; for (const s of ui.demo.f ? ui.demo.f.saws : []) s.spin += dt * 30; for (const b of ui.demo.f ? ui.demo.f.branches : []) if (b.bird) b.bird.hop += dt; if (ui.demo.f && ui.demo.f.treehole) { ui.demo.f.treehole.blink += dt; ui.demo.f.treehole.mouth = 0.5 + 0.5 * Math.sin(time * 2.2); } }
+  // lights flicker and the hall glitches now and then
+  ui.flick += ((hash(Math.floor(time * 6), 1, 2) < 0.06 ? 0.15 : 1) - ui.flick) * Math.min(1, dt * 20);
+  ui.glitch = Math.max(0, ui.glitch - dt);
+  ui.glitchT -= dt; if (ui.glitchT <= 0) { ui.glitchT = rand(6, 12); ui.glitch = 0.22; if (actx) sfx.staticBurst(); }
+  if (actx) { ui.amb -= dt; if (ui.amb <= 0) { ui.amb = rand(3, 6); sfx.ambient(); } }
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const f of floaters) f.t += dt; floaters = floaters.filter(f => f.t < 1.1);
+  if (ui.trans) {
+    ui.trans.t += dt;
+    if (ui.trans.t >= 0.62) {
+      const to = ui.trans.to; ui.trans = null;
+      if (to === 'play') { startGame(); return; }
+      ui.screen = to; ui.enter = 0; ui.hov = {}; ui.demo = null;
+    }
+  }
+}
+function go(to, panel) { if (ui.trans) return; ui.trans = { t: 0, to, panel }; sfx.menuSelect(); buzz(20); }
+function menuDown(x, y) {
+  ui.mx = x; ui.my = y;
+  if (ui.trans || ui.enter < 0.3) return;
+  let hit = null;
+  for (let i = hitList.length - 1; i >= 0; i--) if (inQuad(hitList[i].q, x, y)) { hit = hitList[i]; break; }
+  if (ui.screen === 'shop' && !hit && Math.abs(x - CX) < 70 && y > 160 && y < 460) { ui.drag = { x, last: x }; return; }
+  if (!hit) return;
+  ui.press[hit.id] = 1;
+  if (ui.screen === 'main') { go(hit.id === 'play' ? 'play' : hit.id === 'store' ? 'shop' : 'ency', hit.id); return; }
+  if (hit.id === 'back') { go('main'); return; }
+  if (ui.screen === 'shop') {
+    if (hit.id === 'prev' || hit.id === 'next') { ui.spinV = hit.id === 'next' ? 16 : -16; sfx.menuTick(); floater('1 / 1', CX, 560, '#fff'); }
+    else if (hit.id === 'list') { floater('EQUIPPED', 300, 540, '#b6e05a'); sfx.menuTick(); }
+    else { ui.spinV = 9; sfx.menuTick(); }
+  } else {
+    if (hit.id === 'prev' || hit.id === 'next') flipTo(ui.idx + (hit.id === 'next' ? 1 : -1));
+    else if (hit.id === 'list') { const [, v] = uvAt(hit.p, x, y); const row = Math.round((v * 122 - 40) / 16) - 2; if (row) flipTo(ui.idx + row); }
+    else sfx.menuTick();
+  }
+}
+function flipTo(i) { if (ui.flip > 0) return; ui.pendingIdx = (i + ENTRIES.length) % ENTRIES.length; ui.flip = 0.001; sfx.cardFlip(); }
+function menuMove(x, y) {
+  ui.mx = x; ui.my = y; ui.hasPointer = true;
+  if (ui.drag) { const d = x - ui.drag.last; ui.spin += d * 0.03; ui.spinV = d * 2; ui.drag.last = x; }
+}
+function menuUp() { ui.drag = null; }
+function enterMenu() {
+  state = 'menu'; ui.screen = 'main'; ui.enter = 0; ui.trans = null; ui.hov = {}; ui.tex = {};
+  tgt = null; flying = []; debris = []; parts = []; pieces = []; floaters = [];
+  setPix(PIX_MENU); cv.style.filter = 'none';
+}
+
 // ---------- input ----------
 function toVirtual(e) { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left - ox) / scale, (e.clientY - b.top - oy) / scale]; }
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   const [x, y] = toVirtual(e);
   if (Math.hypot(x - (W - 34), y - 34) < 24) { muted = !muted; save('knaife.muted', muted); ac(); return; }
+  if (state === 'menu') { ac(); menuDown(x, y); return; }
+  if (state === 'over' && overT <= 0 && y > 600 && y < 650 && Math.abs(x - CX) < 90) { enterMenu(); sfx.menuSelect(); return; }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
 });
+cv.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (state === 'menu') menuMove(x, y); });
+window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
+  if (state === 'menu' && !e.repeat) {
+    ac();
+    if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
+    if (ui.screen === 'ency' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { flipTo(ui.idx + (e.code === 'ArrowRight' ? 1 : -1)); return; }
+    if (ui.screen === 'shop' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { ui.spinV = e.code === 'ArrowRight' ? 16 : -16; sfx.menuTick(); return; }
+  }
+  if (state === 'over' && e.code === 'Escape' && overT <= 0) { enterMenu(); return; }
   if (e.repeat) return;
   if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp') { e.preventDefault(); action(); }
   else if (e.code === 'KeyM') { muted = !muted; save('knaife.muted', muted); }
@@ -3125,7 +3715,7 @@ function frame(now) {
   update(dt); draw();
   requestAnimationFrame(frame);
 }
-menuTarget();
+enterMenu();
 requestAnimationFrame(frame);
 // test hook
 window.__knaife = { get lives() { return lives; }, get state() { return state; }, get score() { return score; }, get stage() { return stage; }, get knivesLeft() { return knivesLeft; } };
