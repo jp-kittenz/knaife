@@ -8,3 +8,4 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Ability (button bottom-right, or E / Shift): arms the next knife for a slow-motion double-damage throw.
   Hitting a stuck knife destroys it (1 damage, no life lost); a killing blow slices the log in half.
   Recharges after 4 successful hits.
+- Grazing the side of a stuck knife ricochets your knife away (no life lost, knife refunded), tilts the stuck knife, and stuns you for 2s.

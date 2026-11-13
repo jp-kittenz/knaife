@@ -171,6 +171,24 @@ const sfx = {
     tone('sine', 110, 40, 0.4, 0.6, { drive: true, wet: 0.3 });
     for (let i = 0; i < 28; i++) { const f = rand(2500, 9000); tone('sine', f, f, rand(0.04, 0.18), rand(0.03, 0.08), { delay: Math.pow(Math.random(), 1.7) * 0.6, wet: 0.6 }); }
   },
+  ping() {
+    noise(0.02, 7000, 1, 0.5, 'highpass');
+    tone('sine', 2960, 2940, 1.4, 0.16, { wet: 0.9 }); tone('sine', 4440, 4420, 0.9, 0.06, { wet: 0.9 });
+    tone('triangle', 1480, 1475, 0.7, 0.05, { wet: 0.7 });
+  },
+  stun() { for (let i = 0; i < 8; i++) tone('sine', 640 - i * 30 + (i % 2) * 90, 600 - i * 30, 0.09, 0.05, { delay: 0.12 + i * 0.075, wet: 0.4 }); },
+  denied() { tone('square', 140, 110, 0.08, 0.06); },
+  riser() {
+    noise(0.75, 300, 1.5, 0.5, 'bandpass', { sweepTo: 7000, rise: true, wet: 0.7 });
+    tone('sawtooth', 80, 640, 0.75, 0.08, { attack: 0.6, wet: 0.6 });
+    tone('sine', 40, 90, 0.75, 0.35, { attack: 0.6 });
+  },
+  heartbeat() { for (const d of [0.05, 0.27, 0.62, 0.84]) tone('sine', 62, 38, 0.18, 0.7, { delay: d, drive: true }); },
+  subDrop() {
+    tone('sine', 72, 16, 2.8, 1, { drive: true, wet: 0.5 });
+    noise(2.2, 700, 0.5, 0.6, 'lowpass', { wet: 1, curve: 1.2 });   // rolling thunder tail
+    tone('sawtooth', 1200, 60, 0.5, 0.06, { wet: 0.8 });
+  },
   abilityArm() {
     noise(0.55, 300, 2, 0.45, 'bandpass', { sweepTo: 4200, rise: true, wet: 0.5 });
     tone('sine', 220, 880, 0.5, 0.16, { attack: 0.3, wet: 0.6 });
@@ -385,6 +403,7 @@ function startGame() {
 // ---------- actions ----------
 function throwKnife() {
   if (state !== 'play' || knivesLeft <= 0 || readyT > 0.04 || abil.state === 'arming') return;
+  if (stunT > 0) { sfx.denied(); return; }
   if (abil.state === 'armed') { abilityThrow(); return; }
   knivesLeft--;
   flying.push({ y: KNIFE_Y, done: false });
@@ -416,11 +435,17 @@ function stepKnife(k) {
   // hit another knife?
   if (!k.pierce) for (const s of t.stuck) {
     const w = t.rot + s.a;
-    if (angDiff(w, HALF) > 0.5) continue;
-    const c = Math.cos(w), sn = Math.sin(w);
-    for (let r = R - EMBED + 8; r <= R - EMBED + KL; r += 5) {
-      const px = CX + r * c, py = CY + r * sn;
-      if (Math.abs(px - CX) < 10 && py >= tip && py <= tip + KL) { if (k.ability) abilityClank(k, s); else fail(k); return; }
+    if (angDiff(w, HALF) > 0.7) continue;
+    const bw = w + knifeTilt(s), ex = CX + Math.cos(w) * (R - EMBED), ey = CY + Math.sin(w) * (R - EMBED);
+    const c = Math.cos(bw), sn = Math.sin(bw);
+    for (let r = 8; r <= KL; r += 5) {
+      const px = ex + r * c, py = ey + r * sn, d = px - CX;
+      if (Math.abs(d) < 10 && py >= tip && py <= tip + KL) {
+        if (k.ability) abilityClank(k, s);
+        else if (Math.abs(d) >= GRAZE) ricochet(k, s, d, px, py);
+        else fail(k);
+        return;
+      }
     }
   }
   // slice apples
@@ -529,6 +554,7 @@ function resetAbility() {
   abil.state = 'ready'; abil.charge = 0; abil.swirl = null; abil.flash = 0;
   fx = null; tscale = 1; fxFilter = null; slash = 0; ripple = null;
   smoke = []; screenHits = []; floaters = []; rings = [];
+  stunT = 0; camFocus(CX, CY, 1); cam.kz = cam.kr = 0; cinema(false); aberr = zblur = 0;
 }
 
 function makeSwirl(dir, from, to, dur) {
@@ -538,7 +564,7 @@ function makeSwirl(dir, from, to, dur) {
 }
 
 function activateAbility() {
-  if (state !== 'play' || abil.state !== 'ready' || knivesLeft <= 0) return;
+  if (state !== 'play' || abil.state !== 'ready' || knivesLeft <= 0 || stunT > 0) return;
   abil.state = 'arming'; abil.swirl = makeSwirl('in', BTN, KNIFE_MID(), 0.6);
   sfx.abilityArm(); buzz(15);
 }
@@ -555,13 +581,14 @@ function chargeAbility() {
 }
 
 function updateAbility(rdt) {
+  updateCam(rdt, !!(fx && fx.t < fx.freeze));
   abil.flash = Math.max(0, abil.flash - rdt * 2);
   const sw = abil.swirl;
   if (sw) {
     sw.t += rdt;
     if (sw.t >= sw.dur) {
       abil.swirl = null;
-      if (sw.dir === 'in') { abil.state = 'armed'; sfx.abilityArmed(); buzz([20, 30, 40]); }
+      if (sw.dir === 'in') { abil.state = 'armed'; sfx.abilityArmed(); buzz([20, 30, 40]); kick(0.07, 0.02, 0.9, 0.5); shocks(CX, KNIFE_Y + KL / 2, 2, 60); burst(CX, KNIFE_Y + KL / 2, 40, ['#fff', '#000'], 360, 0, 4, 0.6); }
       else { abil.state = abil.charge >= abil.need ? 'ready' : 'cooldown'; }
     }
   }
@@ -582,12 +609,16 @@ function abilityThrow() {
   abil.state = 'used';
   fx = { type: 'flight', t: 0, freeze: 0 };
   state = 'fx'; readyT = 0;
-  sfx.heavyThrow(); buzz(30);
+  kick(0.1, 0.035, 0.8, 1.2); shake = 10; cinema(true, 0.9);
+  burst(CX, KNIFE_Y + KL, 40, ['#fff', '#000', '#ccc'], 420, -100, 4, 0.7);
+  sfx.heavyThrow(); sfx.riser(); sfx.heartbeat(); buzz(30);
 }
 
 function floater(text, x, y, color = '#fff') { floaters.push({ text, x, y, t: 0, color }); }
-function shock(x, y, max = 0.5, size = 160) { rings.push({ x, y, t: 0, max, size }); }
-function impactLinesFor(n, len) { return Array.from({ length: n }, (_, i) => ({ a: i / n * TAU + rand(-0.12, 0.12), r0: rand(30, 60), r1: rand(200, len), w: rand(2, 9) })); }
+function shock(x, y, max = 0.5, size = 160, delay = 0) { rings.push({ x, y, t: -delay, max, size }); }
+function shocks(x, y, n, size) { for (let i = 0; i < n; i++) shock(x, y, 0.55 + i * 0.12, size * (1 + i * 0.6), i * 0.07); }
+function embers(x, y, n, spd) { burst(x, y, n, ['#ffffff', '#ffe08a', '#ffb347', '#ff7a3a'], spd, 260, 3, 1.4); }
+function impactLinesFor(n, len) { return Array.from({ length: n }, (_, i) => ({ a: i / n * TAU + rand(-0.12, 0.12), r0: rand(30, 60), r1: rand(300, len), w: rand(3, 16) })); }
 
 function addCrater(t, a) {
   const cracks = [];
@@ -696,6 +727,7 @@ function drawScreenHits() {
 
 function drawRings() {
   for (const r of rings) {
+    if (r.t < 0) continue;
     const u = r.t / r.max;
     ctx.strokeStyle = `rgba(255,255,255,${(1 - u) * 0.9})`; ctx.lineWidth = 10 * (1 - u) + 1;
     ctx.beginPath(); ctx.arc(r.x, r.y, 20 + r.size * (1 - Math.pow(1 - u, 3)), 0, TAU); ctx.stroke();
@@ -726,7 +758,9 @@ function drawFxImpactFrame() {
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-W * 2, -H * 2, W * 4, H * 4);
   ctx.fillStyle = '#fff';
   for (const l of fx.lines) { ctx.save(); ctx.rotate(l.a); ctx.beginPath(); ctx.moveTo(l.r0, 0); ctx.lineTo(l.r1, -l.w); ctx.lineTo(l.r1, l.w); ctx.closePath(); ctx.fill(); ctx.restore(); }
-  ctx.lineWidth = 6; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 24 + fx.t * 500, 0, TAU); ctx.stroke();
+  ctx.lineWidth = 7; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 24 + fx.t * 700, 0, TAU); ctx.stroke();
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 10 + fx.t * 1300, 0, TAU); ctx.stroke();
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 14 + 30 * Math.sin(Math.min(1, fx.t / fx.freeze) * Math.PI), 0, TAU); ctx.fill();
   ctx.restore();
 }
 
@@ -749,6 +783,87 @@ function drawRipple() {
   ctx.restore();
 }
 
+// ---- cinema: camera punch, letterbox, vignette, chromatic split, zoom blur ----
+const cam = { z: 1, tz: 1, fx: CX, fy: CY, tfx: CX, tfy: CY, kz: 0, kr: 0 };
+let bars = 0, barsT = 0, vign = 0, vignT = 0, aberr = 0, zblur = 0, fxBuf = null, tmpR = null, tmpC = null;
+let stunT = 0;
+const GRAZE = 6.5;
+function kick(z, r, ab, zb = 0) { cam.kz += z; cam.kr += (Math.random() < 0.5 ? -1 : 1) * r; aberr = Math.max(aberr, ab); zblur = Math.max(zblur, zb); }
+function camFocus(x, y, z) { cam.tfx = x; cam.tfy = y; cam.tz = z; }
+function cinema(on, v = 1) { barsT = on ? 1 : 0; vignT = on ? v : 0; }
+function updateCam(rdt, frozen) {
+  const k = Math.min(1, rdt * 5);
+  cam.z += (cam.tz - cam.z) * k; cam.fx += (cam.tfx - cam.fx) * k; cam.fy += (cam.tfy - cam.fy) * k;
+  if (!frozen) { cam.kz *= Math.exp(-rdt * 6); cam.kr *= Math.exp(-rdt * 5); aberr = Math.max(0, aberr - rdt * 1.6); zblur = Math.max(0, zblur - rdt * 1.8); }
+  bars += (barsT - bars) * Math.min(1, rdt * 7); vign += (vignT - vign) * Math.min(1, rdt * 5);
+  stunT = Math.max(0, stunT - rdt);
+}
+function applyCam() {
+  const z = cam.z + cam.kz;
+  if (Math.abs(z - 1) < 0.001 && Math.abs(cam.kr) < 0.0005) return;
+  ctx.translate(cam.fx, cam.fy); ctx.rotate(cam.kr); ctx.scale(z, z); ctx.translate(-cam.fx, -cam.fy);
+}
+function canvasLike(c) { if (!c || c.width !== cv.width || c.height !== cv.height) { c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; } return c; }
+function postFX() {
+  const w = cv.width, h = cv.height;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (zblur > 0.03 || aberr > 0.03) { fxBuf = canvasLike(fxBuf); const b = fxBuf.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(cv, 0, 0); }
+  if (zblur > 0.03) {                                                   // radial zoom blur toward the focus
+    const fx0 = dpr * (ox + cam.fx * scale), fy0 = dpr * (oy + cam.fy * scale);
+    for (let i = 1; i <= 4; i++) {
+      const sc = 1 + i * 0.03 * zblur;
+      ctx.globalAlpha = 0.16 * Math.min(1, zblur);
+      ctx.drawImage(fxBuf, fx0 - fx0 * sc, fy0 - fy0 * sc, w * sc, h * sc);
+    }
+    ctx.globalAlpha = 1;
+    if (aberr > 0.03) { const b = fxBuf.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(cv, 0, 0); }
+  }
+  if (aberr > 0.03) {                                                   // split red and cyan channels apart
+    const d = Math.min(aberr, 2) * 9 * dpr;
+    tmpR = canvasLike(tmpR); tmpC = canvasLike(tmpC);
+    for (const [c, col] of [[tmpR, '#f00'], [tmpC, '#0ff']]) {
+      const g = c.getContext('2d'); g.globalCompositeOperation = 'copy'; g.drawImage(fxBuf, 0, 0);
+      g.globalCompositeOperation = 'multiply'; g.fillStyle = col; g.fillRect(0, 0, w, h);
+    }
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(tmpR, -d, -d * 0.3); ctx.drawImage(tmpC, d, d * 0.3);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  if (vign > 0.01) {
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.hypot(w, h) * 0.55);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${0.85 * vign})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  }
+  if (bars > 0.01) { const bh = h * 0.1 * bars; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, bh); ctx.fillRect(0, h - bh, w, bh); }
+  ctx.restore();
+}
+
+// ---- graze: ricochet off the side of a stuck knife ----
+function knifeTilt(s) { return (s.tilt || 0) + (s.wob || 0) * Math.sin(time * 38); }
+function ricochet(k, s, d, px, py) {
+  k.done = true;
+  const side = Math.sign(d);
+  s.tilt = clamp((s.tilt || 0) - side * 0.17, -0.45, 0.45); s.wob = 0.12;
+  debris.push({ kind: 'knife', x: CX, y: k.y, vx: -side * rand(480, 680), vy: rand(-520, -300), rot: 0, vr: -side * rand(22, 30) });
+  burst(px, py, 22, ['#ffffff', '#fff7c2', '#ffd35c'], 520, 60, 2.5, 0.4);
+  knivesLeft++;                                    // the knife is lost, not counted as a hit
+  stunT = 2; shake = Math.max(shake, 8); kick(0.06, 0.03, 0.35);
+  floater('STUNNED', CX, KNIFE_Y - 40, '#ffd35c');
+  sfx.ping(); sfx.stun(); buzz([15, 40, 15]);
+}
+function drawStun(ky) {
+  const cx = CX, cy = ky - 16;
+  for (let i = 0; i < 3; i++) {
+    const a = time * 5 + i / 3 * TAU, x = cx + Math.cos(a) * 22, y = cy + Math.sin(a) * 7;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(time * 6); ctx.fillStyle = i % 2 ? '#fff' : '#ffd35c';
+    ctx.beginPath(); for (let j = 0; j < 8; j++) { const r = j % 2 ? 2 : 6, q = j / 8 * TAU; ctx[j ? 'lineTo' : 'moveTo'](Math.cos(q) * r, Math.sin(q) * r); } ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(cx - 30, ky + KL + 8, 60, 4);
+  ctx.fillStyle = '#ffd35c'; ctx.fillRect(cx - 30, ky + KL + 8, 60 * stunT / 2, 4);
+}
+
 // ---- the three outcomes ----
 function abilityStick(k) {
   const t = tgt;
@@ -759,23 +874,27 @@ function abilityStick(k) {
   const a = HALF - t.rot;
   t.stuck.push({ a, ability: true }); addCrater(t, a);
   knivesLeft = remaining; score += 1 + extra; t.hit = 1;
-  burst(CX, CY + R, 30, [t.pal.light, t.pal.dark, t.pal.bark, '#222'], 520, 120, 7, 0.8);
+  burst(CX, CY + R, 90, [t.pal.light, t.pal.dark, t.pal.bark, '#222'], 820, 160, 8, 1.1);
+  embers(CX, CY + R, 50, 700);
   if (fx && fx.type === 'clank') {
     sfx.thunk(); sfx.abilityImpact(); shake = 14;
     if (lethal) explodeLog();                                          // CASE 3
     return;
   }
   // plain double-damage hit
-  fx = { type: 'hit', t: 0, freeze: 0.13, x: CX, y: CY + R, lines: impactLinesFor(22, 700) };
-  shock(CX, CY + R, 0.5, 200); floater('×2', CX + 70, CY + R + 10, '#fff');
-  sfx.abilityImpact(); shake = 20; buzz([50, 30, 80]);
+  fx = { type: 'hit', t: 0, freeze: 0.3, x: CX, y: CY + R, lines: impactLinesFor(30, 1100) };
+  shocks(CX, CY + R, 3, 220); floater('×2', CX + 70, CY + R + 10, '#fff');
+  kick(0.5, 0.09, 1.6, 1.4); camFocus(CX, CY + R, 1.25);
+  sfx.abilityImpact(); sfx.subDrop(); shake = 36; buzz([80, 30, 120]);
 }
 
 function abilityClank(k, s) {                                           // CASE 1 / 3 start
-  k.hold = true;
-  fx = { type: 'clank', t: 0, freeze: 0.15, x: CX, y: k.y, k, s, exploded: 0, lethal: false, frac: makeFracture(), lines: impactLinesFor(18, 600) };
-  burst(CX, k.y, 26, ['#ffffff', '#fff7c2', '#ffd35c'], 520, 30, 3, 0.5);
-  sfx.clank(); shake = 16; buzz([60, 20, 60]);
+  k.hold = true; cinema(true, 1);
+  fx = { type: 'clank', t: 0, freeze: 0.32, x: CX, y: k.y, k, s, exploded: 0, lethal: false, frac: makeFracture(), lines: impactLinesFor(26, 1000) };
+  burst(CX, k.y, 80, ['#ffffff', '#fff7c2', '#ffd35c'], 900, 30, 3, 0.7);
+  shocks(CX, k.y, 2, 160);
+  kick(0.4, 0.08, 1.4, 1); camFocus(CX, k.y, 1.35);
+  sfx.clank(); sfx.subDrop(); shake = 26; buzz([60, 20, 60]);
 }
 
 function explodeHitKnife() {
@@ -788,29 +907,35 @@ function explodeHitKnife() {
       shatterKnifeAt(CX + Math.cos(w) * (R - EMBED), CY + Math.sin(w) * (R - EMBED), w + Math.PI, 1.6);
     }
   }
-  burst(CX, fx.y, 40, ['#ffffff', '#ffd35c', '#c3ccd6'], 800, 40, 4, 0.7);
-  shock(CX, fx.y, 0.45, 180);
-  scheduleScreenHits(5, ['#eef2f6', '#c3ccd6', '#e2604a', '#3b3f4a'], 1.0);
+  burst(CX, fx.y, 140, ['#ffffff', '#ffd35c', '#c3ccd6'], 1300, 40, 5, 0.9);
+  embers(CX, fx.y, 40, 900);
+  shocks(CX, fx.y, 3, 220);
+  kick(0.55, 0.12, 2, 1.6);
+  scheduleScreenHits(10, ['#eef2f6', '#c3ccd6', '#e2604a', '#3b3f4a'], 1.2);
   fx.exploded = fx.t; fx.k.hold = false; fx.k.pierce = true; fx.k.dmg = 1;
   floater('PIERCE', CX - 70, fx.y, '#fff');
-  sfx.knifeExplode(); shake = 22; buzz([40, 20, 40]);
+  sfx.knifeExplode(); sfx.subDrop(); shake = 40; buzz([40, 20, 40]);
 }
 
 function explodeLog() {
   const t = tgt;
   fx.lethal = true; fx.boss = t.boss;
-  breakTarget(t, 2.4); tgt = null;
-  scheduleScreenHits(8, [t.pal.light, t.pal.dark, t.pal.bark], 1.1);
-  shock(CX, CY, 0.6, 320);
+  breakTarget(t, 3); tgt = null;
+  burst(CX, CY, 160, [t.pal.light, t.pal.dark, t.pal.bark], 1400, 100, 9, 1.2);
+  embers(CX, CY, 60, 1000);
+  scheduleScreenHits(16, [t.pal.light, t.pal.dark, t.pal.bark], 1.4);
+  shocks(CX, CY, 4, 300);
+  kick(0.7, 0.14, 2.2, 2); camFocus(CX, CY, 1.2);
   fx.exploded = fx.t;                                                   // replay the slow-mo beat for the log
   floater('SHATTERED', CX, CY - R - 20, '#fff');
-  sfx.logExplode(); shake = 28; buzz([80, 30, 120]);
+  sfx.logExplode(); sfx.subDrop(); shake = 48; buzz([80, 30, 120]);
 }
 
 function startSlice(k) {                                                 // CASE 2
   k.slicing = true;
-  fx = { type: 'slice', t: 0, freeze: 0.1, x: CX, y: CY + R, k, cut: false, lines: impactLinesFor(22, 700), boss: tgt.boss };
-  sfx.abilityImpact(); sfx.slowmo(); shake = 12; buzz(60);
+  fx = { type: 'slice', t: 0, freeze: 0.24, x: CX, y: CY + R, k, cut: false, lines: impactLinesFor(30, 1100), boss: tgt.boss };
+  kick(0.35, 0.06, 1.2, 1); camFocus(CX, CY + R - 30, 1.7); cinema(true, 1);
+  sfx.abilityImpact(); sfx.slowmo(); sfx.subDrop(); shake = 22; buzz(60);
 }
 
 function doSlice() {
@@ -818,7 +943,10 @@ function doSlice() {
   fx.cut = true; fx.k.fast = 2.4;
   if (t) { breakTarget(t, 1, true); tgt = null; }
   knivesLeft = 0; score += 2;
-  slash = 1; shake = 18;
+  slash = 1; shake = 40;
+  kick(-0.45, 0.2, 2.4, 2.2); camFocus(CX, CY, 1.05);
+  shocks(CX, CY, 4, 260); embers(CX, CY, 60, 1100);
+  burst(CX, CY, 120, ['#ffffff', '#dddddd'], 1300, 0, 4, 0.9);
   floater('SLICED', CX, CY - R - 30, '#fff');
   sfx.slice(); buzz([30, 20, 90]);
 }
@@ -826,6 +954,7 @@ function doSlice() {
 function endFx(next) {
   const boss = fx && fx.boss;
   fx = null; fxFilter = null; tscale = 1;
+  camFocus(CX, CY, 1); cinema(false);
   if (next === 'play') { state = 'play'; readyT = 0.15; }
   else {
     state = 'clearing'; clearT = 0.8;
@@ -837,22 +966,27 @@ function endFx(next) {
 function updateFx(rdt) {
   if (!fx) return false;
   fx.t += rdt; const t = fx.t;
-  if (t < fx.freeze) { fxFilter = INVERT; return true; }
+  if (t < fx.freeze) { fxFilter = Math.floor(t / 0.05) % 2 ? TWO_TONE : INVERT; return true; }
   fxFilter = null;
   switch (fx.type) {
-    case 'flight':
-      tscale = Math.max(0.28, 1 - t * 9);
-      if (!flying.some(k => k.ability)) endFx('play');                  // safety: knife vanished
+    case 'flight': {
+      tscale = Math.max(0.16, 1 - t * 9);
+      const kn = flying.find(k => k.ability);
+      if (kn) { camFocus(CX, (kn.y + CY + R) / 2 + 30, 1.3); zblur = Math.max(zblur, 0.55); }
+      if (!kn) endFx('play');                                         // safety: knife vanished
       break;
+    }
     case 'hit':
-      tscale = clamp(0.2 + (t - fx.freeze) / 0.45 * 0.8, 0.2, 1);
-      if (!fx.summoned && t > 0.4) { fx.summoned = true; summonButton(fx.x, fx.y); }
-      if (t > 0.6) endFx('play');
+      tscale = clamp(0.12 + (t - fx.freeze) / 0.8 * 0.88, 0.12, 1);
+      if (t > 0.7) { camFocus(CX, CY, 1); cinema(false); }
+      if (!fx.summoned && t > 0.8) { fx.summoned = true; summonButton(fx.x, fx.y); }
+      if (t > 1.05) endFx('play');
       break;
     case 'clank': {
       if (!fx.exploded) { tscale = 0.08; if (t >= 0.55) explodeHitKnife(); break; }
       const e = t - fx.exploded;
-      tscale = e < 0.07 ? 1 : e < 0.45 ? 0.22 : clamp(0.22 + (e - 0.45) * 2.6, 0.22, 1);
+      tscale = e < 0.07 ? 1 : e < 0.55 ? 0.15 : clamp(0.15 + (e - 0.55) * 2.2, 0.15, 1);
+      if (e > 0.6) { camFocus(CX, CY, 1); cinema(false); }
       if (fx.k.done && !fx.summoned && e > 0.5) { fx.summoned = true; summonButton(CX, CY + R); }
       if (fx.k.done && e > 0.8) endFx(fx.lethal ? 'clearing' : 'play');
       break;
@@ -861,6 +995,7 @@ function updateFx(rdt) {
       fxFilter = TWO_TONE;
       if (t < 0.75) tscale = 0.05;
       else { if (!fx.cut) doSlice(); tscale = t < 1.1 ? 0.45 : 1; }
+      if (t >= 1.15) { camFocus(CX, CY, 1); cinema(false); }
       if (t >= 1.2 && !fx.rippled) { fx.rippled = true; ripple = { t: 0, x: CX, y: CY }; sfx.ripple(); }
       if (ripple) fxFilter = CANVAS_FILTER ? null : `grayscale(${(1 - ripple.t / 0.4).toFixed(3)})`;
       if (fx.rippled && !ripple) fxFilter = null;
@@ -1043,6 +1178,7 @@ function update(dt) {
     t.pop = Math.min(1, t.pop + dt / 0.35);
     t.rot += t.pat(t.t) * dt;
     t.hit = Math.max(0, t.hit - dt * 7);
+    for (const k of t.stuck) if (k.wob) k.wob *= Math.exp(-dt * 4);
     emitSmoke(t, dt);
   }
   updateSmoke(dt);
@@ -1153,7 +1289,7 @@ function drawTarget() {
   ctx.save();
   ctx.translate(CX, CY - 7 * t.hit);
   ctx.scale(s, s);
-  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED); drawKnife(); ctx.restore(); }
+  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED); ctx.rotate(knifeTilt(k)); drawKnife(); ctx.restore(); }
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
   ctx.fillStyle = t.pal.bark; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
@@ -1663,6 +1799,7 @@ function drawScene() {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
   if (shake > 0) ctx.translate(rand(-shake, shake) / 2, rand(-shake, shake) / 2);
 
+  ctx.save(); applyCam();
   const glow = ctx.createRadialGradient(CX, CY, 20, CX, CY, 280);
   glow.addColorStop(0, tgt && tgt.boss ? 'rgba(255,90,110,.16)' : 'rgba(255,200,120,.13)'); glow.addColorStop(1, 'rgba(255,200,120,0)');
   ctx.fillStyle = glow; ctx.fillRect(-W, -H, W * 3, H * 3);
@@ -1682,20 +1819,23 @@ function drawScene() {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0, ky = KNIFE_Y + Math.min(off, 60);
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
     ctx.save(); ctx.globalAlpha = clamp(1 - readyT / 0.15, 0.2, 1); ctx.translate(CX, ky);
+    if (stunT > 0) { ctx.translate(0, KL / 2); ctx.rotate(Math.sin(time * 9) * 0.3 * Math.min(1, stunT)); ctx.translate(0, -KL / 2); ctx.globalAlpha *= 0.5; }
     if (abil.state === 'armed') { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
     drawKnife(); ctx.restore();
+    if (stunT > 0) drawStun(ky);
   }
   for (const p of parts) {
     ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
     ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore();
   }
 
+  ctx.restore();
   if (state === 'menu') drawMenu();
   else { drawHUD(); drawBanner(); drawAbilityButton(); }
   drawSwirl();
   drawFloaters();
   if (state === 'impact') drawImpact();
-  if (fx && fx.t < fx.freeze) drawFxImpactFrame();
+  if (fx && fx.t < fx.freeze) { ctx.save(); applyCam(); drawFxImpactFrame(); ctx.restore(); }
   drawScreenHits();
   drawMute();
 }
@@ -1718,6 +1858,7 @@ function draw() {
     return;   // the next frame draws the losing screen under the falling pieces
   }
   drawRipple();
+  postFX();
   const f = fxFilter ? fxFilter : state === 'impact' && el < hitstopLen() ? 'grayscale(1) contrast(40) invert(1)'
     : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 39 * Math.pow(gray, 3)).toFixed(3)})` : 'none';
   if (cv.style.filter !== f) cv.style.filter = f;
