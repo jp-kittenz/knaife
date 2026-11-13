@@ -221,6 +221,9 @@ const sfx = {
   chop() { noise(0.06, 1200, 1.5, 0.9, 'bandpass', { drive: true }); tone('sine', 160, 60, 0.12, 0.6, { drive: true }); },
   sizzle() { noise(0.9, 5000, 0.6, 0.35, 'highpass', { curve: 0.6 }); for (let i = 0; i < 16; i++) noise(0.02, rand(3000, 8000), 2, 0.25, 'bandpass', { delay: rand(0, 0.8) }); },
   heal() { for (const [f, d] of [[523, 0], [659, 0.08], [784, 0.16], [1046, 0.24]]) tone('sine', f, f, 0.4, 0.1, { delay: d, wet: 0.8 }); },
+  flickOn(d) { noise(0.012, 3800, 2, 0.28, 'bandpass'); tone('sawtooth', 120, 120, Math.min(0.12, d), 0.035); tone('sine', 240, 240, Math.min(0.12, d), 0.02); },
+  flickOff() { noise(0.01, 2000, 2, 0.18, 'bandpass'); },
+  ballast() { tone('sawtooth', 60, 58, 0.8, 0.03, { attack: 0.05 }); noise(0.8, 1800, 6, 0.04, 'bandpass'); },
   flicker() { for (const d of [0, 0.09, 0.2, 0.28, 0.41, 0.5, 0.62]) { noise(0.03, 3200, 2, 0.35, 'bandpass', { delay: d }); tone('sawtooth', 100, 100, 0.05, 0.04, { delay: d }); } },
   lightsOff() { noise(0.05, 1400, 3, 0.9, 'bandpass', { drive: true, wet: 1.2 }); tone('square', 80, 40, 0.12, 0.35, { drive: true, wet: 1 }); tone('sine', 100, 30, 0.6, 0.2, { wet: 0.8 }); },
   tick() { tone('square', 1800, 1700, 0.025, 0.04); },
@@ -1123,19 +1126,58 @@ function drawRings() {
   }
 }
 
-function stageDarkness() {
+// ---- stage lighting: a failing fluorescent tube (pre-baked masks, blitted only during the transition) ----
+const LIGHT_IN = 0.75, STRIKE = [[0.04, 0.75], [0.06, 0.02], [0.03, 0.95], [0.05, 0.12], [0.04, 0.6], [0.05, 0.05]];
+let flickSeq = null, flickIdx = -1, offAt = -1, lightMask = null, glowSpr = null;
+function makeFlickerSeq(total) {
+  const seq = []; let t = 0, on = true;
+  while (t < total) { const u = t / total; const dur = on ? rand(0.035, 0.15) * (1 - u * 0.6) : rand(0.025, 0.08) * (1 + u * 2.4); seq.push({ t0: t, dur, L: on ? rand(0.7, 1) : rand(0.04, 0.32) }); t += dur; on = !on; }
+  return seq;
+}
+function lightLevel() {   // 1 = lights fully on
   if (state === 'clearing') {
     const el = CLEAR_TOTAL - clearT;
-    if (el < CLEAR_HOLD) return 0;
-    if (el < CLEAR_HOLD + CLEAR_FLICK) { const u = (el - CLEAR_HOLD) / CLEAR_FLICK; return hash(Math.floor(el * 22), 3, 9) < 0.35 + u * 0.45 ? 0.9 : 0.08 + u * 0.25; }
-    return 0.97;
+    if (el < CLEAR_HOLD) return 1;
+    if (el < CLEAR_HOLD + CLEAR_FLICK) {
+      const ft = el - CLEAR_HOLD; if (!flickSeq) flickSeq = makeFlickerSeq(CLEAR_FLICK);
+      let i = flickSeq.findIndex(s => ft < s.t0 + s.dur); if (i < 0) i = flickSeq.length - 1;
+      if (i !== flickIdx) { flickIdx = i; if (flickSeq[i].L > 0.5) sfx.flickOn(flickSeq[i].dur); else sfx.flickOff(); }
+      return flickSeq[i].L * (0.94 + 0.06 * Math.random());
+    }
+    return 0;
   }
-  if (lightIn > 0) { const u = 1 - lightIn / 0.6; return u < 0.18 ? (hash(Math.floor(u * 40), 5, 1) < 0.5 ? 0.9 : 0.3) : 0.97 * (1 - easeIO(clamp((u - 0.18) / 0.82, 0, 1))); }
-  return 0;
+  if (lightIn > 0) {
+    const t = LIGHT_IN - lightIn; let acc = 0;
+    for (const [d, L] of STRIKE) { if (t < acc + d) return L; acc += d; }
+    return easeIO(clamp((t - acc) / (LIGHT_IN - acc), 0, 1));
+  }
+  return 1;
 }
 function drawStageLights() {
-  const a = stageDarkness(); if (a <= 0.001) return;
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(2,2,4,${a})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
+  const L = lightLevel(), w = cv.width, h = cv.height;
+  const glow = offAt >= 0 ? Math.exp(-(time - offAt) * 4.5) : 0;
+  if (L >= 0.999 && glow < 0.01) return;
+  if (!lightMask || lightMask.width !== w || lightMask.height !== h) {
+    lightMask = document.createElement('canvas'); lightMask.width = w; lightMask.height = h;
+    const g = lightMask.getContext('2d'), cx = dpr * (ox + CX * scale), cy = dpr * (oy + CY * scale), k = dpr * scale;
+    const gr = g.createRadialGradient(cx, cy, R * 0.9 * k, cx, cy, Math.hypot(w, h) * 0.7);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.35, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    glowSpr = document.createElement('canvas'); glowSpr.width = glowSpr.height = Math.ceil(160 * k);
+    const gg = glowSpr.getContext('2d'), r = glowSpr.width / 2, rg = gg.createRadialGradient(r, r, 0, r, r, r);
+    rg.addColorStop(0, 'rgba(255,190,110,.9)'); rg.addColorStop(0.25, 'rgba(255,122,26,.35)'); rg.addColorStop(1, 'rgba(255,122,26,0)'); gg.fillStyle = rg; gg.fillRect(0, 0, r * 2, r * 2);
+  }
+  const d = 1 - L;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (d > 0.001) {
+    ctx.globalAlpha = Math.min(1, d * 0.88); ctx.fillStyle = '#020204'; ctx.fillRect(0, 0, w, h);   // overall dimming
+    ctx.globalAlpha = Math.min(1, d * 1.1); ctx.drawImage(lightMask, 0, 0);                          // falloff: edges go first
+  }
+  // fresh strike: cold blue-white cast that warms away
+  if (lightIn > 0 && L > 0.5) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18 * (lightIn / LIGHT_IN); ctx.fillStyle = '#5a7ab0'; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = 'source-over'; }
+  // the tube's warm afterglow, high above the log
+  if (glow > 0.01) { ctx.globalAlpha = glow * (1 - L); const gx = dpr * (ox + CX * scale) - glowSpr.width / 2, gy = dpr * (oy + 10 * scale) - glowSpr.height / 2; ctx.drawImage(glowSpr, gx, gy); }
+  ctx.restore();
 }
 function drawFloaters() {
   for (const f of floaters) {
@@ -3255,9 +3297,9 @@ function update(dt) {
   else if (state === 'clearing') {
     clearT -= dt;
     const el = CLEAR_TOTAL - clearT;
-    if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; sfx.flicker(); }
-    if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); tgt.smooth = true; tgt.landed = true; lightIn = 0.6; sfx.lightSwitch(); }
+    if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
+    if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
+    if (clearT <= 0) { stage++; newStage(); tgt.smooth = true; tgt.landed = true; lightIn = LIGHT_IN; offAt = -1; sfx.lightSwitch(); }
   }
   lightIn = Math.max(0, lightIn - dt);
   updatePieces(dt);
