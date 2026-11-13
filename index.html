@@ -221,6 +221,15 @@ const sfx = {
   chop() { noise(0.06, 1200, 1.5, 0.9, 'bandpass', { drive: true }); tone('sine', 160, 60, 0.12, 0.6, { drive: true }); },
   sizzle() { noise(0.9, 5000, 0.6, 0.35, 'highpass', { curve: 0.6 }); for (let i = 0; i < 16; i++) noise(0.02, rand(3000, 8000), 2, 0.25, 'bandpass', { delay: rand(0, 0.8) }); },
   heal() { for (const [f, d] of [[523, 0], [659, 0.08], [784, 0.16], [1046, 0.24]]) tone('sine', f, f, 0.4, 0.1, { delay: d, wet: 0.8 }); },
+  breaker() {
+    noise(0.07, 1100, 2, 1.3, 'bandpass', { drive: true, wet: 1.8 });          // the lever slamming home
+    tone('square', 72, 34, 0.22, 0.6, { drive: true, wet: 1.5 });
+    tone('sine', 52, 24, 1.4, 1, { drive: true, wet: 1.2 });
+    noise(0.035, 3200, 3, 0.9, 'bandpass', { delay: 0.045, wet: 1.6 });           // contacts clacking
+    noise(0.5, 220, 0.8, 0.8, 'lowpass', { drive: true, wet: 1.6, curve: 3 });      // the room booming back
+    tone('sawtooth', 50, 50, 1.8, 0.07, { delay: 0.08, attack: 0.02, wet: 0.8 });   // mains hum surging up
+    tone('square', 100, 100, 1.4, 0.03, { delay: 0.08, wet: 0.8 });
+  },
   flickOn(d) { noise(0.012, 3800, 2, 0.28, 'bandpass'); tone('sawtooth', 120, 120, Math.min(0.12, d), 0.035); tone('sine', 240, 240, Math.min(0.12, d), 0.02); },
   flickOff() { noise(0.01, 2000, 2, 0.18, 'bandpass'); },
   ballast() { tone('sawtooth', 60, 58, 0.8, 0.03, { attack: 0.05 }); noise(0.8, 1800, 6, 0.04, 'bandpass'); },
@@ -1127,7 +1136,7 @@ function drawRings() {
 }
 
 // ---- stage lighting: a failing fluorescent tube (pre-baked masks, blitted only during the transition) ----
-const LIGHT_IN = 0.75, STRIKE = [[0.04, 0.75], [0.06, 0.02], [0.03, 0.95], [0.05, 0.12], [0.04, 0.6], [0.05, 0.05]];
+const LIGHT_IN = 0.45;
 let flickSeq = null, flickIdx = -1, offAt = -1, lightMask = null, glowSpr = null;
 function makeFlickerSeq(total) {
   const seq = []; let t = 0, on = true;
@@ -1146,17 +1155,12 @@ function lightLevel() {   // 1 = lights fully on
     }
     return 0;
   }
-  if (lightIn > 0) {
-    const t = LIGHT_IN - lightIn; let acc = 0;
-    for (const [d, L] of STRIKE) { if (t < acc + d) return L; acc += d; }
-    return easeIO(clamp((t - acc) / (LIGHT_IN - acc), 0, 1));
-  }
-  return 1;
+  return 1;   // lights come back all at once (see the flash in drawStageLights)
 }
 function drawStageLights() {
   const L = lightLevel(), w = cv.width, h = cv.height;
   const glow = offAt >= 0 ? Math.exp(-(time - offAt) * 4.5) : 0;
-  if (L >= 0.999 && glow < 0.01) return;
+  if (L >= 0.999 && glow < 0.01 && lightIn <= 0) return;
   if (!lightMask || lightMask.width !== w || lightMask.height !== h) {
     lightMask = document.createElement('canvas'); lightMask.width = w; lightMask.height = h;
     const g = lightMask.getContext('2d'), cx = dpr * (ox + CX * scale), cy = dpr * (oy + CY * scale), k = dpr * scale;
@@ -1173,8 +1177,8 @@ function drawStageLights() {
     ctx.globalAlpha = Math.min(1, d * 0.88); ctx.fillStyle = '#020204'; ctx.fillRect(0, 0, w, h);   // overall dimming
     ctx.globalAlpha = Math.min(1, d * 1.1); ctx.drawImage(lightMask, 0, 0);                          // falloff: edges go first
   }
-  // fresh strike: cold blue-white cast that warms away
-  if (lightIn > 0 && L > 0.5) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18 * (lightIn / LIGHT_IN); ctx.fillStyle = '#5a7ab0'; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = 'source-over'; }
+  // breaker thrown: everything snaps on under a bright flash that burns off fast
+  if (lightIn > 0) { const u = lightIn / LIGHT_IN; ctx.globalAlpha = 0.95 * u * u; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
   // the tube's warm afterglow, high above the log
   if (glow > 0.01) { ctx.globalAlpha = glow * (1 - L); const gx = dpr * (ox + CX * scale) - glowSpr.width / 2, gy = dpr * (oy + 10 * scale) - glowSpr.height / 2; ctx.drawImage(glowSpr, gx, gy); }
   ctx.restore();
@@ -3299,7 +3303,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); tgt.smooth = true; tgt.landed = true; lightIn = LIGHT_IN; offAt = -1; sfx.lightSwitch(); }
+    if (clearT <= 0) { stage++; newStage(); tgt.smooth = true; tgt.landed = true; lightIn = LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   lightIn = Math.max(0, lightIn - dt);
   updatePieces(dt);
