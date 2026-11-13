@@ -209,7 +209,13 @@ const sfx = {
   squawk() { tone('sawtooth', 950, 420, 0.35, 0.18, { drive: true, wet: 0.5 }); noise(0.2, 2000, 1, 0.4, 'bandpass'); },
   rustle() { noise(0.35, 2600, 0.8, 0.4, 'bandpass', { curve: 1 }); noise(0.2, 5000, 1, 0.15, 'highpass', { delay: 0.05 }); },
   reveal() { tone('square', 880, 1760, 0.15, 0.1); noise(0.05, 7000, 1, 0.5, 'highpass'); tone('sine', 3100, 3000, 0.7, 0.08, { wet: 0.9 }); tone('sine', 70, 35, 0.35, 0.6, { drive: true }); },
-  sawHum() { tone('sawtooth', 165, 158, 0.42, 0.025); noise(0.42, 2600, 6, 0.05, 'bandpass'); },
+  sawHum(cut = 0) {
+    tone('sawtooth', 110 + cut * 60, 108 + cut * 60, 0.32, 0.03 + cut * 0.04);
+    noise(0.32, 2400 + cut * 1800, 5, 0.05 + cut * 0.1, 'bandpass');
+    if (cut > 0.02) noise(0.3, 900, 1.2, 0.06 + cut * 0.12, 'bandpass', { drive: true });
+  },
+  sawKick() { tone('square', 140, 50, 0.3, 0.3, { drive: true, wet: 0.5 }); noise(0.3, 3000, 1, 0.6, 'bandpass', { wet: 0.5 }); for (const f of [880, 1320]) tone('triangle', f, f * 0.9, 0.5, 0.08, { wet: 0.8 }); },
+  burp() { tone('sawtooth', 120, 70, 0.35, 0.2, { drive: true, wet: 0.4 }); noise(0.3, 300, 1, 0.5, 'lowpass'); tone('sine', 300, 600, 0.1, 0.15, { delay: 0.3 }); },
   barkHit() { noise(0.09, 700, 1.5, 0.8, 'bandpass', { drive: true, wet: 0.3 }); tone('square', 130, 60, 0.1, 0.22, { drive: true }); },
   barkBreak() { noise(0.7, 900, 0.6, 0.9, 'lowpass', { drive: true, wet: 0.6, curve: 1.5 }); tone('sine', 100, 28, 0.9, 0.9, { drive: true }); for (let i = 0; i < 10; i++) tone('triangle', rand(900, 2400), 800, 0.08, 0.06, { delay: rand(0, 0.5), wet: 0.5 }); },
   squish() { noise(0.14, 500, 1, 0.55, 'lowpass', { curve: 1.5 }); tone('sine', 210, 90, 0.12, 0.2); },
@@ -1416,7 +1422,7 @@ function drawSwirl() {
 
 // ---------- log types ----------
 const LOG_TYPES = ['branches', 'holes', 'bushes', 'moss', 'bark', 'treehole', 'saw'];
-const TYPE_NAME = { plain: 'PLAIN LOG', branches: 'BRANCHED LOG', holes: 'HOLLOW-POCKED LOG', bushes: 'OVERGROWN LOG', moss: 'MOSSY LOG', bark: 'IRONBARK SHELL', treehole: 'TREE-HOLE LOG', saw: 'SAWMILL LOG' };
+const TYPE_NAME = { plain: 'PLAIN LOG', branches: 'BRANCHED LOG', holes: 'WEAK-SPOT LOG', bushes: 'OVERGROWN LOG', moss: 'MOSSY LOG', bark: 'ARMOURED LOG', treehole: 'HUNGRY HOLLOW', saw: 'SAWMILL' };
 const BRANCH_SUBS = ['plain', 'swirl', 'fire', 'hive', 'wire', 'linked', 'bird'];
 const BIRD_COLS = [['#2ad8ff', '#1f5fd1'], ['#ff2e45', '#a3122a'], ['#ffd23f', '#ff7a1a'], ['#9466ff', '#5c5c66']];
 let forceType = null, fxp = [], zapT = 0, stunMax = 2, typeHint = 0;
@@ -1425,7 +1431,8 @@ const inArc = (a, c, w) => angDiff(a, c) < w;
 
 function decorate(t, type) {
   t.type = type;
-  const F = t.f = { branches: [], links: [], holes: [], bushes: [], moss: [], bark: null, treehole: null, saws: [], arcs: [] };
+  const F = t.f = { branches: [], links: [], holes: [], bushes: [], moss: [], plates: [], treehole: null, saws: [], arcs: [] };
+  t.labelT = 3.2;
   const taken = t.stuck.map(s => s.a).concat(t.apples.map(a => a.a));
   const spot = (n, sep) => { const out = placeAngles(n, sep, taken); taken.push(...out); return out; };
   const pick = arr => arr[Math.floor(rand(arr.length))];
@@ -1453,31 +1460,36 @@ function decorate(t, type) {
     }
     if (!F.branches.length) F.branches.push(makeBranch(spot(1, 0.5)[0] || 0, 'plain'));
   } else if (type === 'holes') {
-    for (const a of spot(2 + Math.floor(rand(2)), 0.5)) F.holes.push({ a, w: 0.12, r: rand(7, 10), glint: rand(TAU) });
+    for (const a of spot(3 + Math.floor(rand(2)), 0.5)) F.holes.push({ a, w: 0.13, r: rand(7, 9), glint: rand(TAU), used: false, bug: rand(4, 9), burst: 0 });
   } else if (type === 'bushes') {
     for (const a of spot(2 + Math.floor(rand(2)), 0.8)) {
       const apple = Math.random() < 0.4;
       const b = { a, w: 0.3, apple, alive: true, seed: rand(1000), wob: 0 };
       F.bushes.push(b);
-      if (!apple && Math.random() < 0.75) t.stuck.push({ a: normA(a + rand(-0.12, 0.12)), hidden: true, sink: 72 });
+      if (!apple && Math.random() < 0.75) { t.stuck.push({ a: normA(a + rand(-0.12, 0.12)), hidden: true, sink: 72 }); b.danger = true; }
+      b.glint = rand(1, 3);
     }
   } else if (type === 'moss') {
-    for (const a of spot(2 + Math.floor(rand(2)), 0.9)) F.moss.push({ a, w: rand(0.28, 0.38), hp: 3, seed: rand(1000) });
+    for (const a of spot(2 + Math.floor(rand(2)), 0.9)) F.moss.push({ a, w: rand(0.32, 0.42), hp: 3, seed: rand(1000), regrow: 0, pulse: 0 });
   } else if (type === 'bark') {
-    const hp = 3 + Math.floor(rand(3));
-    F.bark = { hp, max: hp, seed: rand(1000), bolts: Math.floor(rand(6, 10)) };
+    const n = 8, off = rand(TAU);
+    F.plates = [];
+    for (let i = 0; i < n; i++) F.plates.push({ a0: off + i / n * TAU + 0.025, a1: off + (i + 1) / n * TAU - 0.025, hp: 2, seed: rand(1000), hitT: 0 });
   } else if (type === 'treehole') {
     const a = spot(1, 0.6)[0];
-    F.treehole = { a: a === undefined ? 0 : a, w: 0.2, stored: 0, blink: rand(3), gulp: 0 };
+    F.treehole = { a: a === undefined ? 0 : a, w: 0.22, stored: 0, blink: rand(3), gulp: 0, burp: 0, mouth: 0 };
   } else if (type === 'saw') {
-    for (const a of spot(Math.random() < 0.4 ? 2 : 1, 1.2)) F.saws.push({ a, hp: 2, cut: 0, time: rand(18, 24), spin: 0, alive: true, hitT: 0, buzz: 0 });
+    const two = stage >= 6 && Math.random() < 0.35, side = Math.random() < 0.5 ? -1 : 1;
+    const time = (two ? 30 : 24) - Math.min(stage, 12) * 0.5;
+    F.saws.push({ side, cut: 0, time, spin: 0, kick: 0, alive: true });
+    if (two) F.saws.push({ side: -side, cut: 0, time: time * 1.15, spin: 0, kick: 0, alive: true });
   }
 }
 
 function makeBranch(a, sub) {
   const twigs = [];
   for (let i = 0, n = 1 + Math.floor(rand(3)); i < n; i++) twigs.push({ at: rand(0.35, 0.8), side: Math.random() < 0.5 ? -1 : 1, len: rand(8, 14), leaf: Math.random() < 0.8 });
-  return { a, sub, alive: true, len: rand(40, 52), bend: rand(-7, 7), hp: sub === 'swirl' ? 2 : 1, wob: 0, twigs,
+  return { a, sub, alive: true, len: rand(54, 66), sway: 0, bend: rand(-7, 7), hp: sub === 'swirl' ? 2 : 1, wob: 0, twigs,
     fireT: 10, bird: sub === 'bird' ? { on: true, col: BIRD_COLS[Math.floor(rand(BIRD_COLS.length))], hop: rand(TAU) } : null, link: -1 };
 }
 
@@ -1509,10 +1521,10 @@ function featureHits(k, t) {
     if (b.sub === 'swirl' && b.hp > 1) { b.hp--; b.wob = 1.4; sfx.boing(); floater('BOING', CX, CY + R + 70, '#ffd23f'); deflect(k, Math.random() < 0.5 ? -1 : 1, 1.2); return true; }
     breakBranch(t, b, false); deflect(k); return true;
   }
-  for (const s of F.saws) {
-    if (!s.alive) continue;
-    const reach = R + 30 - s.cut * R * 0.6;
-    if (inArc(a, s.a, 0.17) && tip <= CY + reach) { hitSaw(t, s); deflect(k, Math.random() < 0.5 ? -1 : 1, 1.1); return true; }
+  for (const pl of F.plates) {
+    if (pl.hp <= 0 || tip > CY + R + 8) continue;
+    const mid = (pl.a0 + pl.a1) / 2, half = (pl.a1 - pl.a0) / 2;
+    if (inArc(a, normA(mid), half)) { hitPlate(t, pl); deflect(k, Math.random() < 0.5 ? -1 : 1, 1.1); return true; }
   }
   for (const b of F.bushes) {
     if (!b.alive || !inArc(a, b.a, b.w) || tip > CY + R + 22) continue;
@@ -1534,11 +1546,10 @@ function stickNormal(k, t) {
   for (let i = 0; i < 5; i++) smoke.push({ x: CX + rand(-6, 6), y: CY + R, vx: rand(-50, 50), vy: rand(10, 60), r: rand(2, 4), life: rand(0.4, 0.8), max: 0.8, g: 120, c: t.pal.light });
   sfx.thunk(); buzz(8);
   let soaked = false, dmg = 1;
-  if (F && F.bark && F.bark.hp > 0) { soaked = true; s.inBark = true; hitBark(t); }
-  else if (F) {
+  if (F) {
     const m = F.moss.find(m => m.hp > 0 && inArc(a, m.a, m.w));
     if (m) { soaked = true; hitMoss(t, m); }
-    else { const h = F.holes.find(h => inArc(a, h.a, h.w)); if (h) { dmg = 2; holeHit(t, h); } }
+    else { const h = F.holes.find(h => !h.used && inArc(a, h.a, h.w)); if (h) { dmg = 2; h.used = true; holeHit(t, h); } }
   }
   if (soaked) knivesLeft++;
   else { knivesLeft = Math.max(0, knivesLeft - (dmg - 1)); score += dmg - 1; }
@@ -1654,49 +1665,36 @@ function revealFlash(t, s) {
   shock(x, y, 0.35, 90); burst(x, y, 20, ['#ffffff', '#c3ccd6'], 420, 0, 3, 0.4);
   floater('HIDDEN KNIFE!', x, y - 30, '#ff2e45'); sfx.reveal();
 }
-function hitSaw(t, s) {
-  s.hp--; s.hitT = 1;
-  const [x, y] = worldAt(t, s.a, R + 14);
-  burst(x, y, 30, ['#ffffff', '#ffd23f', '#c3c3ca'], 520, 40, 3, 0.5);
-  sfx.clank(); shake = Math.max(shake, 10);
-  if (s.hp <= 0) destroySaw(t, s); else floater('DENTED', x, y - 24, '#c3c3ca');
+function kickSaw(t, s) {
+  s.cut = Math.max(0, s.cut - 0.5); s.kick = 1;
+  const x = CX + s.side * (R + 40);
+  burst(x, CY, 60, ['#ffffff', '#ffd23f', '#ff7a1a'], 800, 40, 3, 0.7);
+  shock(x, CY, 0.4, 140); floater('SAW KNOCKED BACK', CX, CY + R + 60, '#ffd23f'); sfx.sawKick();
 }
-function destroySaw(t, s) {
-  if (!s.alive) return;
-  s.alive = false;
-  const [x, y] = worldAt(t, s.a, R + 14 - s.cut * R * 0.6);
-  for (let i = 0; i < 16; i++) {
-    const a = i / 16 * TAU, sp = rand(300, 650);
-    debris.push({ kind: 'tooth', x: x + Math.cos(a) * 14, y: y + Math.sin(a) * 14, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 150, rot: a, vr: rand(-20, 20) });
-  }
-  debris.push({ kind: 'hub', x, y, vx: rand(-100, 100), vy: -300, rot: 0, vr: 18 });
-  burst(x, y, 40, ['#ffffff', '#ffd23f', '#ff7a1a'], 700, 40, 3, 0.6);
-  shock(x, y, 0.4, 120); kick(0.1, 0.04, 0.8, 0.3); shake = Math.max(shake, 16);
-  floater('SAW DOWN', x, y - 24, '#ffd23f'); sfx.knifeExplode();
-}
-function hitBark(t) {
-  const B = t.f.bark; B.hp--;
-  const [x, y] = [CX, CY + R];
-  burst(x, y, 16, ['#5c5c66', '#38383f', '#8d8d97'], 360, 60, 4, 0.6);
-  sfx.barkHit();
-  if (B.hp <= 0) shatterBark(t); else floater('BARK ' + B.hp, CX + 60, CY + R + 20, '#c3c3ca');
+
+function hitPlate(t, pl) {
+  pl.hp--; pl.hitT = 1;
+  const mid = (pl.a0 + pl.a1) / 2, [x, y] = worldAt(t, mid, R);
+  burst(CX, CY + R + 4, 26, ['#ffffff', '#ffd23f', '#c3c3ca'], 520, 40, 3, 0.45);
+  sfx.barkHit(); sfx.ping(); shake = Math.max(shake, 6); t.hit = 0.6;
+  if (pl.hp <= 0) {
+    const w = t.rot + mid, sp = rand(300, 480);
+    debris.push({ kind: 'plate', a0: pl.a0, a1: pl.a1, x: CX, y: CY, vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 260, rot: t.rot, vr: rand(-5, 5) });
+    for (let i = 0; i < 6; i++) debris.push({ kind: 'tooth', x, y, vx: rand(-300, 300), vy: rand(-400, -100), rot: rand(TAU), vr: rand(-20, 20) });
+    floater('OPENING!', CX, CY + R + 70, '#ffffff'); kick(0.06, 0.03, 0.5); sfx.barkBreak();
+  } else floater('CLANG', CX, CY + R + 70, '#c3c3ca');
 }
 function shatterBark(t) {
-  const B = t.f.bark; B.hp = 0;
-  for (let i = 0; i < 12; i++) {
-    const a0 = i / 12 * TAU, mid = t.rot + a0 + TAU / 24, sp = rand(260, 520);
-    debris.push({ kind: 'plate', a0, x: CX, y: CY, vx: Math.cos(mid) * sp, vy: Math.sin(mid) * sp - 200, rot: t.rot, vr: rand(-4, 4), seed: B.seed });
+  let any = false;
+  for (const pl of t.f.plates) if (pl.hp > 0) {
+    any = true; pl.hp = 0;
+    const w = t.rot + (pl.a0 + pl.a1) / 2, sp = rand(320, 560);
+    debris.push({ kind: 'plate', a0: pl.a0, a1: pl.a1, x: CX, y: CY, vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 260, rot: t.rot, vr: rand(-6, 6) });
   }
-  // knives that were only in the bark fall away with it
-  t.stuck = t.stuck.filter(s => {
-    if (!s.inBark) return true;
-    const w = t.rot + s.a, sp = rand(250, 450);
-    debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 200, rot: w - HALF, vr: rand(-10, 10) });
-    return false;
-  });
+  if (!any) return;
   burst(CX, CY, 60, ['#5c5c66', '#38383f', '#c3c3ca', '#ffffff'], 700, 80, 5, 0.8);
   shocks(CX, CY, 2, 200); kick(0.18, 0.06, 1, 0.6); shake = Math.max(shake, 20);
-  floater('BARK SHATTERED', CX, CY - R - 30, '#fff'); sfx.barkBreak();
+  floater('ARMOUR SHATTERED', CX, CY - R - 30, '#fff'); sfx.barkBreak();
 }
 function hitMoss(t, m) {
   m.hp--;
@@ -1717,9 +1715,10 @@ function holeHit(t, h) {
 function swallow(k, t) {
   const H = t.f.treehole; k.done = true; H.stored++; H.gulp = 1;
   knivesLeft++;                                      // swallowed knives do nothing
-  const [x, y] = worldAt(t, H.a, R - 16);
+  const [x, y] = worldAt(t, H.a, R - 20);
   for (let i = 0; i < 10; i++) smoke.push({ x, y, vx: rand(-40, 40), vy: rand(-50, 0), r: rand(3, 5), life: 0.8, max: 1, g: 60 });
   floater('GULP  X' + H.stored, x, y + 40, '#c3c3ca'); sfx.gulp();
+  if (H.stored % 3 === 0) H.burp = 0.9;              // every third knife comes back up
 }
 function electrocute(k, t) {
   k.done = true; knivesLeft++;
@@ -1745,8 +1744,11 @@ function updateFeatures(t, dt) {
   const F = t.f; if (!F) return;
   typeHint = Math.max(0, typeHint - dt);
   const live = state === 'play' || state === 'fx';
+  t.labelT = Math.max(0, (t.labelT || 0) - dt);
+  const omega = t.pat(t.t);
   for (const b of F.branches) {
-    b.wob = Math.max(0, b.wob - dt * 2.5);
+    b.sway += (-omega * 0.07 - b.sway) * Math.min(1, dt * 3);
+    b.wob = Math.max(b.wob - dt * 2.5, t.hit * 0.25);
     if (b.bird) b.bird.hop += dt;
     if (b.alive && b.sub === 'fire' && live) {
       b.fireT -= dt;
@@ -1756,8 +1758,28 @@ function updateFeatures(t, dt) {
   }
   for (const z of F.arcs) z.life -= dt;
   F.arcs = F.arcs.filter(z => z.life > 0);
-  for (const b of F.bushes) b.wob = Math.max(0, b.wob - dt);
-  if (F.treehole) { F.treehole.gulp = Math.max(0, F.treehole.gulp - dt * 3); F.treehole.blink += dt; }
+  for (const b of F.bushes) { b.wob = Math.max(0, b.wob - dt); b.glint -= dt; if (b.glint < -0.25) b.glint = rand(1.2, 2.8); }
+  for (const h of F.holes) { h.bug -= dt; if (h.bug < -1.6) h.bug = rand(5, 10); h.burst = Math.max(0, h.burst - dt * 2); }
+  for (const m of F.moss) {
+    m.pulse = Math.max(0, m.pulse - dt * 2);
+    if (m.hp > 0 && m.hp < 3 && live) { m.regrow += dt; if (m.regrow > 6) { m.regrow = 0; m.hp++; m.pulse = 1; const [x, y] = worldAt(t, m.a, R); leafBurst(x, y, 6, 120); floater('REGROWN', x, y - 24, '#b6e05a'); sfx.squish(); } }
+  }
+  for (const pl of F.plates) pl.hitT = Math.max(0, pl.hitT - dt * 3);
+  if (F.treehole) {
+    const H = F.treehole;
+    H.gulp = Math.max(0, H.gulp - dt * 3); H.blink += dt; H.mouth = 0.5 + 0.5 * Math.sin(time * 2.2);
+    if (H.burp > 0) {
+      H.burp -= dt;
+      if (H.burp <= 0) {
+        H.burp = 0; H.gulp = 1.4;
+        const a = normA(H.a + (Math.random() < 0.5 ? -1 : 1) * rand(0.6, 1.4));
+        if (!t.stuck.some(s => angDiff(s.a, a) < 0.2)) { t.stuck.push({ a, wob: 0.15 }); addMark(t, a); }
+        const [x, y] = worldAt(t, H.a, R - 20);
+        for (let i = 0; i < 14; i++) smoke.push({ x, y, vx: rand(-90, 90), vy: rand(-90, 20), r: rand(3, 7), life: 1, max: 1, g: 90 });
+        floater('BURP! KNIFE SPAT OUT', CX, CY - R - 30, '#ff7a1a'); sfx.burp(); shake = Math.max(shake, 8);
+      }
+    }
+  }
   for (const s of t.stuck) if (s.reveal) { s.reveal = Math.max(0, s.reveal - dt * 4); s.sink = 72 * s.reveal * s.reveal; }
   t.stuck = t.stuck.filter(s => {
     if (!s.blast || s.reveal > 0) return true;
@@ -1767,16 +1789,20 @@ function updateFeatures(t, dt) {
   });
   let anySaw = false;
   for (const s of F.saws) {
-    s.hitT = Math.max(0, s.hitT - dt * 3);
     if (!s.alive) continue;
-    anySaw = true; s.spin += dt * 26;
+    anySaw = true; s.spin += dt * 30; s.kick = Math.max(0, s.kick - dt * 2);
     if (live) {
-      s.cut += dt / s.time;
-      if (Math.random() < dt * 40) { const [x, y] = worldAt(t, s.a, R - s.cut * R * 0.6 + 4); parts.push({ x, y, vx: rand(-140, 140), vy: rand(-160, 40), life: 0.5, max: 0.5, c: Math.random() < 0.5 ? t.pal.light : '#ffd23f', s: 2.5, rot: 0, vr: 0 }); }
+      s.cut = Math.min(1, s.cut + dt / s.time);
+      const depth = s.cut * R * 0.92, cx = CX + s.side * (R - depth), cy = CY;
+      if (depth > 1 && Math.random() < dt * 90) {
+        const up = Math.random() < 0.5;
+        parts.push({ x: cx, y: cy + (up ? -6 : 6), vx: s.side * rand(60, 260), vy: (up ? -1 : 1) * rand(120, 380), life: rand(0.4, 0.8), max: 0.8, c: Math.random() < 0.4 ? '#ffd23f' : Math.random() < 0.5 ? t.pal.light : '#ffffff', s: rand(1.5, 3), rot: 0, vr: 0 });
+      }
+      if (depth > 1 && Math.random() < dt * 12) smoke.push({ x: cx, y: cy, vx: s.side * rand(20, 80), vy: rand(-60, -20), r: rand(3, 6), life: 1, max: 1.2, g: 130, c: t.pal.light });
       if (s.cut >= 1) { loseGame('SAWN IN HALF'); return; }
     }
   }
-  if (anySaw && live) { sawHum -= dt; if (sawHum <= 0) { sawHum = 0.45; sfx.sawHum(); } }
+  if (anySaw && live) { sawHum -= dt; if (sawHum <= 0) { sawHum = 0.3; sfx.sawHum(Math.max(...F.saws.map(s => s.cut))); } }
 }
 function updateFxp(dt) {
   const [kx, ky] = [CX, KNIFE_Y + 30];
@@ -1810,8 +1836,9 @@ const KNIFE_ABILITIES = {
       // moss burns off
       F.moss.forEach(m => { if (m.hp > 0) { m.hp = 1; hitMoss(t, m); } });
       // the bark shell shatters in one blow
-      if (F.bark && F.bark.hp > 0) shatterBark(t);
+      shatterBark(t);
       // weak spots take quadruple
+      F.holes.forEach(h => { if (inArc(aHit, h.a, h.w)) h.used = true; });
       if (F.holes.some(h => inArc(aHit, h.a, h.w))) { bonus += 2; floater('CORE BREACH X4', CX, CY + R + 60, '#ffd23f'); sfx.holeHit(); }
       // the tree hole erupts and spits its swallowed knives back into the log
       if (F.treehole && F.treehole.stored > 0) {
@@ -1820,7 +1847,7 @@ const KNIFE_ABILITIES = {
         bonus += n; floater('ERUPTION X' + n, CX, CY - R - 40, '#ff7a1a'); sfx.logExplode(); embers(CX, CY, 40, 700);
       }
       // saw blades are wrecked by the shockwave
-      F.saws.forEach(s => { if (s.alive) delays.push([0.12, () => destroySaw(t, s)]); });
+      F.saws.forEach(s => { if (s.alive) delays.push([0.12, () => kickSaw(t, s)]); });
       for (const [d, f] of delays) pending.push({ t: d, f });
       return bonus;
     },
@@ -1875,7 +1902,7 @@ function drawBee(x, y, ph) {
   if (Math.sin(ph * 6) > 0) pxRect(x - 1, y - 3.5, 2, 2, '#ffffff');
 }
 function drawBranch(t, b) {
-  ctx.save(); ctx.rotate(b.a); ctx.rotate(Math.sin(time * 30) * b.wob * 0.15);
+  ctx.save(); ctx.rotate(b.a); ctx.translate(R - 6, 0); ctx.rotate(Math.sin(time * 30) * b.wob * 0.15 + b.sway + Math.sin(time * 2 + b.a * 5) * 0.03); ctx.translate(-(R - 6), 0);
   const base = R - 6, L = b.len, tipY = b.bend;
   if (b.sub === 'swirl') {
     drawBranchShape(Object.assign({}, b, { len: L * 0.55, twigs: [] }), base, false);
@@ -1891,8 +1918,11 @@ function drawBranch(t, b) {
   if (b.sub === 'fire') {
     const power = 1 + (10 - b.fireT) / 10 * 1.4;
     drawFlames(base, L, tipY, power);
-    // countdown pips that burn down
-    for (let i = 0; i < 10; i++) { ctx.fillStyle = i < Math.ceil(b.fireT) ? '#ffd23f' : '#38383f'; ctx.fillRect(base + 6 + i * 4, tipY * 0.5 + 10, 3, 3); }
+    // heat glow and a countdown ring at the tip
+    const hg = ctx.createRadialGradient(base + L * 0.6, tipY * 0.4, 2, base + L * 0.6, tipY * 0.4, 40);
+    hg.addColorStop(0, 'rgba(255,122,26,.45)'); hg.addColorStop(1, 'rgba(255,46,69,0)'); ctx.fillStyle = hg; ctx.fillRect(base - 20, tipY * 0.4 - 50, L + 60, 100);
+    ctx.strokeStyle = '#1e1e24'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(base + L + 14, tipY, 9, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = b.fireT < 3 && Math.sin(time * 16) > 0 ? '#ffffff' : '#ff7a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(base + L + 14, tipY, 9, -HALF, -HALF + TAU * b.fireT / 10); ctx.stroke();
   }
   if (b.sub === 'hive') {
     const hx = base + L * 0.62, hy = tipY * 0.4 + 12;
@@ -1922,6 +1952,8 @@ function drawBranch(t, b) {
     ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(bx + 10, by - 4); ctx.lineTo(bx + 14, by - 2.5); ctx.lineTo(bx + 10, by - 1.5); ctx.fill();
     ctx.fillStyle = Math.sin(b.bird.hop * 2.3) > 0.95 ? c1 : '#000'; ctx.fillRect(bx + 6.5, by - 4.5, 2, 2);
     ctx.fillStyle = '#ffd23f'; ctx.fillRect(bx - 1, by + 7, 1.5, 4); ctx.fillRect(bx + 2, by + 7, 1.5, 4);
+    const nph = (time * 0.7 + b.a) % 1;
+    if (nph < 0.6) { ctx.fillStyle = `rgba(255,255,255,${1 - nph / 0.6})`; const nx = bx + 10 + nph * 20, ny = by - 10 - nph * 18; ctx.fillRect(nx, ny, 3, 3); ctx.fillRect(nx + 2, ny - 7, 1, 8); ctx.fillRect(nx + 2, ny - 7, 4, 1); }
   }
   ctx.restore();
 }
@@ -1944,7 +1976,7 @@ function drawLinks(t) {
 function drawBush(t, b) {
   ctx.save(); ctx.rotate(b.a);
   const rust = Math.sin(time * 9 + b.seed) * (hash(Math.floor(time * 0.7), b.seed, 2) < 0.25 ? 1.6 : 0.3);
-  ctx.translate(R + 4, 0); ctx.rotate(rust * 0.03);
+  ctx.translate(R + 6, 0); ctx.rotate(rust * 0.03 + Math.sin(time * 30) * b.wob * 0.1); ctx.scale(1.25, 1.25);
   const blobs = [[0, -18, 11], [6, -6, 13], [4, 8, 12], [-2, 18, 10], [12, 2, 9], [-6, 0, 10]];
   ctx.fillStyle = 'rgba(0,0,0,.4)'; for (const [x, y, r] of blobs) { ctx.beginPath(); ctx.arc(x - 3, y + 3, r, 0, TAU); ctx.fill(); }
   for (const [x, y, r] of blobs) { ctx.fillStyle = '#1f3a10'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
@@ -1956,6 +1988,7 @@ function drawBush(t, b) {
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(-4, -0.3, 8, 0.6);
     ctx.restore();
   }
+  if (b.danger && b.glint < 0) { const u = -b.glint / 0.25; ctx.fillStyle = '#ffffff'; ctx.fillRect(-2, -1, 10 * Math.sin(u * Math.PI), 2); ctx.fillRect(2, -5 * Math.sin(u * Math.PI), 2, 10 * Math.sin(u * Math.PI)); }
   if (!b.apple) { ctx.fillStyle = '#9466ff'; for (let i = 0; i < 4; i++) ctx.fillRect(hash(i, b.seed, 8) * 18 - 4, hash(i, b.seed, 9) * 36 - 18, 2.5, 2.5); }
   if (b.apple) { ctx.save(); ctx.translate(12, -6); ctx.scale(0.55, 0.55); ctx.rotate(HALF); drawApple(); ctx.restore(); ctx.save(); ctx.translate(8, 12); ctx.scale(0.45, 0.45); ctx.rotate(HALF); drawApple(); ctx.restore(); }
   ctx.restore();
@@ -1963,14 +1996,27 @@ function drawBush(t, b) {
 function drawMoss(t, m) {
   if (m.hp <= 0) return;
   ctx.save(); ctx.rotate(m.a);
-  const n = 26 + m.hp * 10;
-  for (let i = 0; i < n; i++) {
-    const u = hash(i, m.seed, 1) * 2 - 1, a = u * m.w, r = R + 2 - hash(i, m.seed, 2) * 20 * (1 - Math.abs(u) * 0.6) + 4;
-    const sz = 4 + hash(i, m.seed, 3) * 6;
-    ctx.fillStyle = ['#7fbf3a', '#b6e05a', '#7fbf3a', '#3d6b1f'][Math.floor(hash(i, m.seed, 4) * 4)];
-    ctx.fillRect(Math.cos(a) * r - sz / 2, Math.sin(a) * r - sz / 2, sz, sz);
+  const grow = 1 + m.pulse * 0.25;
+  // thick carpet: one layer per remaining hit
+  for (let layer = 0; layer < m.hp; layer++) {
+    const n = 34, th = (7 + layer * 6) * grow, cols = [['#1f3a10', '#3d6b1f'], ['#3d6b1f', '#7fbf3a'], ['#7fbf3a', '#b6e05a']][layer];
+    for (let i = 0; i < n; i++) {
+      const u = hash(i, m.seed + layer * 17, 1) * 2 - 1, a = u * m.w * (1 - layer * 0.12), edge = 1 - Math.abs(u) * 0.7;
+      const r = R + 3 - hash(i, m.seed + layer * 17, 2) * th * edge;
+      const sz = (3 + hash(i, m.seed, 3) * 5) * (1 + layer * 0.15);
+      ctx.fillStyle = cols[i % 2];
+      ctx.fillRect(Math.cos(a) * r - sz / 2, Math.sin(a) * r - sz / 2, sz, sz);
+    }
   }
-  for (let i = 0; i < m.hp; i++) { ctx.fillStyle = '#ffffff'; ctx.fillRect(R + 8, -5 + i * 5, 3, 3); }
+  // fuzzy tufts and spores on top
+  for (let i = 0; i < 10; i++) {
+    const u = hash(i, m.seed, 7) * 2 - 1, a = u * m.w * 0.9, r = R + 4 + Math.sin(time * 3 + i) * 1.5;
+    ctx.fillStyle = '#b6e05a'; ctx.fillRect(Math.cos(a) * r - 1, Math.sin(a) * r - 3, 2, 5);
+    if (i % 3 === 0) { ctx.fillStyle = '#ffd23f'; ctx.fillRect(Math.cos(a) * (r + 3) - 1, Math.sin(a) * (r + 3) - 1, 2, 2); }
+  }
+  // regrowth gauge when damaged
+  if (m.hp < 3) { ctx.strokeStyle = 'rgba(182,224,90,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R + 12, -m.w, -m.w + m.w * 2 * (m.regrow / 6)); ctx.stroke(); }
+  for (let i = 0; i < m.hp; i++) { ctx.fillStyle = '#ffffff'; ctx.fillRect(R + 15, -5 + i * 5, 3, 3); }
   ctx.restore();
 }
 function drawHoles(t) {
@@ -1982,79 +2028,126 @@ function drawHoles(t) {
     ctx.fillStyle = '#45210b'; ctx.beginPath(); ctx.arc(x, 0, h.r + 3, 0, TAU); ctx.fill();
     ctx.fillStyle = '#1e0d03'; ctx.beginPath(); ctx.arc(x + 1, 0, h.r, 0, TAU); ctx.fill();
     ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x + 2.5, 0, h.r * 0.65, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(255,230,180,.35)'; ctx.beginPath(); ctx.arc(x, 0, h.r + 3, Math.PI * 0.8, Math.PI * 1.3); ctx.arc(x, 0, h.r + 1.5, Math.PI * 1.3, Math.PI * 0.8, true); ctx.fill();
-    ctx.strokeStyle = `rgba(255,210,63,${0.35 + 0.35 * Math.sin(time * 4 + h.glint)})`; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(x, 0, h.r + 6, 0, TAU); ctx.stroke();
+    if (!h.used) {
+      // glowing weak-spot reticle
+      const pu = 0.5 + 0.5 * Math.sin(time * 5 + h.glint);
+      ctx.fillStyle = `rgba(255,210,63,${0.25 + 0.3 * pu})`; ctx.beginPath(); ctx.arc(x + 1, 0, h.r * 0.6, 0, TAU); ctx.fill();
+      ctx.save(); ctx.translate(x, 0); ctx.rotate(time * 1.5);
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1.6; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(0, 0, h.r + 7 + pu * 2, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.fillStyle = '#ffffff'; ctx.fillRect(-1, -h.r - 13, 2, 5); }
+      ctx.restore();
+      // a beetle peeks out now and then
+      if (h.bug < 0) { const out = Math.sin(Math.min(1, -h.bug / 1.6) * Math.PI) * 6; ctx.fillStyle = '#1f5fd1'; ctx.beginPath(); ctx.ellipse(x - out, 0, 3.5, 2.6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#2ad8ff'; ctx.fillRect(x - out - 1, -1.8, 2, 1); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(x - out - 3, -1); ctx.lineTo(x - out - 6, -3); ctx.moveTo(x - out - 3, 1); ctx.lineTo(x - out - 6, 3); ctx.stroke(); }
+    } else {
+      ctx.fillStyle = '#120802'; ctx.beginPath(); ctx.arc(x + 1, 0, h.r + 1, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,240,200,.3)'; ctx.lineWidth = 1; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.3; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * h.r, Math.sin(a) * h.r); ctx.lineTo(x + Math.cos(a) * (h.r + 5), Math.sin(a) * (h.r + 5)); ctx.stroke(); }
+    }
     ctx.restore();
   }
 }
 function drawTreeHole(t) {
   const H = t.f.treehole;
   ctx.save(); ctx.rotate(H.a);
-  const x = R - 22, g = 1 + H.gulp * 0.2;
-  ctx.fillStyle = '#45210b'; ctx.beginPath(); ctx.ellipse(x, 0, 19 * g, 24 * g, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#874419'; ctx.beginPath(); ctx.ellipse(x, 0, 16 * g, 21 * g, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x + 1, 0, 13 * g, 18 * g, 0, 0, TAU); ctx.fill();
-  for (let i = 0; i < Math.min(H.stored, 6); i++) { ctx.fillStyle = i % 2 ? '#a3122a' : '#d8402f'; ctx.fillRect(x - 6 + i * 2, -8 + (i % 3) * 6, 2, 9); }
-  if ((H.blink % 3.2) < 3.0) { ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - 3, -6, 3, 2); ctx.fillRect(x - 3, 3, 3, 2); }
-  if (H.stored) { ctx.save(); ctx.translate(x - 30, 0); ctx.rotate(-t.rot - H.a); text('X' + H.stored, 0, 0, 12, '#ffffff', 'center', 700); ctx.restore(); }
+  const x = R - 26, g = 1 + H.gulp * 0.25, open = 0.75 + H.mouth * 0.25 + H.gulp * 0.3;
+  // bark lip around the hollow
+  ctx.fillStyle = '#2a160a'; ctx.beginPath(); ctx.ellipse(x, 0, 21 * g, 27 * g, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#6a3a18'; ctx.beginPath(); ctx.ellipse(x, 0, 18 * g, 24 * g, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#874419'; ctx.lineWidth = 1; for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 17 * g, Math.sin(a) * 23 * g); ctx.lineTo(x + Math.cos(a + 0.15) * 20 * g, Math.sin(a + 0.15) * 26 * g); ctx.stroke(); }
+  // the dark mouth breathes and chomps
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x + 1, 0, 14 * g * open, 20 * g, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#c3c3ca'; for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x - 12 * open * g, i * 6 - 2); ctx.lineTo(x - 7 * open * g, i * 6); ctx.lineTo(x - 12 * open * g, i * 6 + 2); ctx.fill(); }
+  for (let i = 0; i < Math.min(H.stored, 6); i++) { ctx.fillStyle = i % 2 ? '#a3122a' : '#d8402f'; ctx.fillRect(x - 2 + (i % 3) * 3, -8 + i * 3, 2, 8); }
+  // eyes track the incoming knife (always toward the bottom of the screen)
+  const look = -H.a - t.rot + HALF, ex = Math.cos(look) * 2, ey = Math.sin(look) * 2;
+  if ((H.blink % 3.4) < 3.2) {
+    for (const yy of [-8, 8]) { ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.ellipse(x + 6, yy, 3.4, 4, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#000'; ctx.fillRect(x + 6 + ex - 1, yy + ey - 1.5, 2, 3); }
+  } else { ctx.fillStyle = '#ffd23f'; ctx.fillRect(x + 5, -9, 4, 1); ctx.fillRect(x + 5, 7, 4, 1); }
+  if (H.burp > 0) { ctx.fillStyle = `rgba(255,122,26,${0.5 + 0.5 * Math.sin(time * 30)})`; ctx.beginPath(); ctx.ellipse(x + 1, 0, 6, 9, 0, 0, TAU); ctx.fill(); }
+  if (H.stored) { ctx.save(); ctx.translate(x - 34, 0); ctx.rotate(-t.rot - H.a); text('X' + H.stored, 0, 0, 12, '#ffffff', 'center', 700); ctx.restore(); }
   ctx.restore();
 }
 function drawBark(t) {
-  const B = t.f.bark; if (!B || B.hp <= 0) return;
-  ctx.save();
-  ctx.lineWidth = 18; ctx.strokeStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, R - 7, 0, TAU); ctx.stroke();
-  ctx.lineWidth = 6; ctx.strokeStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, R - 4, 0, TAU); ctx.stroke();
-  ctx.lineWidth = 2; ctx.strokeStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(0, 0, R - 2, Math.PI * 1.05, Math.PI * 1.7); ctx.stroke();
-  ctx.lineWidth = 2; ctx.strokeStyle = '#1e1e24'; ctx.beginPath(); ctx.arc(0, 0, R - 16, 0, TAU); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, R + 0.5, 0, TAU); ctx.stroke();
-  for (let i = 0; i < 12; i++) {
-    ctx.save(); ctx.rotate(i / 12 * TAU);
-    ctx.fillStyle = '#1e1e24'; ctx.fillRect(R - 16, -1.5, 17, 3);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(R - 9, 8, 3, 3); ctx.fillStyle = '#38383f'; ctx.fillRect(R - 8, 9, 2, 2);
+  for (const pl of t.f.plates) {
+    if (pl.hp <= 0) continue;
+    const j = pl.hitT * 2;
+    ctx.save(); ctx.translate(rand(-j, j), rand(-j, j));
+    ctx.beginPath(); ctx.arc(0, 0, R + 7, pl.a0, pl.a1); ctx.arc(0, 0, R - 13, pl.a1, pl.a0, true); ctx.closePath();
+    ctx.fillStyle = pl.hitT > 0.6 ? '#c3c3ca' : '#38383f'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, R + 7, pl.a0, pl.a1); ctx.arc(0, 0, R + 1, pl.a1, pl.a0, true); ctx.closePath(); ctx.fillStyle = '#5c5c66'; ctx.fill();
+    ctx.strokeStyle = '#8d8d97'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, R + 6, pl.a0 + 0.02, pl.a1 - 0.02); ctx.stroke();
+    ctx.strokeStyle = '#0d0d10'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, R + 7, pl.a0, pl.a1); ctx.arc(0, 0, R - 13, pl.a1, pl.a0, true); ctx.closePath(); ctx.stroke();
+    for (const u of [0.18, 0.82]) { const a = pl.a0 + (pl.a1 - pl.a0) * u; ctx.fillStyle = '#c3c3ca'; ctx.fillRect(Math.cos(a) * (R - 4) - 1.5, Math.sin(a) * (R - 4) - 1.5, 3, 3); ctx.fillStyle = '#1e1e24'; ctx.fillRect(Math.cos(a) * (R - 4) - 0.5, Math.sin(a) * (R - 4) - 0.5, 1, 1); }
+    if (pl.hp === 1) {
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1.4;
+      for (let i = 0; i < 3; i++) { const a = pl.a0 + (pl.a1 - pl.a0) * hash(i, pl.seed, 1); ctx.beginPath(); ctx.moveTo(Math.cos(a) * (R + 7), Math.sin(a) * (R + 7)); ctx.lineTo(Math.cos(a + 0.05) * (R - 2), Math.sin(a + 0.05) * (R - 2)); ctx.lineTo(Math.cos(a - 0.03) * (R - 11), Math.sin(a - 0.03) * (R - 11)); ctx.stroke(); }
+    }
     ctx.restore();
   }
-  // cracks spread as the shell weakens
-  const dmg = 1 - B.hp / B.max;
-  ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
-  for (let i = 0; i < Math.floor(dmg * 14); i++) {
-    const a = hash(i, B.seed, 1) * TAU; ctx.save(); ctx.rotate(a);
-    ctx.beginPath(); ctx.moveTo(R, 0); ctx.lineTo(R - 5, hash(i, B.seed, 2) * 6 - 3); ctx.lineTo(R - 11, hash(i, B.seed, 3) * 8 - 4); ctx.stroke(); ctx.restore();
-  }
-  ctx.restore();
 }
-function drawSaw(t, s) {
-  if (!s.alive) return;
-  ctx.save(); ctx.rotate(s.a);
-  const rc = R + 14 - s.cut * R * 0.6, jit = s.hitT * 3;
-  // groove cut into the log
-  ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.clip();
-  ctx.fillStyle = '#000'; ctx.fillRect(rc - 4, -2.5, R - rc + 8, 5);
-  ctx.restore();
-  // bracket arm
-  ctx.fillStyle = '#5c5c66'; ctx.fillRect(rc, -4, R + 32 - rc, 8);
-  ctx.fillStyle = '#ffd23f'; for (let x = rc + 4; x < R + 30; x += 8) ctx.fillRect(x, -4, 4, 8);
-  ctx.fillStyle = '#1e1e24'; ctx.fillRect(R + 24, -12, 16, 24);
-  ctx.fillStyle = '#ff7a1a'; ctx.fillRect(R + 26, -10, 12, 4);
-  ctx.fillStyle = '#5c5c66'; for (let i = 0; i < 3; i++) ctx.fillRect(R + 27 + i * 4, -3, 2, 12);
-  ctx.fillStyle = Math.floor(time * 8) % 2 ? '#ff2e45' : '#4a0712'; ctx.fillRect(R + 36, -10, 2, 2);
-  if (Math.floor(time * 10 + s.a * 7) % 4 === 0) { ctx.fillStyle = 'rgba(140,140,150,.5)'; ctx.beginPath(); ctx.arc(R + 44 + (time * 60) % 10, -8, 3, 0, TAU); ctx.fill(); }
-  // spinning blade
-  ctx.translate(rc + rand(-jit, jit), rand(-jit, jit)); ctx.rotate(s.spin);
-  ctx.fillStyle = '#c3c3ca';
-  ctx.beginPath();
-  for (let i = 0; i < 24; i++) { const a = i / 24 * TAU, r = i % 2 ? 15 : 19; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(-1, -11, 2, 6);
-  ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill();
-  if (s.hp < 2) { ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-10, -4); ctx.lineTo(-2, 2); ctx.lineTo(6, -6); ctx.stroke(); }
-  ctx.restore();
-  // cut-progress gauge
-  ctx.save(); ctx.rotate(s.a); ctx.translate(R + 44, 0); ctx.rotate(-t.rot - s.a);
-  ctx.fillStyle = '#1e1e24'; ctx.fillRect(-14, -3, 28, 6);
-  ctx.fillStyle = s.cut > 0.7 && Math.sin(time * 14) > 0 ? '#ffffff' : '#ff2e45'; ctx.fillRect(-13, -2, 26 * s.cut, 4);
-  ctx.restore();
+// big industrial sawmill blade on a carriage, cutting in from the side (world space, never rotates with the log)
+const SAW_R = 80;
+function drawSawmill(t) {
+  if (!t || !t.f) return;
+  for (const s of t.f.saws) {
+    if (!s.alive) continue;
+    const depth = s.cut * R * 0.92, kickOff = s.kick * 30 * Math.sin(s.kick * 20);
+    const bx = CX + s.side * (R + SAW_R + 12 - depth + kickOff), by = CY + (t.pop < 1 ? (1 - easeOutBounce(t.pop)) * -340 : 0);
+    ctx.save(); ctx.translate(bx, by); ctx.scale(s.side, 1);
+    // carriage rails and arm
+    ctx.fillStyle = '#1e1e24'; ctx.fillRect(0, -26, 420, 10); ctx.fillRect(0, 16, 420, 10);
+    ctx.fillStyle = '#5c5c66'; ctx.fillRect(0, -26, 420, 2); ctx.fillRect(0, 16, 420, 2);
+    ctx.fillStyle = '#ffd23f'; for (let x = 10; x < 420; x += 22) { ctx.fillRect(x, -24, 10, 6); ctx.fillRect(x, 18, 10, 6); }
+    ctx.fillStyle = '#38383f'; ctx.fillRect(0, -8, SAW_R + 70, 16);
+    // motor housing
+    const hx = SAW_R + 40;
+    ctx.fillStyle = '#0d0d10'; ctx.fillRect(hx, -46, 90, 92);
+    ctx.fillStyle = '#ff7a1a'; ctx.fillRect(hx + 4, -42, 82, 84);
+    ctx.fillStyle = '#1e1e24'; for (let i = 0; i < 5; i++) ctx.fillRect(hx + 14 + i * 12, -30, 6, 60);
+    ctx.fillStyle = '#000'; ctx.fillRect(hx + 4, -42, 82, 8);
+    ctx.fillStyle = '#ffd23f'; for (let x = hx + 4; x < hx + 86; x += 12) { ctx.beginPath(); ctx.moveTo(x, -42); ctx.lineTo(x + 6, -42); ctx.lineTo(x + 2, -34); ctx.lineTo(x - 4, -34); ctx.fill(); }
+    const blink = s.cut > 0.7 ? 14 : s.cut > 0.4 ? 7 : 3;
+    ctx.fillStyle = Math.floor(time * blink) % 2 ? '#ff2e45' : '#4a0712'; ctx.fillRect(hx + 30, -56, 14, 10);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(hx + 34, -54, 3, 3);
+    // gauge on the housing
+    ctx.fillStyle = '#0d0d10'; ctx.fillRect(hx + 8, 30, 74, 8);
+    ctx.fillStyle = s.cut > 0.7 ? '#ff2e45' : '#ffd23f'; ctx.fillRect(hx + 9, 31, 72 * s.cut, 6);
+    // drive belt to the hub
+    ctx.strokeStyle = '#0d0d10'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(hx + 20, -18); ctx.moveTo(0, 12); ctx.lineTo(hx + 20, 18); ctx.stroke();
+    ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -time * 200; ctx.stroke(); ctx.setLineDash([]);
+    // the blade
+    ctx.save(); ctx.rotate(s.spin * s.side);
+    ctx.fillStyle = '#8d8d97'; ctx.beginPath();
+    for (let i = 0; i < 48; i++) { const a = i / 48 * TAU, r = i % 2 ? SAW_R - 7 : SAW_R; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(0, 0, SAW_R - 9, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, SAW_R - 30, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#38383f'; ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (SAW_R - 34), Math.sin(a) * (SAW_R - 34)); ctx.lineTo(Math.cos(a + 0.12) * (SAW_R - 14), Math.sin(a + 0.12) * (SAW_R - 14)); ctx.stroke(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(Math.cos(a + 0.12) * (SAW_R - 14), Math.sin(a + 0.12) * (SAW_R - 14), 2.2, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(-2, -SAW_R + 12, 4, 16);
+    ctx.restore();
+    // motion blur rings
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 3; for (const r of [SAW_R - 18, SAW_R - 40]) { ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke(); }
+    // hub and blade guard over the outer half
+    ctx.fillStyle = '#1e1e24'; ctx.beginPath(); ctx.arc(0, 0, 16, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.fillRect(-2, -2, 4, 4);
+    ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, SAW_R + 8, -1.2, 1.2); ctx.arc(0, 0, SAW_R + 2, 1.2, -1.2, true); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffd23f'; for (let i = 0; i < 8; i++) { const a = -1.1 + i * 0.3; ctx.fillRect(Math.cos(a) * (SAW_R + 5) - 2, Math.sin(a) * (SAW_R + 5) - 2, 4, 4); }
+    ctx.restore();
+  }
+}
+// the groove the saw cuts into the spinning log (drawn in the log's frame, unrotated)
+function drawSawGroove(t) {
+  if (!t.f) return;
+  for (const s of t.f.saws) {
+    const depth = s.cut * R * 0.92; if (depth < 1) continue;
+    const r = R - depth;
+    ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.clip();
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = depth; ctx.beginPath(); ctx.arc(0, 0, r + depth / 2, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = '#120802'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,122,26,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, r + 2.5, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
 }
 function drawArcs(t) {
   for (const z of t.f.arcs) {
@@ -2086,12 +2179,33 @@ function drawFeaturesOnFace(t) {
 }
 function drawFeaturesOut(t) {
   if (!t.f) return;
+  if (t.labelT > 0) drawLabels(t);
   for (const b of t.f.branches) drawBirdZone(t, b);
-  for (const s of t.f.saws) drawSaw(t, s);
   for (const b of t.f.branches) if (b.alive) drawBranch(t, b);
   drawLinks(t);
   for (const b of t.f.bushes) if (b.alive) drawBush(t, b);
   drawArcs(t);
+}
+
+function drawLabels(t) {
+  const F = t.f, a = clamp(t.labelT / 0.6, 0, 1), tags = [];
+  const subName = { plain: 'BRANCH', swirl: 'SPRING x2', fire: 'ON FIRE!', hive: 'BEEHIVE', wire: 'LIVE WIRE', linked: 'CHAINED', bird: 'BIRD: SCARE IT' };
+  F.branches.forEach(b => b.alive && tags.push([b.a, R + b.len + 26, subName[b.sub], b.sub === 'fire' ? '#ff7a1a' : b.sub === 'bird' ? '#2ad8ff' : '#b6e05a']));
+  F.holes.forEach(h => tags.push([h.a, R + 20, 'X2', '#ffd23f']));
+  F.bushes.forEach(b => tags.push([b.a, R + 44, b.apple ? 'APPLES' : '???', b.apple ? '#ff2e45' : '#c3c3ca']));
+  F.moss.forEach(m => tags.push([m.a, R + 28, 'SOAKS 3', '#b6e05a']));
+  if (F.treehole) tags.push([F.treehole.a, R + 20, 'HUNGRY', '#ff7a1a']);
+  if (F.plates.length) tags.push([-t.rot - HALF, R + 26, 'FIND GAPS', '#c3c3ca']);
+  ctx.save(); ctx.globalAlpha = a;
+  for (const [ang, r, txt, col] of tags) {
+    const x = Math.cos(ang) * r, y = Math.sin(ang) * r;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-t.rot);
+    ctx.font = `700 10px ${FONT}`; const w = ctx.measureText(txt).width + 8;
+    ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(-w / 2, -7, w, 14); ctx.fillStyle = col; ctx.fillRect(-w / 2, -7, w, 1.5);
+    text(txt, 0, 0.5, 10, col, 'center', 700);
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 // debris kinds introduced by log features
@@ -2113,10 +2227,11 @@ function drawFeatureDebris(d) {
     case 'hub': ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); return true;
     case 'clump': ctx.fillStyle = d.c; ctx.fillRect(-d.r, -d.r, d.r * 2, d.r * 2); return true;
     case 'plate': {
-      ctx.save(); ctx.rotate(d.a0);
-      ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, R + 1, 0, TAU / 12); ctx.arc(0, 0, R - 12, TAU / 12, 0, true); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#8d8d97'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.restore(); return true;
+      const a1 = d.a1 === undefined ? d.a0 + TAU / 12 : d.a1;
+      ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, R + 7, d.a0, a1); ctx.arc(0, 0, R - 13, a1, d.a0, true); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, R + 7, d.a0, a1); ctx.arc(0, 0, R + 1, a1, d.a0, true); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, R + 7, d.a0, a1); ctx.arc(0, 0, R - 13, a1, d.a0, true); ctx.closePath(); ctx.stroke();
+      return true;
     }
   }
   return false;
@@ -2168,9 +2283,9 @@ function drawTypeMeter() {
   const t = tgt; if (!t || !t.f || !t.type || t.type === 'plain') return;
   const F = t.f; let txt = TYPE_NAME[t.type], col = '#c3c3ca';
   if (t.type === 'branches') { txt = 'BRANCHES ' + branchesLeft(t); col = '#7fbf3a'; const fire = F.branches.find(b => b.alive && b.sub === 'fire'); if (fire) { txt += '  FIRE ' + Math.ceil(fire.fireT) + 'S'; col = Math.sin(time * 10) > 0 ? '#ff7a1a' : '#ffd23f'; } }
-  else if (t.type === 'bark') { txt = F.bark.hp > 0 ? 'BARK ' + F.bark.hp + '/' + F.bark.max : 'BARK BROKEN'; }
+  else if (t.type === 'bark') { const left = F.plates.filter(p => p.hp > 0).length; txt = 'ARMOUR ' + left + '/' + F.plates.length + (left < F.plates.length ? '  GAPS OPEN' : ''); }
   else if (t.type === 'moss') { txt = 'MOSS ' + F.moss.reduce((s, m) => s + Math.max(0, m.hp), 0); col = '#7fbf3a'; }
-  else if (t.type === 'saw') { const s = F.saws.filter(s => s.alive).sort((a, b) => b.cut - a.cut)[0]; txt = s ? 'SAW ' + Math.ceil((1 - s.cut) * s.time) + 'S' : 'SAWS DOWN'; col = s && s.cut > 0.7 ? '#ff2e45' : '#ffd23f'; }
+  else if (t.type === 'saw') { const s = F.saws.slice().sort((a, b) => b.cut - a.cut)[0]; txt = 'BREAK IT BEFORE THE SAW  ' + Math.ceil((1 - s.cut) * s.time) + 'S'; col = s.cut > 0.7 && Math.sin(time * 12) > 0 ? '#ff2e45' : '#ffd23f'; }
   else if (t.type === 'treehole') { txt = 'TREE HOLE  X' + F.treehole.stored; }
   else if (t.type === 'holes') { txt = 'WEAK SPOTS X2'; col = '#ffd23f'; }
   else if (t.type === 'bushes') { txt = 'BUSHES ' + F.bushes.filter(b => b.alive).length; col = '#7fbf3a'; }
@@ -2182,8 +2297,7 @@ function breakFeatures(t) {
   F.branches.forEach(b => { if (b.alive) { b.alive = false; branchDebris(t, b, { fire: b.sub === 'fire' }); if (b.bird && b.bird.on) scareBird(t, b); } });
   F.links.forEach(L => L.alive = false);
   F.bushes.forEach(b => { if (b.alive) { b.alive = false; const [x, y] = worldAt(t, b.a, R + 8); leafBurst(x, y, 16, 420); } });
-  F.saws.forEach(sw => { if (sw.alive) destroySaw(t, sw); });
-  if (F.bark && F.bark.hp > 0) shatterBark(t);
+  shatterBark(t);
   F.arcs.length = 0;
 }
 
@@ -2328,6 +2442,7 @@ function drawTarget() {
   ctx.fillStyle = t.pal.barkLo; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
   ctx.restore();
   ctx.save(); ctx.rotate(t.rot); drawFace(t); drawCraters(t); drawFeaturesOnFace(t); ctx.restore();
+  drawSawGroove(t);
   const sh = ctx.createRadialGradient(-R * 0.35, -R * 0.4, 5, 0, 0, R);
   sh.addColorStop(0, 'rgba(255,255,255,.2)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(0.85, 'rgba(0,0,0,.12)'); sh.addColorStop(1, 'rgba(0,0,0,.4)');
   ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
@@ -2839,6 +2954,7 @@ function drawScene() {
   drawBackdrop();
 
   if (tgt) drawTarget();
+  drawSawmill(tgt);
   drawSmoke();
   drawFracture(); drawGridFracture();
   if (fx && fx.frac) drawFracAt(fx.frac, fx.x, fx.y, clamp(fx.t / 0.1, 0, 1), clamp(1 - (fx.t - 0.7) / 0.6, 0, 1));
