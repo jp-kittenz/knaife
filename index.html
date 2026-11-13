@@ -889,6 +889,7 @@ function stepKnife(k) {
     }
   }
   if (t.tank && !k.ability && !k.wood && tankPipeHit(k, t)) return;
+  if (t.gear && !k.ability && !k.wood && gearPinionHit(k, t)) return;
   if (!k.ability && !k.wood && featureHits(k, t)) return;
   for (const p of (t.pickups || []).slice()) { const w = t.rot + p.a; if (angDiff(w, HALF) < 0.2 && tip <= CY + R + 30) collectPickup(t, p, w); }
   // slice apples
@@ -3205,6 +3206,7 @@ function updateTankIntro(t) {
   if (t > SHOT.test + 1.5) { waterTarget = 0; T.cycle = 0; endFx('play'); floater('FINISH IT BEFORE THE MILL FLOODS', CX, CY + R + 80, '#2ad8ff'); }
 }
 function drawFlare(x, y, s, a) {
+  s *= 0.55; a *= 0.45;
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a;
   const g = ctx.createRadialGradient(x, y, 0, x, y, 90 * s); g.addColorStop(0, 'rgba(255,250,220,1)'); g.addColorStop(0.15, 'rgba(255,220,150,.6)'); g.addColorStop(1, 'rgba(255,200,120,0)');
   ctx.fillStyle = g; ctx.fillRect(x - 100 * s, y - 100 * s, 200 * s, 200 * s);
@@ -3317,14 +3319,14 @@ function drawTankIntro(t) {
 // ======================= BOSS: GEARBOX =======================
 const GEAR_PAL = { name: 'GEARBOX', style: 'gear', bark: '#2a2a31', barkHi: '#8d8d97', barkLo: '#0d0d10', sap: '#c89a1a', heart: '#5c5c66',
   ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.1)', light: '#dcdce2', dark: '#4a4a53', knot: '#2a2a31' };
-const GEAR_HP = 16, GEAR_Y = CY + R + 84, SAT_R = 46, SAT_X = [64, W - 64], CHAIN_Y = GEAR_Y + SAT_R + 5, GEAR_TEETH = 26;
+const GEAR_HP = 20, GEAR_Y = CY + R + 84, SAT_R = 46, SAT_X = [64, W - 64], CHAIN_Y = GEAR_Y + SAT_R + 5, GEAR_TEETH = 26;
 // how often it swaps, how long the swap holds, how many links you must crack, how much it repairs if you are too slow
 const GSWAP = {
-  1: { every: [8, 10], hold: 6, chain: 3, heal: 3, speed: 105, masters: [0.2, 0.7], sleeves: [[0.32, 0.45], [0.82, 0.95]] },
-  2: { every: [6, 7.5], hold: 5, chain: 4, heal: 4, speed: 140, masters: [0.45], sleeves: [[0.05, 0.2], [0.3, 0.4], [0.55, 0.7], [0.8, 0.93]] },
+  1: { every: [7, 8.5], hold: 5, chain: 3, heal: 4, speed: 115, masters: [0.2, 0.7], sleeves: [[0.32, 0.45], [0.82, 0.95]] },
+  2: { every: [5, 6.5], hold: 4.2, chain: 4, heal: 5, speed: 150, masters: [0.45], sleeves: [[0.05, 0.2], [0.3, 0.4], [0.55, 0.7], [0.8, 0.93]] },
 };
 const isGearStage = n => isFirstBossSlot(n) && firstBoss === 'gear';
-const gearPhase = () => knivesLeft > 8 ? 1 : 2;
+const gearPhase = () => knivesLeft > GEAR_HP / 2 ? 1 : 2;
 let paints = [], beltCache = null;
 
 // ---------- drawing kit: cogs, belts, paint ----------
@@ -3513,7 +3515,7 @@ function drawGearLive(t) {
 // ---------- setup and spin ----------
 function setupGear(t) {
   t.gear = { phase: 1, next: 4, sw: null, ox: 0, oy: 0, s: 1, sats: [], dec: null, jam: 0, seize: 0, lost: new Set(), hide: false, inner: 0, tick: 0, flashHP: 0 };
-  t.pal = GEAR_PAL; t.tex = null; t.stuck = [{ a: 0.7 }, { a: 3.9 }]; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pal = GEAR_PAL; t.tex = null; t.stuck = [{ a: 0.7 }, { a: 3.9 }, { a: 5.3 }]; t.apples = []; t.gear.pins = [{ a: 2.3, grow: 1, rot: 0 }]; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
   t.pat = tt => gearSpin(t, tt);
 }
 // a ratcheting escapement: it lurches forward in jolts; in phase 2 the jolts are harder and the drive reverses
@@ -3523,7 +3525,7 @@ function gearSpin(t, tt) {
   if (T.sw && T.sw.st !== 'build' && T.sw.st !== 'retract') return 2.6;
   if (T.jam > 0) return Math.sin(tt * 40) * 1.2;
   const p2 = T.phase === 2, dir = p2 ? (Math.sin(tt * 0.7) >= 0 ? 1 : -1) : 1;
-  return dir * (0.3 + (p2 ? 6.2 : 5) * Math.pow(Math.max(0, Math.sin(tt * (p2 ? 4 : 3.3))), 4));
+  return dir * (0.45 + (p2 ? 7 : 5.8) * Math.pow(Math.max(0, Math.sin(tt * (p2 ? 4.2 : 3.5))), 4));
 }
 const gearBelt = () => beltCache || (beltCache = beltPath(SAT_X[0], GEAR_Y, SAT_R + 5, SAT_X[1], GEAR_Y, SAT_R + 5));
 const chainLive = sw => sw && (sw.st === 'swap' || sw.st === 'held' || sw.st === 'return');
@@ -3544,6 +3546,7 @@ function placeSwap(T, side, e) {
 function updateGear(t, dt) {
   const T = t.gear;
   if (fx && (fx.type === 'gearintro' || fx.type === 'geardeath' || fx.type === 'gearsnap')) return;
+  for (const P of T.pins) { P.rot += dt * 9; if (P.grow < 1) { const b4 = P.grow; P.grow = Math.min(1, P.grow + dt * 1.5); if (Math.floor(b4 * 3) !== Math.floor(P.grow * 3)) sfx.pipeBolt(); } }
   T.inner += dt * 3; T.jam = Math.max(0, T.jam - dt); T.flashHP = Math.max(0, T.flashHP - dt);
   const pk = Math.floor(t.t * (T.phase === 2 ? 4 : 3.3) / TAU);
   if (pk !== T.tick) { T.tick = pk; if (!T.sw && T.jam <= 0) sfx.ratchet(); }
@@ -3551,6 +3554,7 @@ function updateGear(t, dt) {
     T.phase = 2; floater('OVERDRIVE', CX, CY - R - 30, '#ff2e45'); sfx.alarm(); sfx.gearGrind();
     shake = Math.max(shake, 14); kick(0.25, 0.06, 1.2, 0.6); shocks(CX, CY, 2, 200); burst(CX, CY, 40, ['#ffd23f', '#ff7a1a', '#ffffff'], 600, 40, 3, 0.6);
     if (!T.sw) T.next = Math.min(T.next, 2);
+    addPinion(t);
   }
   const sw = T.sw;
   if (!sw) { if (state === 'play') { T.next -= dt; if (T.next <= 0) startSwap(t); } return; }
@@ -3589,6 +3593,33 @@ function updateGear(t, dt) {
     sw.feed = clamp(1 - sw.t / 0.45, 0, 1);
     if (sw.t >= 0.6) { T.sw = null; T.sats = []; T.next = rand(...C.every); }
   }
+}
+// pinions: small drive gears bolted to the rim that ride the spin. Hitting one costs a heart.
+function addPinion(t) {
+  const T = t.gear; let a = 0;
+  for (let i = 0; i < 40; i++) { a = rand(TAU); if (T.pins.every(p => angDiff(p.a, a) > 1.6) && t.stuck.every(s => angDiff(s.a, a) > 0.35)) break; }
+  T.pins.push({ a, grow: 0, rot: 0 });
+}
+function drawPinions(t) {
+  for (const P of t.gear.pins) {
+    const g = clamp(P.grow, 0, 1); if (g <= 0) continue;
+    ctx.save(); ctx.rotate(P.a); ctx.globalAlpha *= g;
+    ctx.fillStyle = '#16161b'; ctx.fillRect(R - 4, -6, 18 * g, 12); ctx.fillStyle = '#5c5c66'; ctx.fillRect(R - 4, -4, 18 * g, 8);
+    drawCog(R + 22 * g, 0, 15 * (0.5 + 0.5 * g), 9, P.rot, { body: '#c3c3ca', hub: '#ff2e45', lo: '#08080a' });
+    if (g >= 1 && Math.sin(time * 8 + P.a) > 0.6) { ctx.strokeStyle = 'rgba(255,46,69,.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(R + 22, 0, 24, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+function gearPinionHit(k, t) {
+  const T = t.gear; if (T.sw && T.sw.st !== 'build' && T.sw.st !== 'retract') return false;
+  const a = normA(HALF - t.rot);
+  for (const P of T.pins) {
+    if (P.grow < 1 || !inArc(a, P.a, 0.19) || k.y > CY + R + 40) continue;
+    const [x, y] = worldAt(t, P.a, R + 22);
+    burst(x, y, 30, ['#ffffff', '#ffd23f', '#c3c3ca'], 500, 40, 3, 0.5); floater('CAUGHT IN THE GEARS', x, y - 24, '#ff2e45'); sfx.clank(); sfx.ratchet();
+    fail(k); return true;
+  }
+  return false;
 }
 // knives meet the drive chain before anything else while the swap is live
 function gearChainHit(k, t) {
@@ -3695,8 +3726,8 @@ function drawGearHUD() {
   const t = tgt; if (!t || !t.gear || t.gear.hide) return;
   const T = t.gear, x0 = CX - 100, y = 104, fill = fx && fx.type === 'gearintro' ? clamp((fx.t - GSHOT.reveal - 0.1) / 0.9, 0, 1) : 1, cw = 200 / GEAR_HP;
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
-  for (let i = 0; i < GEAR_HP; i++) { const on = i < Math.min(knivesLeft, Math.floor(GEAR_HP * fill)); ctx.fillStyle = on ? (T.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i >= 8 ? '#ffd23f' : '#ff2e45') : '#1e1e24'; ctx.fillRect(x0 + i * cw, y, cw - 2, 8); }
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(x0 + 8 * cw - 1.5, y - 3, 1, 14);
+  for (let i = 0; i < GEAR_HP; i++) { const on = i < Math.min(knivesLeft, Math.floor(GEAR_HP * fill)); ctx.fillStyle = on ? (T.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i >= GEAR_HP / 2 ? '#ffd23f' : '#ff2e45') : '#1e1e24'; ctx.fillRect(x0 + i * cw, y, cw - 2, 8); }
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x0 + GEAR_HP / 2 * cw - 1.5, y - 3, 1, 14);
   text('PHASE ' + T.phase, x0 - 30, y + 4, 8, T.phase === 2 ? '#ff2e45' : '#ffd23f', 'center', 700);
   const sw = T.sw;
   if (sw && sw.st === 'held') { const left = Math.max(0, GSWAP[sw.ph].hold - sw.t); text('SNAP THE CHAIN  ' + left.toFixed(1) + 's', CX, y + 22, 11, left < 2 && Math.sin(time * 14) > 0 ? '#ff2e45' : '#ffd23f', 'center', 700); }
@@ -3800,14 +3831,14 @@ function updateGearIntro(t) {
 }
 function drawStudio() {
   const g = ctx.createRadialGradient(CX, CY + 60, 30, CX, CY + 60, 640);
-  g.addColorStop(0, '#f0f0f4'); g.addColorStop(0.5, '#c3c3ca'); g.addColorStop(1, '#5c5c66');
+  g.addColorStop(0, '#2a2a31'); g.addColorStop(0.5, '#16161b'); g.addColorStop(1, '#030305');
   ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
 }
 function drawHeroRig(x, y, z, rot, t, wire, layers = 5) {
   if (!heroBelt) heroBelt = beltPath(0, 0, HERO.r + 6, HERO.sx, HERO.sy, HERO.sr + 5);
   ctx.save(); ctx.translate(x, y); ctx.scale(z, z);
   // contact shadow
-  if (layers > 2) { const sg = ctx.createRadialGradient(10, HERO.r + 30, 10, 10, HERO.r + 30, HERO.r * 1.2); sg.addColorStop(0, 'rgba(0,0,0,.35)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+  if (layers > 2) { const sg = ctx.createRadialGradient(10, HERO.r + 30, 10, 10, HERO.r + 30, HERO.r * 1.2); sg.addColorStop(0, 'rgba(124,255,79,.12)'); sg.addColorStop(1, 'rgba(124,255,79,0)');
     ctx.fillStyle = sg; ctx.fillRect(-HERO.r * 1.3, HERO.r - 30, HERO.r * 2.8, 120); }
   const srot = -rot * HERO.r / HERO.sr;
   if (wire < 1) {
@@ -3830,7 +3861,7 @@ function drawGearIntro(t) {
     if (t < GSHOT.wire) {
       // SHOT 1: signal. Streams of telemetry converge out of a blank studio and resolve into one small gear.
       drawStudio();
-      ctx.strokeStyle = 'rgba(0,0,0,.07)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
       for (let i = 0; i < 9; i++) { const x = (i * 53 + t * 24) % (W + 60) - 30; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
       const cols = [HOLO, '#2ad8ff', '#ff2e45', '#5c5c66', '#ffa04a'], tags = ['0x3F2A', 'TQ 41.2', 'RPM 900', 'Y 115.0', 'SYNC', 'ERR 0'];
       for (let i = 0; i < 52; i++) {
@@ -3845,12 +3876,12 @@ function drawGearIntro(t) {
       if (t > 0.6 && t < 0.95) { const u = (t - 0.6) / 0.35; ctx.strokeStyle = `rgba(124,255,79,${1 - u})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, CY + 40, 6 + u * 60, 0, TAU); ctx.stroke(); }
       if (t > 0.85) {
         const u = clamp((t - 0.85) / 0.25, 0, 1), s = 1 + 0.4 * Math.sin(u * Math.PI) * (1 - u);
-        drawCog(CX, CY + 40, 14 * s, 10, t * 3, { body: '#16161b', hub: '#c89a1a', shade: false, hi: 'rgba(255,255,255,.2)' });
+        drawCog(CX, CY + 40, 14 * s, 10, t * 3, { body: '#c3c3ca', hub: '#c89a1a', shade: false, hi: 'rgba(255,255,255,.2)' });
         ctx.strokeStyle = HOLO; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(CX, CY + 40, 26, t * 4, t * 4 + 4.6); ctx.stroke();
         text('OBJ-02', CX + 50, CY + 30, 8, HOLO, 'center', 700);
       }
       text(typed('GEARWORKS  //  SYS.CALIBRATE', 0.1, t, 34), CX, 112, 11, '#2f9a1f', 'center', 700);
-      text('X ' + (hash(Math.floor(t * 20), 0, 5) * 999).toFixed(1) + '   Y ' + (hash(Math.floor(t * 20), 0, 6) * 999).toFixed(1), CX, 132, 8, '#4a4a53', 'center', 700);
+      text('X ' + (hash(Math.floor(t * 20), 0, 5) * 999).toFixed(1) + '   Y ' + (hash(Math.floor(t * 20), 0, 6) * 999).toFixed(1), CX, 132, 8, '#8d8d97', 'center', 700);
     } else if (t < GSHOT.hero) {
       // SHOT 2: lock-on. The gear grows, the reticle locks, then the wireframe bursts open in 3D rings and chain swirls.
       const u = (t - GSHOT.wire) / (GSHOT.hero - GSHOT.wire);
@@ -3860,15 +3891,15 @@ function drawGearIntro(t) {
       for (let i = 0; i < 7; i++) {
         const k = clamp((u - 0.38) / 0.6 - i * 0.05, 0, 1); if (k <= 0) continue;
         const rad = 30 + Math.pow(k, 0.7) * (220 + i * 70), tilt = 0.18 + 0.6 * hash(i, 0, 31);
-        ctx.save(); ctx.rotate(i * 0.8 + u * 2.4); ctx.globalAlpha = 1 - k * 0.7; ctx.strokeStyle = i % 2 ? HOLO : '#38383f'; ctx.lineWidth = (1 - k) * 6 + 0.6;
+        ctx.save(); ctx.rotate(i * 0.8 + u * 2.4); ctx.globalAlpha = 1 - k * 0.7; ctx.strokeStyle = i % 2 ? HOLO : '#8d8d97'; ctx.lineWidth = (1 - k) * 6 + 0.6;
         ctx.beginPath(); ctx.ellipse(0, 0, rad, rad * tilt, 0, 0.3, TAU - 0.4 * i % 2); ctx.stroke(); ctx.restore();
       }
       if (u > 0.4) {
-        ctx.save(); ctx.setLineDash([7, 5]); ctx.lineDashOffset = -t * 300; ctx.lineWidth = 6; ctx.strokeStyle = '#2a2a31';
+        ctx.save(); ctx.setLineDash([7, 5]); ctx.lineDashOffset = -t * 300; ctx.lineWidth = 6; ctx.strokeStyle = '#727280';
         for (let i = 0; i < 3; i++) { const k = (u - 0.4) / 0.6, a = i * 2.1 + k * 3; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 40, Math.sin(a) * 40); ctx.bezierCurveTo(Math.cos(a + 1) * 200 * k, Math.sin(a + 1) * 260 * k, Math.cos(a + 2) * 320 * k, Math.sin(a + 2) * 120, Math.cos(a + 2.6) * 420 * k, Math.sin(a + 2.6) * 420 * k); ctx.stroke(); }
         ctx.restore();
       }
-      drawCog(0, 0, gr, 10, t * 5, { body: '#16161b', hub: '#c89a1a', shade: false, hi: 'rgba(255,255,255,.2)' });
+      drawCog(0, 0, gr, 10, t * 5, { body: '#c3c3ca', hub: '#c89a1a', shade: false, hi: 'rgba(255,255,255,.2)' });
       const lk = clamp((u - 0.2) / 0.15, 0, 1);
       ctx.strokeStyle = HOLO; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, gr + 14 + (1 - lk) * 30, -t * 3, -t * 3 + 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, gr + 14 + (1 - lk) * 30, -t * 3 + Math.PI, -t * 3 + Math.PI + 2); ctx.stroke();
@@ -3891,7 +3922,7 @@ function drawGearIntro(t) {
         text('SPROCKET.A  //  1 : 6.25', sx, sy + 50, 8, '#2f9a1f', 'center', 700);
         const pa = time * 5; ctx.fillStyle = HOLO; ctx.fillRect(sx + Math.cos(pa) * 34 - 2, sy + Math.sin(pa) * 34 - 2, 4, 4);
       }
-      text(typed('DRIVE TRAIN ONLINE.', GSHOT.hero + 0.4, t, 30), CX + 20 * u, 120, 12, '#16161b', 'center', 700);
+      text(typed('DRIVE TRAIN ONLINE.', GSHOT.hero + 0.4, t, 30), CX + 20 * u, 120, 12, '#f0f0f4', 'center', 700);
     } else {
       // SHOTS 4-5: pull back onto a whole wall of meshing machinery, then the paint hits
       if (!gearWall) { gearWall = makeGearWall(); wallBelts = []; const fr = gearWall.filter(g => g.layer); for (let i = 0; i < fr.length && wallBelts.length < 6; i++) for (let j = i + 1; j < fr.length; j++) { const a = fr[i], b = fr[j], d = Math.hypot(a.x - b.x, a.y - b.y); if (d > a.r + b.r + 60 && d < 420 && wallBelts.length < 6 && !wallBelts.some(w => w.i === i || w.j === j)) { wallBelts.push({ i, j, B: beltPath(a.x, a.y, a.r + 4, b.x, b.y, b.r + 4), r: a.r }); break; } } wallBelts.forEach(w => { w.a = fr[w.i]; }); }
@@ -3927,9 +3958,9 @@ function drawGearIntro(t) {
     // soft vignette and grain over every shot
     const vg = ctx.createRadialGradient(CX, CY + 60, 200, CX, CY + 60, 620); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)');
     ctx.fillStyle = vg; ctx.fillRect(-W, -H, W * 3, H * 3);
-    ctx.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 0; i < 110; i++) ctx.fillRect(rand(-60, W + 60), rand(0, H), 1.2, 1.2);
+    ctx.fillStyle = 'rgba(255,255,255,.1)'; for (let i = 0; i < 110; i++) ctx.fillRect(rand(-60, W + 60), rand(0, H), 1.2, 1.2);
     ctx.restore();
-    text('TAP TO SKIP', W - 50, H - 14, 8, 'rgba(0,0,0,.5)', 'center', 700);
+    text('TAP TO SKIP', W - 50, H - 14, 8, 'rgba(255,255,255,.45)', 'center', 700);
   } else {
     ctx.save(); ctx.fillStyle = `rgba(3,3,5,${clamp(1 - (t - GSHOT.reveal) / 0.45, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore();
   }
@@ -4642,7 +4673,7 @@ function drawTarget() {
     if (ap.cut) continue;
     ctx.save(); ctx.rotate(t.rot + ap.a - HALF); ctx.translate(0, R + 12); ctx.rotate(Math.PI); drawApple(); ctx.restore();
   }
-  ctx.save(); ctx.rotate(t.rot); drawFeaturesOut(t); drawPickups(t); if (t.tank) drawPipe(t); ctx.restore();
+  ctx.save(); ctx.rotate(t.rot); drawFeaturesOut(t); drawPickups(t); if (t.tank) drawPipe(t); if (t.gear) drawPinions(t); ctx.restore();
   ctx.restore();
 }
 
@@ -5592,7 +5623,7 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
   { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (or the Gearbox, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (or the Water Tanker, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you.', abil: 'Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (or the Water Tanker, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
