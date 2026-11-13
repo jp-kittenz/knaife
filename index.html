@@ -7,9 +7,10 @@
 <title>Knaife</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔪</text></svg>">
 <style>
+  html { box-sizing: border-box; color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: #0e0a1c; overflow: hidden; }
   body { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; cursor: pointer; }
+  canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -29,7 +30,7 @@ let dpr = 1, scale = 1, ox = 0, oy = 0;
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cw = window.innerWidth, ch = window.innerHeight;
+  const cw = cv.clientWidth || window.innerWidth, ch = cv.clientHeight || window.innerHeight;
   cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
   scale = Math.min(cw / W, ch / H);
   ox = (cw - W * scale) / 2; oy = (ch - H * scale) / 2;
@@ -515,7 +516,7 @@ function draw() {
 }
 
 // ---------- input ----------
-function toVirtual(e) { return [(e.clientX - ox) / scale, (e.clientY - oy) / scale]; }
+function toVirtual(e) { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left - ox) / scale, (e.clientY - b.top - oy) / scale]; }
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   const [x, y] = toVirtual(e);
