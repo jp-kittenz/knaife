@@ -365,7 +365,7 @@ const sfx = {
 };
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3' };
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
   return music.tracks[name] || (music.tracks[name] = { name, el: null, node: null, buf: null, filt: null, gain: null, mix: 0, loading: false, failed: false });
@@ -421,6 +421,7 @@ function updateMusic(rdt) {
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
   if (zapT > 0) cut = 900;
   if (music.cur === 'boss') vol *= 1.1;
+  if (music.cur === 'gear') vol *= 1.2;
   music.rate += (rate - music.rate) * Math.min(1, rdt * 6); music.cut += (cut - music.cut) * Math.min(1, rdt * 8);
   music.t -= rdt; const tick = music.t <= 0; if (tick) music.t = 0.1;
   for (const name in music.tracks) {
@@ -791,6 +792,7 @@ function menuTarget() {
 }
 
 function newStage() {
+  if (isFirstBossSlot(stage)) firstBoss = forceBoss || (Math.random() < 0.5 ? 'tank' : 'gear');
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
   knivesLeft = knivesTotal;
@@ -2835,7 +2837,10 @@ const TANK_PAL = { name: 'WATER TANKER', style: 'tank', bark: '#38383f', barkHi:
   ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.1)', light: '#dcdce2', dark: '#4a4a53', knot: '#2a2a31' };
 const TANK_HP = 20, FLOOD_TIME = 60, HEAT_PERIOD = 4, HEAT_WARN = 2.3, HEAT_ON = 2.75;
 let waterLevel = 0, waterTarget = 0, screenDrops = [], splashFlash = 0;
-const isTankStage = n => n === 5 || (n % 5 === 0 && n % 25 === 5);   // the first boss slot of each cycle
+// the first boss slot of each cycle is either the Water Tanker or the Gearbox, picked at random
+const isFirstBossSlot = n => n % 25 === 5;
+let firstBoss = 'tank', forceBoss = null;
+const isTankStage = n => isFirstBossSlot(n) && firstBoss === 'tank';
 
 function makeTankTexture(t) {
   const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
@@ -3318,7 +3323,7 @@ const GSWAP = {
   1: { every: [8, 10], hold: 6, chain: 3, heal: 3, speed: 105, masters: [0.2, 0.7], sleeves: [[0.32, 0.45], [0.82, 0.95]] },
   2: { every: [6, 7.5], hold: 5, chain: 4, heal: 4, speed: 140, masters: [0.45], sleeves: [[0.05, 0.2], [0.3, 0.4], [0.55, 0.7], [0.8, 0.93]] },
 };
-const isGearStage = n => n % 25 === 10;           // the second boss slot of each cycle
+const isGearStage = n => isFirstBossSlot(n) && firstBoss === 'gear';
 const gearPhase = () => knivesLeft > 8 ? 1 : 2;
 let paints = [], beltCache = null;
 
@@ -3768,7 +3773,7 @@ function makeGearWall() {
 function startGearIntro(t) {
   fx = { type: 'gearintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
   t.gear.hide = true; cinema(true, 0.9);
-  setMusic('boss'); sfx.staticBurst();
+  setMusic('gear'); sfx.staticBurst();
 }
 function skipGearIntro() { if (fx && fx.type === 'gearintro' && fx.t < GSHOT.reveal) { fx.t = GSHOT.reveal - 0.01; fx.skipped = true; } }
 function updateGearIntro(t) {
@@ -5586,8 +5591,8 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5. Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 10. Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you.', abil: 'Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (or the Gearbox, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (or the Water Tanker, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you.', abil: 'Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },

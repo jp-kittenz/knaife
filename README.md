@@ -18,5 +18,5 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Music: `assets/music.mp3` (supplied by the project owner) loops from the entry screen; slow-mo lowers its pitch and impacts muffle it.
 - Knives (equip in the store): Regular Knife (Strong Throw), Precision Dagger (Marker), Carving Knife (Knife with a Knife),
   Conductive Knife (Chain Reaction + passive Overvolt), Kitchen Knife (Cook + passive Get the Bird). Items appear in a tray above the ability button (keys 1 / 2).
-- Boss (stage 5): WATER TANKER — knives forced out leave leaks, a 60s flood clock, heat cycles, a deadly pipe, crane intro and explosive splash finish.
-- Boss (stage 10): GEARBOX — ratcheting spin; summons two gears and swaps itself for a decoy while a drive chain blocks the lane. Crack 3 links or hit the red master link to snap it (jams the boss, -2 HP); yellow sleeves stun; too slow and it repairs. Blueprint-to-machinery intro with paint splashes.
+- Boss (stage 5, randomly the Tanker or the Gearbox): WATER TANKER — knives forced out leave leaks, a 60s flood clock, heat cycles, a deadly pipe, crane intro and explosive splash finish.
+- Boss (stage 5, alternative): GEARBOX — ratcheting spin; summons two gears and swaps itself for a decoy while a drive chain blocks the lane. Crack 3 links or hit the red master link to snap it (jams the boss, -2 HP); yellow sleeves stun; too slow and it repairs. Blueprint-to-machinery intro with paint splashes and its own track.
