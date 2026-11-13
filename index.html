@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1a1233">
+<title>Knaife</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔪</text></svg>">
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0a1c; overflow: hidden; }
+  body { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Knaife game. Tap, click or press Space to throw a knife."></canvas>
+<script>
+'use strict';
+// ---------- setup ----------
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const TAU = Math.PI * 2, HALF = Math.PI / 2;
+const W = 420, H = 760;                 // virtual playfield
+const CX = W / 2, CY = 255, R = 92;     // target
+const KL = 118, EMBED = 20;             // knife length, how deep it sinks in
+const KNIFE_Y = H - 150;                // tip y of the ready knife
+const SPEED = 2600;                     // knife speed px/s
+let dpr = 1, scale = 1, ox = 0, oy = 0;
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cw = window.innerWidth, ch = window.innerHeight;
+  cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  scale = Math.min(cw / W, ch / H);
+  ox = (cw - W * scale) / 2; oy = (ch - H * scale) / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const rand = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const angDiff = (a, b) => Math.abs((((a - b + Math.PI) % TAU) + TAU) % TAU - Math.PI);
+const easeOutBack = t => { const c = 1.70158; t -= 1; return 1 + (c + 1) * t * t * t + c * t * t; };
+
+function load(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+// ---------- audio ----------
+let actx = null, muted = load('knaife.muted', false);
+function ac() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(type, f0, f1, dur, vol) {
+  const a = ac(); if (!a || muted) return;
+  const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(dur, freq, q, vol, type = 'bandpass') {
+  const a = ac(); if (!a || muted) return;
+  const t = a.currentTime, len = Math.max(1, Math.floor(a.sampleRate * dur));
+  const buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = buf; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
+  s.connect(f).connect(g).connect(a.destination); s.start(t);
+}
+const sfx = {
+  whoosh() { noise(0.07, 3200, 0.8, 0.12); },
+  thunk() { noise(0.09, 900, 1.2, 0.55); tone('sine', 190, 55, 0.13, 0.5); },
+  clang() { tone('square', 1500, 950, 0.28, 0.08); tone('triangle', 2400, 1900, 0.4, 0.12); noise(0.12, 4500, 2, 0.35); },
+  apple() { tone('sine', 620, 1250, 0.13, 0.22); noise(0.06, 2600, 1, 0.25); },
+  smash() { noise(0.45, 650, 0.6, 0.7); tone('sine', 130, 40, 0.35, 0.5); },
+  over() { tone('triangle', 420, 110, 0.6, 0.18); },
+};
+function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
+
+// ---------- palettes ----------
+const WOODS = [
+  { bark: '#5b3418', light: '#f3c98a', dark: '#c98b4b', ring: 'rgba(120,66,26,.38)', knot: '#9a5f2c' },
+  { bark: '#4a2c17', light: '#e8b27a', dark: '#b4723e', ring: 'rgba(100,50,20,.38)', knot: '#87502a' },
+  { bark: '#3d2a1e', light: '#f0d3a8', dark: '#c9a06a', ring: 'rgba(110,80,40,.38)', knot: '#8e6a3e' },
+  { bark: '#5a2a1c', light: '#eaa58a', dark: '#b85f45', ring: 'rgba(110,40,25,.38)', knot: '#8b3d2b' },
+];
+const BOSSES = [
+  { name: 'Ironbark',    bark: '#23272e', light: '#b7c0ca', dark: '#5d6670', ring: 'rgba(20,25,30,.45)',  knot: '#3c434c' },
+  { name: 'Frostheart',  bark: '#244f72', light: '#f0faff', dark: '#93c8ea', ring: 'rgba(40,100,150,.4)',  knot: '#6aa6cf' },
+  { name: 'Ember Stump', bark: '#3a1206', light: '#ffc06a', dark: '#d9481c', ring: 'rgba(120,20,0,.45)',   knot: '#8e2a0c' },
+  { name: 'Moonwood',    bark: '#241a44', light: '#e2d8ff', dark: '#8a74d6', ring: 'rgba(50,30,110,.4)',   knot: '#5b47a3' },
+  { name: 'Old Gnarl',   bark: '#28331a', light: '#d6e39a', dark: '#7f9440', ring: 'rgba(40,60,10,.42)',   knot: '#56692a' },
+];
+
+// ---------- state ----------
+let state = 'menu';
+let stage = 1, score = 0, apples = 0, best = load('knaife.best', 0), newBest = false;
+let tgt = null, flying = [], debris = [], parts = [];
+let knivesLeft = 0, knivesTotal = 0, readyT = 0, shake = 0, overT = 0, clearT = 0, time = 0;
+let banner = { text: '', sub: '', t: 0, color: '#fff' };
+
+function placeAngles(n, sep, avoid) {
+  const out = [];
+  for (let tries = 0; out.length < n && tries < 400; tries++) {
+    const a = rand(TAU);
+    if (avoid.concat(out).every(b => angDiff(a, b) > sep)) out.push(a);
+  }
+  return out;
+}
+
+function makePattern(n, boss) {
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const base = Math.min(1.5 + n * 0.11, 3.4) * dir;
+  const pool = boss ? ['reverse', 'chaos', 'surge']
+    : n < 3 ? ['steady'] : n < 6 ? ['steady', 'wave'] : ['steady', 'wave', 'reverse', 'surge'];
+  const type = pool[Math.floor(rand(pool.length))];
+  switch (type) {
+    case 'wave':    return t => base * (0.55 + 0.65 * Math.sin(t * 1.3));
+    case 'reverse': return t => base * 1.25 * Math.tanh(2.5 * Math.sin(t * 0.85));
+    case 'surge':   return t => base * (0.25 + 1.8 * Math.pow(Math.max(0, Math.sin(t * 1.6)), 2));
+    case 'chaos':   return t => base * 1.15 * (Math.sin(t * 1.1) + 0.6 * Math.sin(t * 2.7 + 1));
+    default:        return () => base;
+  }
+}
+
+function makeTarget(pal, pat, stuckAngles, appleAngles, boss) {
+  const rings = [], cracks = [], knots = [];
+  const pox = rand(-8, 8), poy = rand(-8, 8);
+  for (let i = 1; i <= 5; i++) rings.push({ r: (R - 14) * i / 5.6 + rand(-3, 3), x: pox * (1 - i / 6), y: poy * (1 - i / 6) });
+  for (let i = 0, n = 2 + Math.floor(rand(2)); i < n; i++) {
+    const a = rand(TAU), len = rand(0.3, 0.6) * R, pts = [];
+    for (let j = 0; j <= 3; j++) {
+      const r = R - 8 - len * j / 3, aa = a + rand(-0.08, 0.08);
+      pts.push([Math.cos(aa) * r, Math.sin(aa) * r]);
+    }
+    cracks.push(pts);
+  }
+  for (let i = 0, n = 1 + Math.floor(rand(2)); i < n; i++) {
+    const a = rand(TAU), r = rand(0.35, 0.7) * R;
+    knots.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, rx: rand(5, 8), ry: rand(3, 5), rot: a });
+  }
+  return {
+    rot: rand(TAU), t: 0, pop: 0, hit: 0, pat, pal, boss, rings, cracks, knots, pith: [pox, poy],
+    stuck: stuckAngles.map(a => ({ a })), apples: appleAngles.map(a => ({ a, cut: false })),
+  };
+}
+
+function menuTarget() {
+  const stuck = placeAngles(3, 0.8, []);
+  tgt = makeTarget(WOODS[0], () => 0.9, stuck, placeAngles(1, 0.6, stuck), false);
+  tgt.pop = 1;
+}
+
+function newStage() {
+  const boss = stage % 5 === 0;
+  knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
+  knivesLeft = knivesTotal;
+  const pre = boss ? Math.min(2 + Math.floor(stage / 10), 5) : Math.min(Math.floor((stage - 1) / 2), 4);
+  const stuck = placeAngles(pre, 0.6, []);
+  const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
+  const appleAngles = placeAngles(nApples, 0.5, stuck);
+  const pal = boss ? BOSSES[(stage / 5 - 1) % BOSSES.length] : WOODS[stage % WOODS.length];
+  tgt = makeTarget(pal, makePattern(stage, boss), stuck, appleAngles, boss);
+  banner = boss ? { text: 'BOSS', sub: pal.name, t: 1.6, color: '#ff5d6c' } : { text: 'STAGE ' + stage, sub: '', t: 1.0, color: '#fff' };
+  readyT = 0.3;
+  state = 'play';
+}
+
+function startGame() {
+  stage = 1; score = 0; apples = 0; newBest = false;
+  flying = []; debris = []; parts = [];
+  newStage();
+}
+
+// ---------- actions ----------
+function throwKnife() {
+  if (state !== 'play' || knivesLeft <= 0 || readyT > 0.04) return;
+  knivesLeft--;
+  flying.push({ y: KNIFE_Y, done: false });
+  readyT = knivesLeft > 0 ? 0.12 : 0;
+  sfx.whoosh();
+}
+
+function action() {
+  ac();
+  if (state === 'menu') { startGame(); return; }
+  if (state === 'over') { if (overT <= 0) startGame(); return; }
+  throwKnife();
+}
+
+function burst(x, y, n, colors, spd, up = 0, size = 4, life = 0.6) {
+  for (let i = 0; i < n; i++) {
+    const a = rand(TAU), s = rand(0.3, 1) * spd;
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - up, life: rand(0.6, 1) * life, max: life,
+      c: colors[Math.floor(rand(colors.length))], s: rand(0.5, 1) * size, rot: rand(TAU), vr: rand(-10, 10) });
+  }
+}
+
+function stepKnife(k) {
+  const t = tgt;
+  if (!t) { k.done = true; return; }
+  const tip = k.y;
+  // hit another knife?
+  for (const s of t.stuck) {
+    const w = t.rot + s.a;
+    if (angDiff(w, HALF) > 0.5) continue;
+    const c = Math.cos(w), sn = Math.sin(w);
+    for (let r = R - EMBED + 8; r <= R - EMBED + KL; r += 5) {
+      const px = CX + r * c, py = CY + r * sn;
+      if (Math.abs(px - CX) < 10 && py >= tip && py <= tip + KL) { fail(k); return; }
+    }
+  }
+  // slice apples
+  for (const ap of t.apples) {
+    if (ap.cut) continue;
+    const w = t.rot + ap.a;
+    if (angDiff(w, HALF) < 0.2 && tip <= CY + R + 25) sliceApple(ap, w);
+  }
+  // stick
+  if (tip <= CY + R - EMBED) {
+    k.done = true;
+    t.stuck.push({ a: HALF - t.rot });
+    t.hit = 1; score++;
+    burst(CX, CY + R, 8, [t.pal.light, t.pal.dark, t.pal.bark], 260, 60, 5, 0.55);
+    sfx.thunk(); buzz(8);
+  }
+}
+
+function sliceApple(ap, w) {
+  ap.cut = true; apples++; score += 2;
+  const x = CX + Math.cos(w) * (R + 12), y = CY + Math.sin(w) * (R + 12);
+  for (const side of [-1, 1]) debris.push({ kind: 'apple', half: side, x, y, vx: side * rand(120, 220), vy: rand(-380, -260), rot: 0, vr: side * rand(4, 8) });
+  burst(x, y, 12, ['#ff4757', '#ffd1d6', '#fff2b0'], 300, 80, 4, 0.6);
+  sfx.apple(); buzz(12);
+}
+
+function fail(k) {
+  k.done = true;
+  debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-160, 160), vy: rand(380, 520), rot: 0, vr: (Math.random() < 0.5 ? -1 : 1) * rand(10, 16) });
+  burst(CX, k.y, 14, ['#fff7c2', '#ffd35c', '#ffffff'], 380, 40, 3, 0.45);
+  shake = 14; state = 'dying'; overT = 0.9;
+  if (score > best) { best = score; newBest = true; save('knaife.best', best); }
+  sfx.clang(); buzz([30, 40, 30]);
+}
+
+function clearStage() {
+  const t = tgt;
+  state = 'clearing'; clearT = 1.15;
+  // wedges
+  const cuts = [0]; for (let i = 1, n = 4 + Math.floor(rand(3)); i < n; i++) cuts.push(i / n * TAU + rand(-0.25, 0.25));
+  cuts.push(TAU);
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const mid = t.rot + (cuts[i] + cuts[i + 1]) / 2, s = rand(180, 360);
+    debris.push({ kind: 'wedge', a0: cuts[i], a1: cuts[i + 1], t, x: CX, y: CY, vx: Math.cos(mid) * s, vy: Math.sin(mid) * s - 320, rot: t.rot, vr: rand(-3, 3) });
+  }
+  for (const s of t.stuck) {
+    const w = t.rot + s.a, sp = rand(260, 520);
+    debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED),
+      vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 260, rot: w - HALF, vr: rand(-9, 9) });
+  }
+  for (const ap of t.apples) if (!ap.cut) {
+    const w = t.rot + ap.a;
+    debris.push({ kind: 'apple', half: 0, x: CX + Math.cos(w) * (R + 12), y: CY + Math.sin(w) * (R + 12), vx: Math.cos(w) * 300, vy: Math.sin(w) * 300 - 260, rot: w + HALF, vr: rand(-6, 6) });
+  }
+  burst(CX, CY, 40, [t.pal.light, t.pal.dark, t.pal.bark], 520, 120, 7, 0.9);
+  if (t.boss) { banner = { text: 'BOSS DOWN!', sub: '+5 bonus', t: 1.1, color: '#ffd35c' }; score += 5; }
+  tgt = null; shake = 10;
+  sfx.smash(); buzz(25);
+}
+
+// ---------- update ----------
+function update(dt) {
+  time += dt;
+  const t = tgt;
+  if (t) {
+    t.t += dt;
+    t.pop = Math.min(1, t.pop + dt / 0.35);
+    t.rot += t.pat(t.t) * dt;
+    t.hit = Math.max(0, t.hit - dt * 7);
+  }
+  readyT = Math.max(0, readyT - dt);
+
+  for (const k of flying) {
+    let move = SPEED * dt;
+    while (move > 0 && !k.done) { const st = Math.min(8, move); move -= st; k.y -= st; stepKnife(k); }
+  }
+  flying = flying.filter(k => !k.done);
+  if (state === 'play' && knivesLeft === 0 && flying.length === 0) clearStage();
+
+  for (const d of debris) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 1500 * dt; d.rot += d.vr * dt; }
+  debris = debris.filter(d => d.y < H + 220 && d.x > -220 && d.x < W + 220);
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt; p.rot += p.vr * dt; p.life -= dt; }
+  parts = parts.filter(p => p.life > 0);
+
+  shake = Math.max(0, shake - dt * 40);
+  banner.t = Math.max(0, banner.t - dt);
+
+  if (state === 'dying') { overT -= dt; if (overT <= 0) { state = 'over'; overT = 0.6; sfx.over(); } }
+  else if (state === 'over') overT = Math.max(0, overT - dt);
+  else if (state === 'clearing') { clearT -= dt; if (clearT <= 0) { stage++; newStage(); } }
+}
+
+// ---------- drawing ----------
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// knife in local space: tip at (0,0), extends toward +y
+function drawKnife() {
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, 16, 6.5, 58); ctx.lineTo(-5.5, 58); ctx.lineTo(-5.5, 20); ctx.quadraticCurveTo(-4, 8, 0, 0);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(-6, 0, 7, 0);
+  g.addColorStop(0, '#8e98a6'); g.addColorStop(0.5, '#f4f7fb'); g.addColorStop(1, '#aeb8c4');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(1, 6); ctx.quadraticCurveTo(5, 18, 4.5, 56); ctx.stroke();
+  ctx.fillStyle = '#3b3f4a'; rr(-10, 57, 20, 7, 3); ctx.fill();
+  const hg = ctx.createLinearGradient(-6.5, 0, 6.5, 0);
+  hg.addColorStop(0, '#9b2f22'); hg.addColorStop(0.45, '#e2604a'); hg.addColorStop(1, '#8a281c');
+  ctx.fillStyle = hg; rr(-6.5, 63, 13, KL - 66, 5); ctx.fill();
+  ctx.fillStyle = '#f3d27a';
+  ctx.beginPath(); ctx.arc(0, 78, 2, 0, TAU); ctx.arc(0, 98, 2, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#3b3f4a'; rr(-8, KL - 7, 16, 7, 3); ctx.fill();
+}
+
+// apple in local space, stem pointing toward -y
+function drawApple(half = 0) {
+  ctx.save();
+  if (half) { ctx.beginPath(); ctx.rect(half < 0 ? -20 : 0, -25, 20, 45); ctx.clip(); }
+  const g = ctx.createRadialGradient(-4, -4, 2, 0, 0, 15);
+  g.addColorStop(0, '#ff8a8a'); g.addColorStop(0.6, '#e8303f'); g.addColorStop(1, '#a3121f');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(-5, 1, 10.5, 0, TAU); ctx.arc(5, 1, 10.5, 0, TAU); ctx.fill();
+  if (half) {
+    ctx.fillStyle = '#fff1cf';
+    ctx.beginPath(); ctx.ellipse(0, 1, 2.5, 9, 0, 0, TAU); ctx.fill();
+  }
+  ctx.strokeStyle = '#5a3418'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, -7); ctx.quadraticCurveTo(1, -12, 3, -15); ctx.stroke();
+  ctx.fillStyle = '#4cc36b';
+  ctx.beginPath(); ctx.ellipse(7, -13, 5.5, 2.6, -0.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.ellipse(-8, -3, 2, 3.5, 0.4, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawFace(t) {
+  const p = t.pal;
+  ctx.fillStyle = p.bark;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 28; i++) { const a = i / 28 * TAU; ctx.moveTo(Math.cos(a) * (R - 8), Math.sin(a) * (R - 8)); ctx.lineTo(Math.cos(a + 0.05) * (R - 1), Math.sin(a + 0.05) * (R - 1)); }
+  ctx.stroke();
+  const [px, py] = t.pith;
+  const g = ctx.createRadialGradient(px, py, 4, px, py, R);
+  g.addColorStop(0, p.light); g.addColorStop(1, p.dark);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, R - 8, 0, TAU); ctx.fill();
+  ctx.strokeStyle = p.ring; ctx.lineWidth = 2;
+  for (const r of t.rings) { ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  for (const c of t.cracks) { ctx.beginPath(); ctx.moveTo(c[0][0], c[0][1]); for (const q of c) ctx.lineTo(q[0], q[1]); ctx.stroke(); }
+  ctx.fillStyle = p.knot;
+  for (const k of t.knots) { ctx.beginPath(); ctx.ellipse(k.x, k.y, k.rx, k.ry, k.rot, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = p.ring;
+  ctx.beginPath(); ctx.arc(px, py, 4, 0, TAU); ctx.fill();
+}
+
+function drawTarget() {
+  const t = tgt, s = easeOutBack(t.pop);
+  ctx.save();
+  ctx.translate(CX, CY - 7 * t.hit);
+  ctx.scale(s, s);
+  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED); drawKnife(); ctx.restore(); }
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = t.pal.bark; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  ctx.restore();
+  ctx.save(); ctx.rotate(t.rot); drawFace(t); ctx.restore();
+  const sh = ctx.createRadialGradient(-R * 0.35, -R * 0.4, 5, 0, 0, R);
+  sh.addColorStop(0, 'rgba(255,255,255,.22)'); sh.addColorStop(0.55, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.28)');
+  ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  if (t.hit > 0) { ctx.fillStyle = `rgba(255,255,255,${0.35 * t.hit})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+  for (const ap of t.apples) {
+    if (ap.cut) continue;
+    ctx.save(); ctx.rotate(t.rot + ap.a - HALF); ctx.translate(0, R + 12); ctx.rotate(Math.PI); drawApple(); ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawDebris(d) {
+  ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+  if (d.kind === 'knife') drawKnife();
+  else if (d.kind === 'apple') drawApple(d.half);
+  else if (d.kind === 'wedge') {
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, d.a0, d.a1); ctx.closePath(); ctx.clip();
+    drawFace(d.t);
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 3; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function text(str, x, y, size, color, align = 'center', weight = 800) {
+  ctx.font = `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.fillText(str, x, y);
+}
+
+function drawMute() {
+  const x = W - 34, y = 34;
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(-3, -4); ctx.lineTo(3, -9); ctx.lineTo(3, 9); ctx.lineTo(-3, 4); ctx.lineTo(-8, 4); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  if (muted) { ctx.beginPath(); ctx.moveTo(6, -4); ctx.lineTo(12, 4); ctx.moveTo(12, -4); ctx.lineTo(6, 4); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(4, 0, 5, -0.9, 0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(4, 0, 9, -0.9, 0.9); ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawHUD() {
+  text(String(score), 22, 40, 40, '#fff', 'left');
+  ctx.save(); ctx.translate(32, 82); ctx.scale(0.75, 0.75); drawApple(); ctx.restore();
+  text(String(apples), 48, 83, 20, '#ffd1d6', 'left', 700);
+  // stage dots
+  const g0 = Math.floor((stage - 1) / 5) * 5 + 1;
+  for (let i = 0; i < 5; i++) {
+    const s = g0 + i, x = CX + (i - 2) * 24, y = 30, isBoss = i === 4;
+    const col = s < stage ? '#ffd35c' : s === stage ? '#ffffff' : 'rgba(255,255,255,.22)';
+    ctx.fillStyle = isBoss && s >= stage ? (s === stage ? '#ff5d6c' : 'rgba(255,93,108,.35)') : col;
+    ctx.beginPath();
+    if (isBoss) { ctx.moveTo(x, y - 9); ctx.lineTo(x + 9, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 9, y); }
+    else ctx.arc(x, y, s === stage ? 7 : 5.5, 0, TAU);
+    ctx.fill();
+  }
+  const bossName = stage % 5 === 0 ? BOSSES[(stage / 5 - 1) % BOSSES.length].name : null;
+  text(bossName ? 'BOSS · ' + bossName : 'STAGE ' + stage, CX, 56, 14, bossName ? '#ff8a95' : 'rgba(255,255,255,.7)', 'center', 700);
+  // remaining knives
+  for (let i = 0; i < knivesTotal; i++) {
+    ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
+    ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
+    drawKnife(); ctx.restore();
+  }
+}
+
+function drawBanner() {
+  if (banner.t <= 0) return;
+  const a = clamp(banner.t / 0.3, 0, 1);
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 12;
+  text(banner.text, CX, 470, 46, banner.color);
+  if (banner.sub) text(banner.sub, CX, 512, 20, 'rgba(255,255,255,.85)', 'center', 700);
+  ctx.restore();
+}
+
+function drawMenu() {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 16;
+  const g = ctx.createLinearGradient(0, 70, 0, 120);
+  g.addColorStop(0, '#fff3c4'); g.addColorStop(1, '#ffb347');
+  ctx.font = '900 64px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = g; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('KNAIFE', CX, 92);
+  ctx.restore();
+  text('stick every knife · never hit steel', CX, 134, 15, 'rgba(255,255,255,.7)', 'center', 600);
+  const p = 0.6 + 0.4 * Math.sin(time * 4);
+  ctx.save(); ctx.globalAlpha = p; text('TAP TO PLAY', CX, 450, 28, '#fff'); ctx.restore();
+  if (best > 0) text('BEST  ' + best, CX, 492, 18, '#ffd35c', 'center', 700);
+  text('tap · click · space', CX, H - 22, 13, 'rgba(255,255,255,.45)', 'center', 600);
+}
+
+function drawOver() {
+  ctx.fillStyle = 'rgba(10,6,22,.72)'; ctx.fillRect(-W, -H, W * 3, H * 3);
+  text('MISS!', CX, 230, 54, '#ff5d6c', 'center', 900);
+  text(String(score), CX, 310, 72, '#fff', 'center', 900);
+  text(`stage ${stage}  ·  ${apples} apple${apples === 1 ? '' : 's'}`, CX, 365, 18, 'rgba(255,255,255,.75)', 'center', 600);
+  text(newBest ? 'NEW BEST!' : 'BEST  ' + best, CX, 405, 22, '#ffd35c', 'center', 800);
+  if (overT <= 0) { ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 4); text('TAP TO RETRY', CX, 500, 26, '#fff'); ctx.restore(); }
+}
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const bg = ctx.createLinearGradient(0, 0, 0, cv.height);
+  bg.addColorStop(0, '#2b1c52'); bg.addColorStop(1, '#0e0a1c');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, cv.width, cv.height);
+
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+  if (shake > 0) ctx.translate(rand(-shake, shake) / 2, rand(-shake, shake) / 2);
+
+  const glow = ctx.createRadialGradient(CX, CY, 20, CX, CY, 280);
+  glow.addColorStop(0, tgt && tgt.boss ? 'rgba(255,90,110,.16)' : 'rgba(255,200,120,.13)'); glow.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = glow; ctx.fillRect(-W, -H, W * 3, H * 3);
+
+  if (tgt) drawTarget();
+  for (const d of debris) drawDebris(d);
+  for (const k of flying) { ctx.save(); ctx.translate(CX, k.y); drawKnife(); ctx.restore(); }
+  if ((state === 'play' && knivesLeft > 0) || state === 'menu') {
+    const off = state === 'play' ? (readyT / 0.12) * 40 : 0;
+    ctx.save(); ctx.globalAlpha = clamp(1 - readyT / 0.15, 0.2, 1); ctx.translate(CX, KNIFE_Y + Math.min(off, 60)); drawKnife(); ctx.restore();
+  }
+  for (const p of parts) {
+    ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore();
+  }
+
+  if (state === 'menu') drawMenu();
+  else { drawHUD(); drawBanner(); }
+  if (state === 'over') drawOver();
+  drawMute();
+}
+
+// ---------- input ----------
+function toVirtual(e) { return [(e.clientX - ox) / scale, (e.clientY - oy) / scale]; }
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const [x, y] = toVirtual(e);
+  if (Math.hypot(x - (W - 34), y - 34) < 24) { muted = !muted; save('knaife.muted', muted); ac(); return; }
+  action();
+});
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp') { e.preventDefault(); action(); }
+  else if (e.code === 'KeyM') { muted = !muted; save('knaife.muted', muted); }
+});
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+menuTarget();
+requestAnimationFrame(frame);
+// test hook
+window.__knaife = { get state() { return state; }, get score() { return score; }, get stage() { return stage; }, get knivesLeft() { return knivesLeft; } };
+</script>
+</body>
+</html>
