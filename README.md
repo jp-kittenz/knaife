@@ -58,3 +58,6 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Wire Clump redrawn as a live 3D cable ball (great-circle strands, per-frame rotation, depth sort, fixed lighting) and nerfed (22 HP, gentler voltage cycle, smaller stability penalties, braids restore stability).
 - New themed, beat-driven backgrounds for all five bosses, with a shadow pool behind the boss and down the lane to keep the action readable.
 - New cinematic director for boss intros: slow shots with fades, camera drift, wiped captions, a slow reveal under a spotlight and a letter-by-letter title.
+
+## Build 48
+- Redesign pass using the installed game skills (director, graphics scorecard, UI patterns, game feel, Web Audio bus, bloom). Evidence and scorecard: `artifacts/build48-evidence.md`.

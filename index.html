@@ -61,22 +61,34 @@ function load(k, d) { try { const v = localStorage.getItem(k); return v === null
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
 // ---------- audio ----------
-let actx = null, master = null, verb = null, muted = load('knaife.muted', false);
+let actx = null, master = null, verb = null, noiseBuf = null, musicDuck = 1, muted = load('knaife.muted', false);
+// stereo damped plate: 12ms pre-delay, four early reflections, then a tail whose highs die faster than its lows
 function makeIR(a, secs) {
-  const len = Math.floor(a.sampleRate * secs), b = a.createBuffer(2, len, a.sampleRate);
-  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  const sr = a.sampleRate, len = Math.floor(sr * secs), b = a.createBuffer(2, len, sr), pre = Math.floor(sr * 0.012);
+  for (let c = 0; c < 2; c++) {
+    const d = b.getChannelData(c); let lp = 0;
+    for (let i = pre; i < len; i++) { const u = (i - pre) / (len - pre), k = 0.06 + 0.88 * u; lp += ((Math.random() * 2 - 1) - lp) * (1 - k); d[i] = lp * Math.pow(1 - u, 2.4) * (1 + k); }
+    for (const [ms, g] of [[19, 0.45], [31, 0.32], [47, 0.24], [63, 0.17]]) { const j = Math.floor(sr * (ms + c * 3.7) / 1000); if (j < len) d[j] += g * (c ? -1 : 1); }
+  }
   return b;
 }
+// bus: voices -> (panner) -> glue compressor -> limiter -> out; send -> high-passed plate -> glue
 function ac() {
   if (!actx) {
     try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
-    master = actx.createDynamicsCompressor(); master.threshold.value = -14; master.ratio.value = 6;
-    const mg = actx.createGain(); mg.gain.value = 0.9; master.connect(mg).connect(actx.destination);
-    verb = actx.createConvolver(); verb.buffer = makeIR(actx, 2.6); verb.connect(master);
+    master = actx.createDynamicsCompressor(); master.threshold.value = -16; master.knee.value = 10; master.ratio.value = 4; master.attack.value = 0.003; master.release.value = 0.18;
+    const lim = actx.createDynamicsCompressor(); lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.08;
+    const mg = actx.createGain(); mg.gain.value = 0.92; master.connect(lim).connect(mg).connect(actx.destination);
+    const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;
+    const conv = actx.createConvolver(); conv.buffer = makeIR(actx, 2.4); const vg = actx.createGain(); vg.gain.value = 0.85;
+    hp.connect(conv).connect(vg).connect(master); verb = hp;
+    noiseBuf = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate); const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   }
   if (actx.state === 'suspended') actx.resume();
   return actx;
 }
+// heavy hits push the music down for a beat so the impact reads
+function duck(v) { musicDuck = Math.min(musicDuck, v); }
 let driveCurve = null;
 function route(a, node, o) {
   let n = node;
@@ -84,34 +96,43 @@ function route(a, node, o) {
     if (!driveCurve) { driveCurve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; driveCurve[i] = Math.tanh(x * 4); } }
     const ws = a.createWaveShaper(); ws.curve = driveCurve; n.connect(ws); n = ws;
   }
+  if (a.createStereoPanner) { const pn = a.createStereoPanner(); pn.pan.value = o.pan !== undefined ? o.pan : (Math.random() - 0.5) * 0.32; n.connect(pn); n = pn; }
   n.connect(master);
   if (o.wet) { const g = a.createGain(); g.gain.value = o.wet; n.connect(g).connect(verb); }
 }
+// every voice is varied a little (pitch, pan) so repeats never machine-gun
 function tone(type, f0, f1, dur, vol, o = {}) {
   const a = ac(); if (!a || muted) return;
+  const pv = o.exact ? 1 : 1 + (Math.random() - 0.5) * 0.06;
   const t = a.currentTime + (o.delay || 0), osc = a.createOscillator(), g = a.createGain();
-  osc.type = type; osc.frequency.setValueAtTime(f0, t); osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+  osc.type = type; osc.frequency.setValueAtTime(f0 * pv, t); osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1 * pv), t + dur);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + (o.attack || 0.003)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.connect(g); route(a, g, o); osc.start(t); osc.stop(t + dur + 0.05);
 }
+const envCache = new Map();
+function envCurve(rise, curve) {
+  const k = (rise ? 'r' : 'd') + curve; let c = envCache.get(k);
+  if (!c) { c = new Float32Array(48); for (let i = 0; i < 48; i++) { const u = i / 47; c[i] = rise ? u * (u < 0.97 ? 1 : (1 - u) / 0.03) : Math.pow(1 - u, curve); } envCache.set(k, c); }
+  return c;
+}
 function noise(dur, freq, q, vol, type = 'bandpass', o = {}) {
   const a = ac(); if (!a || muted) return;
-  const t = a.currentTime + (o.delay || 0), len = Math.max(1, Math.floor(a.sampleRate * dur));
-  const buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
-  const shape = o.rise ? (i => i / len) : (i => Math.pow(1 - i / len, o.curve || 1));
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * shape(i);
+  const t = a.currentTime + (o.delay || 0), pv = o.exact ? 1 : 1 + (Math.random() - 0.5) * 0.12;
   const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
-  src.buffer = buf; f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q; g.gain.value = vol;
-  if (o.sweepTo) f.frequency.exponentialRampToValueAtTime(o.sweepTo, t + dur);
-  src.connect(f).connect(g); route(a, g, o); src.start(t);
+  src.buffer = noiseBuf; src.loop = dur > 1.8; src.playbackRate.value = pv;
+  f.type = type; f.frequency.setValueAtTime(freq * pv, t); f.Q.value = q;
+  if (o.sweepTo) f.frequency.exponentialRampToValueAtTime(o.sweepTo * pv, t + dur);
+  const shape = envCurve(!!o.rise, o.curve || 1), cv2 = new Float32Array(shape.length); for (let i = 0; i < shape.length; i++) cv2[i] = Math.max(0.00001, shape[i] * vol);
+  g.gain.setValueCurveAtTime(cv2, t, dur);
+  src.connect(f).connect(g); route(a, g, o); src.start(t, src.loop ? 0 : Math.random() * Math.max(0, 1.9 - dur)); src.stop(t + dur + 0.02);
 }
 const sfx = {
-  whoosh() { noise(0.09, 5200, 0.9, 0.16, 'bandpass', { sweepTo: 1400 }); tone('sine', 1100 + rand(0, 200), 320, 0.08, 0.05); },
-  thunk() { const d = rand(0.92, 1.08); noise(0.03, 3600, 1, 0.4, 'highpass'); noise(0.1, 820 * d, 1.4, 0.55); tone('sine', 185 * d, 48, 0.16, 0.6, { drive: true }); tone('triangle', 430 * d, 170, 0.07, 0.22); tone('square', 2100, 1500, 0.02, 0.05, { delay: 0.01 }); },
-  clang() { tone('square', 1500, 950, 0.28, 0.08, { wet: 0.4 }); tone('triangle', 2400, 1900, 0.45, 0.12, { wet: 0.5 }); tone('triangle', 3350, 2900, 0.5, 0.06, { wet: 0.6 }); noise(0.12, 4500, 2, 0.35); tone('sine', 160, 70, 0.1, 0.25, { drive: true }); },
+  whoosh() { noise(0.13, 2600, 1.2, 0.24, 'bandpass', { sweepTo: 700, curve: 1.6 }); noise(0.09, 600, 0.7, 0.14, 'lowpass', { curve: 2 }); tone('sine', 2600, 3700, 0.05, 0.022, { attack: 0.002 }); },
+  thunk() { const d = rand(0.93, 1.07); noise(0.018, 4200, 0.8, 0.42, 'highpass'); noise(0.07, 720 * d, 5, 0.95, 'bandpass', { curve: 2.5 }); tone('triangle', 320 * d, 150, 0.09, 0.28); tone('sine', 150 * d, 46, 0.18, 0.72, { drive: true }); tone('triangle', 1880 * d, 1840 * d, 0.34, 0.035, { wet: 0.5, delay: 0.012 }); tone('sine', 2930 * d, 2900 * d, 0.24, 0.018, { delay: 0.012 }); },
+  clang() { const f = rand(590, 650); [[1, 0.13, 0.9], [2.76, 0.09, 0.6], [5.4, 0.05, 0.42], [8.93, 0.03, 0.3]].forEach(([r, g, d], i) => tone(i ? 'sine' : 'triangle', f * r, f * r * 0.995, d, g, { wet: 0.55, attack: 0.001 })); noise(0.05, 6200, 1.2, 0.5, 'highpass', { curve: 2 }); tone('sine', 150, 60, 0.14, 0.5, { drive: true }); },
   apple() { tone('sine', 620, 1250, 0.13, 0.22); noise(0.06, 2600, 1, 0.3); noise(0.12, 900, 2, 0.25, 'bandpass', { delay: 0.03, sweepTo: 300 }); tone('triangle', 1250, 1880, 0.1, 0.1, { delay: 0.08, wet: 0.4 }); },
   smash() { noise(0.5, 650, 0.6, 0.75, 'bandpass', { wet: 0.3 }); tone('sine', 140, 32, 0.5, 0.65, { drive: true, wet: 0.3 }); noise(0.09, 3200, 1, 0.5, 'highpass'); for (let i = 0; i < 6; i++) noise(0.06, 900 + rand(0, 1800), 3, 0.2, 'bandpass', { delay: 0.08 + i * 0.05 + rand(0, 0.03) }); },
-  combo(n) { const f = 520 * Math.pow(1.122, Math.min(n, 14)); tone('triangle', f, f * 1.5, 0.09, 0.12, { wet: 0.4 }); tone('square', f * 2, f * 2, 0.05, 0.03, { delay: 0.04 }); },
+  combo(n) { const sc = [0, 2, 4, 7, 9], k = Math.min(n, 12), f = 523.25 * Math.pow(2, (sc[k % 5] + 12 * Math.floor(k / 5)) / 12); tone('sine', f, f, 0.32, 0.11, { wet: 0.5, exact: true }); tone('sine', f * 2.01, f * 2.01, 0.16, 0.035, { exact: true }); tone('triangle', f * 4, f * 4, 0.05, 0.02, { exact: true, delay: 0.005 }); },
   finisher() { noise(0.25, 300, 1, 0.3, 'bandpass', { rise: true, sweepTo: 3000 }); tone('sine', 90, 30, 0.6, 0.7, { delay: 0.05, drive: true, wet: 0.4 }); tone('triangle', 880, 1760, 0.25, 0.1, { delay: 0.05, wet: 0.6 }); },
   over() {
     tone('sawtooth', 110, 36, 2.2, 0.14, { wet: 0.8, attack: 0.05 });
@@ -401,7 +422,8 @@ const sfx = {
   ready() { for (const [f, d] of [[880, 0], [1320, 0.08], [1760, 0.16]]) tone('triangle', f, f, 0.5, 0.1, { delay: d, wet: 0.8 }); },
   heart() { tone('square', 330, 160, 0.25, 0.08, { delay: 0.15 }); tone('square', 247, 110, 0.35, 0.08, { delay: 0.3, wet: 0.5 }); },
   unfreeze() { noise(0.6, 250, 1.5, 0.35, 'bandpass', { sweepTo: 4500, rise: true, wet: 0.5 }); tone('sine', 80, 300, 0.6, 0.12, { attack: 0.4 }); },
-};
+};for (const [n, v] of [['impact', 0.35], ['finale', 0.25], ['logExplode', 0.45], ['screenBreak', 0.3], ['subDrop', 0.55], ['knifeExplode', 0.5], ['stamp', 0.6]]) { const f = sfx[n]; if (f) sfx[n] = (...x) => { duck(v); return f(...x); }; }
+
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
 const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3' };
@@ -493,13 +515,14 @@ function updateMusic(rdt) {
   if (music.cur === 'gear') vol *= 1.2;
   if (music.cur === 'tire') vol *= 0.95;
   if (music.cur === 'nest' || music.cur === 'queen') vol *= 0.9;
+  musicDuck += (1 - musicDuck) * Math.min(1, rdt * 2.6);
   music.rate += (rate - music.rate) * Math.min(1, rdt * 6); music.cut += (cut - music.cut) * Math.min(1, rdt * 8);
   music.t -= rdt; const tick = music.t <= 0; if (tick) music.t = 0.1;
   for (const name in music.tracks) {
     const tr = music.tracks[name], on = name === music.cur;
     tr.mix += ((on ? 1 : 0) - tr.mix) * Math.min(1, rdt * (on ? 0.9 : 1.6));
     if (tr.el && tick && LOOPS[name] && tr.el.currentTime > LOOPS[name][1]) { try { tr.el.currentTime -= LOOPS[name][1] - LOOPS[name][0]; } catch (e) {} }
-    const v = (muted ? 0 : vol) * tr.mix;
+    const v = (muted ? 0 : vol) * tr.mix * musicDuck;
     if (tr.node) {
       tr.node.playbackRate.value = music.rate; tr.filt.frequency.value = music.cut;
       tr.gain.gain.value = v;
@@ -1420,7 +1443,7 @@ const cam = { z: 1, tz: 1, fx: CX, fy: CY, tfx: CX, tfy: CY, kz: 0, kr: 0 };
 let bars = 0, barsT = 0, vign = 0, vignT = 0, aberr = 0, zblur = 0, fxBuf = null, tmpR = null, tmpC = null;
 let stunT = 0;
 const GRAZE = 6.5;
-function kick(z, r, ab, zb = 0) { cam.kz += z; cam.kr += (Math.random() < 0.5 ? -1 : 1) * r; aberr = Math.max(aberr, ab); zblur = Math.max(zblur, zb); }
+function kick(z, r, ab, zb = 0) { cam.kz += z; cam.kr += (Math.random() < 0.5 ? -1 : 1) * r; aberr = Math.max(aberr, ab); zblur = Math.max(zblur, zb); bloomBoost = Math.max(bloomBoost, Math.min(1, ab * 0.45 + z)); }
 function camFocus(x, y, z) { cam.tfx = x; cam.tfy = y; cam.tz = z; }
 function cinema(on, v = 1) { barsT = on ? 1 : 0; vignT = on ? v : 0; }
 // parallax: one smoothed offset drives every depth layer. Fed by idle sway, pointer / tilt, camera kicks and impulses.
@@ -1440,6 +1463,7 @@ function updateCam(rdt, frozen) {
   const k = Math.min(1, rdt * 5);
   cam.z += (cam.tz - cam.z) * k; cam.fx += (cam.tfx - cam.fx) * k; cam.fy += (cam.tfy - cam.fy) * k;
   if (!frozen) { cam.kz *= Math.exp(-rdt * 6); cam.kr *= Math.exp(-rdt * 5); aberr = Math.max(0, aberr - rdt * 1.6); zblur = Math.max(0, zblur - rdt * 1.8); }
+  bloomBoost = Math.max(0, bloomBoost - rdt * 2.2);
   bars += (barsT - bars) * Math.min(1, rdt * 7); vign += (vignT - vign) * Math.min(1, rdt * 5);
   stunT = Math.max(0, stunT - rdt);
   if (stunShield > 0) { stunShield -= rdt; stunT = 0; }
@@ -2049,6 +2073,7 @@ function stickNormal(k, t) {
 
 // what a clean hit earns: rapid-fire combos, close calls, and a beat of slow motion on the killing blow
 function hitJuice(t, s, a) {
+  flare(CX, CY + R - 2, 1, '#ffd23f');
   combo = time - comboAt < 1.15 ? combo + 1 : 1; comboAt = time;
   rings.push({ x: CX, y: CY + R, t: 0, max: 0.2, size: 60 });
   if (combo >= 3) {
@@ -8144,6 +8169,89 @@ function updateWireDeath(t) {
 }
 
 // ======================= WIRE CLUMP cinematic =======================
+// ======================= FEEL + VFX (build 48) =======================
+// Screen shake as trauma: shake (pixels, as the game has always set it) maps to trauma 0..1, and the offset is
+// trauma squared over smooth noise, so small taps barely move and big hits snap. A little roll sells the weight.
+function shakeOffset() {
+  const tr = Math.min(1, shake / 34), k = tr * tr; if (k < 0.0005) return null;
+  const n = (f, p) => Math.sin(time * f + p) * 0.6 + Math.sin(time * f * 1.73 + p * 2.1) * 0.4;
+  return [n(41, 0.3) * 30 * k, n(37, 1.7) * 30 * k, n(23, 2.9) * 0.035 * k];
+}
+// sparks are streaks along their velocity, cooling white -> yellow -> orange -> red, drawn additively so they bloom;
+// everything else (chips, leaves, ash) stays a solid shaded fleck
+const hotCache = new Map();
+function isHot(c) {
+  let v = hotCache.get(c);
+  if (v === undefined) { const m = /^#([0-9a-f]{6})$/i.exec(c || ''); if (!m) v = false; else { const n = parseInt(m[1], 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); v = mx > 215 && ((mx - mn) / mx > 0.45 || mn > 215); } hotCache.set(c, v); }
+  return v;
+}
+const WARM = new Set(['#ffffff', '#fff7c2', '#ffd35c', '#ffd23f', '#ffe680', '#fff3c4', '#ffe2a6']);
+function coolOf(c, f) { if (!WARM.has(c)) return c; return f > 0.6 ? c : f > 0.35 ? '#ffd23f' : f > 0.18 ? '#ff7a1a' : '#d8402f'; }
+function drawParts() {
+  const groups = new Map();
+  for (const p of parts) {
+    const f = clamp(p.life / p.max, 0, 1);
+    if (isHot(p.c)) {
+      const sp = Math.hypot(p.vx, p.vy), L = clamp(sp * 0.026, 2, 26) * (0.4 + 0.6 * f), w = Math.max(1, Math.round(p.s * 0.55 * (0.5 + 0.5 * f)));
+      const key = coolOf(p.c, f) + '|' + w; let g = groups.get(key); if (!g) groups.set(key, g = []);
+      const ux = sp > 1 ? p.vx / sp : 0, uy = sp > 1 ? p.vy / sp : 1; g.push(p.x, p.y, p.x - ux * L, p.y - uy * L);
+    } else {
+      ctx.save(); ctx.globalAlpha = clamp(f * 1.5, 0, 1); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-p.s / 2, p.s * 0.1, p.s, p.s * 0.2); ctx.restore();
+    }
+  }
+  if (!groups.size) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (const [key, g] of groups) { const [c, w] = key.split('|'); ctx.strokeStyle = c; ctx.lineWidth = +w; ctx.beginPath(); for (let i = 0; i < g.length; i += 4) { ctx.moveTo(g[i], g[i + 1]); ctx.lineTo(g[i + 2], g[i + 3]); } ctx.stroke(); }
+  ctx.restore();
+}
+// contact flares: a hot core and a thin anamorphic cross at the point of impact, lasting a few frames
+let flares = [];
+function flare(x, y, s = 1, c = '#ffd23f') { flares.push({ x, y, s, c, t: 0, max: 0.16 + 0.06 * s }); if (flares.length > 12) flares.shift(); }
+function updateFlares(rdt) { for (const f of flares) f.t += rdt; flares = flares.filter(f => f.t < f.max); }
+function drawFlares() {
+  if (!flares.length) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const f of flares) {
+    const u = f.t / f.max, a = 1 - u, r = (10 + 16 * f.s) * (0.6 + 0.6 * u);
+    const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.3, f.c); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = a; ctx.fillStyle = g; ctx.fillRect(f.x - r, f.y - r, r * 2, r * 2);
+    ctx.fillStyle = f.c; const L = (40 + 50 * f.s) * (1 - u * 0.5); ctx.fillRect(f.x - L, f.y - 1, L * 2, 2); ctx.fillRect(f.x - 1, f.y - L * 0.45, 2, L * 0.9);
+  }
+  ctx.restore();
+}
+
+// ======================= THE MILL (normal stages): key light and floor =======================
+// A warm work light falls from above onto the log; dust turns in the beam; below, the mill floor runs away from you
+// in plank seams and sawdust, lit by the pool under the log. Heavy hits make the light swell (bloomBoost).
+function drawMillFloor(px, py) {
+  const hz = CY + R + 62 + py * 0.3, vx = CX + px * 0.5, vy = hz - 240;
+  blit(bakeSprite('millFloor', -W, CY + R + 40, W * 3, H, g => { const fg = g.createLinearGradient(0, CY + R + 40, 0, H + 40); fg.addColorStop(0, '#0d0705'); fg.addColorStop(0.35, '#1e0f06'); fg.addColorStop(1, '#2a1408'); g.fillStyle = fg; g.fillRect(-W, CY + R + 40, W * 3, H); }));
+  ctx.save(); ctx.beginPath(); ctx.rect(-W, hz, W * 3, H); ctx.clip();
+  ctx.strokeStyle = 'rgba(94,46,16,.55)'; ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let i = -14; i <= 14; i++) { const x1 = vx + i * 62; ctx.moveTo(vx + (x1 - vx) * ((hz - vy) / (H + 40 - vy)), hz); ctx.lineTo(x1, H + 40); }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(8,4,2,.6)'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let r = 1; r < 9; r++) { const y = hz + (H + 40 - hz) * Math.pow(r / 9, 1.6); for (let i = -14; i <= 14; i++) { if (hash(i, r, 41) < 0.55) continue; const sx = vx + i * 62, t0 = (y - vy) / (H + 40 - vy), t1 = t0, xa = vx + (sx - vx) * t0, xb = vx + (sx + 62 - vx) * t1; ctx.moveTo(xa, y); ctx.lineTo(xb, y); } }
+  ctx.stroke();
+  for (let i = 0; i < 46; i++) { const u = hash(i, 5, 42), x = vx + (hash(i, 5, 43) - 0.5) * 900 * (0.3 + u), y = hz + (H - hz) * u; ctx.fillStyle = i % 3 ? 'rgba(242,207,148,.35)' : 'rgba(255,226,166,.55)'; ctx.fillRect(x, y, 1.5 + u * 2, 1 + u); }
+  const pool = ctx.createRadialGradient(CX, hz + 30, 10, CX, hz + 30, 300); pool.addColorStop(0, `rgba(255,170,80,${0.2 + 0.1 * bloomBoost})`); pool.addColorStop(1, 'rgba(255,140,60,0)');
+  ctx.fillStyle = pool; ctx.fillRect(CX - 320, hz - 40, 640, 380);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,190,110,.18)'; ctx.fillRect(-W, hz - 1, W * 3, 2);
+}
+function drawMillLight(px, py) {
+  const fl = 0.92 + 0.08 * Math.sin(time * 13) * Math.sin(time * 7.1) + 0.25 * Math.min(1, bloomBoost), lx = CX + px * 0.2 + Math.sin(time * 0.6) * 6;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  beam(lx, -90, HALF, CY + R + 150, 30, 190, `rgba(255,180,90,${0.07 * fl})`);
+  beam(lx, -90, HALF, CY + R + 100, 16, 110, `rgba(255,214,150,${0.07 * fl})`);
+  const halo = ctx.createRadialGradient(CX, CY - R * 0.4, R * 0.6, CX, CY - R * 0.4, R * 2.1); halo.addColorStop(0, `rgba(255,190,110,${0.16 * fl})`); halo.addColorStop(1, 'rgba(255,160,80,0)');
+  ctx.fillStyle = halo; ctx.fillRect(CX - R * 2.2, CY - R * 2.6, R * 4.4, R * 4.4);
+  ctx.restore();
+  // dust turning in the beam
+  for (let i = 0; i < 26; i++) { const h = hash(i, 9, 44), y = ((h * 900 + time * (8 + h * 10)) % 520) - 40, spread = 30 + (y + 90) / (CY + R + 240) * 160, x = lx + Math.sin(time * 0.5 + i * 2.3) * spread * (hash(i, 9, 45) - 0.5) * 2; ctx.fillStyle = `rgba(255,226,170,${0.25 + 0.45 * Math.abs(Math.sin(time * 1.4 + i))})`; ctx.fillRect(x, y, 1.6, 1.6); }
+}
+
 // ---- EAT: the meal flies to the empty heart slot and the heart re-forms ----
 function eatMeal() {
   const slot = lives, hx = heartX(slot);
@@ -8414,7 +8522,9 @@ function drawTypeMeter() {
   else if (t.type === 'tnt') { const k = F.kegs.filter(k => k.alive).sort((a, b) => a.fuse - b.fuse)[0]; txt = k ? 'KEGS ' + F.kegs.filter(k => k.alive).length + '  /  FUSE ' + Math.ceil(k.fuse) + 'S' : 'KEGS SPENT'; col = k && k.fuse < 7 && Math.sin(time * 12) > 0 ? '#ff2e45' : '#ff7a1a'; }
   else if (t.type === 'ice') { txt = 'ICE SHEETS ' + F.ice.filter(i => i.hp > 0).length + '  /  KNIVES SLIDE'; col = '#c8f4ff'; }
   else if (t.type === 'bushes') { txt = 'BUSHES ' + F.bushes.filter(b => b.alive).length; col = '#7fbf3a'; }
-  text(txt, CX, 74, 12, col, 'center', 700);
+  ctx.save(); ctx.font = `700 10px ${FONT}`; const tw = ctx.measureText(txt).width, k = Math.min(1, 196 / tw), cw = tw * k + 16;
+  ctx.fillStyle = 'rgba(8,8,10,.6)'; ctx.fillRect(CX - cw / 2, 60, cw, 16); ctx.fillStyle = col; ctx.fillRect(CX - cw / 2, 60, 2, 16); ctx.fillRect(CX + cw / 2 - 2, 60, 2, 16);
+  ctx.translate(CX, 68.5); ctx.scale(k, 1); text(txt, 0, 0, 10, col, 'center', 700); ctx.restore();
 }
 
 function breakFeatures(t) {
@@ -8430,7 +8540,7 @@ function breakFeatures(t) {
 // ---------- update ----------
 function update(dt) {
   time += dt;
-  updateMusic(dt);
+  updateMusic(dt); updateFlares(dt);
   if (state === 'tomenu') { updateToMenu(dt); return; }
   if (state === 'menu') { updateMenu(dt); return; }
   heartT = Math.max(0, heartT - dt * 1.5);
@@ -8736,7 +8846,7 @@ function slamText(str, x, y, size, color, el, left, o = {}) {
 function drawMute() {
   const x = W - 34, y = 34;
   ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(8,8,10,.7)'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, TAU); ctx.fill(); ctx.strokeStyle = '#38383f'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(-3, -4); ctx.lineTo(3, -9); ctx.lineTo(3, 9); ctx.lineTo(-3, 4); ctx.lineTo(-8, 4); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
@@ -8746,39 +8856,56 @@ function drawMute() {
 }
 
 function drawHUD() {
-  { if (score !== hudScore) { hudScore = score; hudPop = 1; } hudPop = Math.max(0, hudPop - 0.07); ctx.save(); ctx.translate(22, 40); ctx.scale(1 + hudPop * 0.45, 1 + hudPop * 0.45); ctx.rotate(-hudPop * 0.12); dtext(String(score), 0, 0, 38, hudPop > 0.6 ? '#ffd23f' : '#ffffff', 'left'); ctx.restore(); }
-  ctx.save(); ctx.translate(32, 82); ctx.scale(0.75, 0.75); drawApple(); ctx.restore();
-  text(String(apples), 48, 83, 20, '#ffd1d6', 'left', 700);
+  // ---- top-left: score plate (count-up, fixed slot) and BEST, hearts beneath ----
+  if (score !== hudScore) { hudScore = score; hudPop = 1; }
+  hudPop = Math.max(0, hudPop - 0.07);
+  if (score < hudShown) hudShown = score; else if (score > hudShown) hudShown += Math.max(1, Math.ceil((score - hudShown) * 0.25));
+  ctx.save(); ctx.translate(10, 12); ctx.transform(1, 0, -0.14, 1, 0, 0);
+  ctx.fillStyle = 'rgba(8,8,10,.72)'; ctx.fillRect(4, 0, 128, 50); ctx.fillStyle = '#ff2e45'; ctx.fillRect(4, 0, 4, 50); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(8, 0, 124, 2);
+  ctx.restore();
+  ctx.save(); ctx.translate(26, 32); ctx.scale(1 + hudPop * 0.35, 1 + hudPop * 0.35); ctx.rotate(-hudPop * 0.08);
+  dtext(String(hudShown), 0, 0, 30, hudPop > 0.6 ? '#ffd23f' : '#ffffff', 'left'); ctx.restore();
+  text('BEST ' + Math.max(best, score), 26, 54, 8, newBest || score > best ? '#ffd23f' : '#8d8d97', 'left', 700);
   const bpm = lives === 1 ? 132 : 72, beat = heartbeat(time, bpm);
   for (let i = 0; i < MAX_LIVES; i++) {
     const hp = abil.pop['heart' + i] || 0, alive = i < lives, sc = (alive ? 1 + 0.12 * beat : 1) + 0.6 * Math.sin(hp * Math.PI);
-    if (hp > 0) { ctx.strokeStyle = `rgba(255,46,69,${hp})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(heartX(i), HEART_Y, 18 + (1 - hp) * 30, 0, TAU); ctx.stroke(); }
+    if (hp > 0) { ctx.strokeStyle = `rgba(255,46,69,${hp})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(heartX(i), HEART_Y, 16 + (1 - hp) * 26, 0, TAU); ctx.stroke(); }
     ctx.save(); ctx.translate(heartX(i), HEART_Y); ctx.scale(sc, sc);
     if (alive) {
-      const gl = bakeSprite('heartGlow', -HUD_HW, -HUD_HH, HUD_HW * 2, HUD_HH * 2, g => { g.shadowColor = 'rgb(255,40,30)'; g.shadowBlur = 14 * SPR; g.drawImage(HEART_IMG.live, -HUD_HW / 2, -HUD_HH / 2, HUD_HW, HUD_HH); });
+      const gl = bakeSprite('heartGlow', -HUD_HW, -HUD_HH, HUD_HW * 2, HUD_HH * 2, g => { g.shadowColor = 'rgb(255,40,30)'; g.shadowBlur = 12 * SPR; g.drawImage(HEART_IMG.live, -HUD_HW / 2, -HUD_HH / 2, HUD_HW, HUD_HH); });
       ctx.globalAlpha = clamp(0.35 + 0.5 * beat * (lives === 1 ? 1.4 : 0.8), 0, 1); blit(gl); ctx.globalAlpha = 1;
     } else ctx.globalAlpha = 0.85;
     ctx.drawImage(alive ? HEART_IMG.live : HEART_IMG.dead, -HUD_HW / 2, -HUD_HH / 2, HUD_HW, HUD_HH);
     ctx.restore();
   }
-  // stage dots
-  const g0 = Math.floor((stage - 1) / 5) * 5 + 1;
+  // ---- top-right: apples beside the mute button ----
+  ctx.save(); ctx.translate(W - 96, 34); ctx.scale(0.62, 0.62); drawApple(); ctx.restore();
+  text(String(apples), W - 84, 35, 13, '#ffd1d6', 'left', 700);
+  // ---- top-centre: the stage track ----
+  const g0 = Math.floor((stage - 1) / 5) * 5 + 1, cur = stage - g0, ty = 24, gap = 30, pulse = 0.5 + 0.5 * Math.sin(time * 5);
+  ctx.fillStyle = 'rgba(8,8,10,.6)'; ctx.fillRect(CX - 2 * gap - 18, ty - 13, 4 * gap + 36, 26);
+  ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fillRect(CX - 2 * gap, ty - 1, 4 * gap, 2);
+  ctx.fillStyle = '#ffd23f'; ctx.fillRect(CX - 2 * gap, ty - 1.5, gap * Math.min(4, cur), 3);
   for (let i = 0; i < 5; i++) {
-    const s = g0 + i, x = CX + (i - 2) * 24, y = 30, isBoss = i === 4;
-    const col = s < stage ? '#ffd35c' : s === stage ? '#ffffff' : 'rgba(255,255,255,.22)';
-    ctx.fillStyle = isBoss && s >= stage ? (s === stage ? '#ff5d6c' : 'rgba(255,93,108,.35)') : col;
-    ctx.beginPath();
-    if (isBoss) { ctx.moveTo(x, y - 9); ctx.lineTo(x + 9, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 9, y); }
-    else ctx.arc(x, y, s === stage ? 7 : 5.5, 0, TAU);
-    ctx.fill();
+    const x = CX + (i - 2) * gap, done = i < cur, now = i === cur, boss = i === 4;
+    if (boss) {
+      const c = now ? '#ff2e45' : done ? '#ffd23f' : 'rgba(255,46,69,.45)';
+      ctx.save(); ctx.translate(x, ty); ctx.rotate(Math.PI / 4); ctx.fillStyle = '#08080a'; ctx.fillRect(-8, -8, 16, 16); ctx.fillStyle = c; ctx.fillRect(-6, -6, 12, 12); ctx.restore();
+      ctx.fillStyle = '#08080a'; ctx.fillRect(x - 3, ty - 2, 2, 2); ctx.fillRect(x + 1, ty - 2, 2, 2); ctx.fillRect(x - 2, ty + 2, 4, 1.5);
+      if (now) { ctx.strokeStyle = `rgba(255,46,69,${0.4 + 0.5 * pulse})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, ty, 13 + pulse * 3, 0, TAU); ctx.stroke(); }
+      continue;
+    }
+    if (now) { ctx.strokeStyle = `rgba(255,255,255,${0.35 + 0.5 * pulse})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, ty, 10 + pulse * 2.5, 0, TAU); ctx.stroke(); }
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(x, ty, now ? 7.5 : 6, 0, TAU); ctx.fill();
+    ctx.fillStyle = done ? '#ffd23f' : now ? '#ffffff' : '#38383f'; ctx.beginPath(); ctx.arc(x, ty, now ? 5.5 : 4, 0, TAU); ctx.fill();
   }
   const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
-  text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 56, 14, bossName ? '#ff8a95' : 'rgba(255,255,255,.7)', 'center', 700);
+  text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 48, 11, bossName ? '#ff8a95' : 'rgba(255,255,255,.75)', 'center', 700);
   drawTypeMeter();
   comboPop = Math.max(0, comboPop - 0.06);
   if (combo >= 2 && time - comboAt < 1.15) {
     const left = 1 - (time - comboAt) / 1.15, col = combo >= 9 ? '#ff2e45' : combo >= 6 ? '#ff7a1a' : '#ffd23f';
-    ctx.save(); ctx.translate(58, 132); ctx.rotate(-0.1 - comboPop * 0.1); ctx.scale(1 + comboPop * 0.5, 1 + comboPop * 0.5);
+    ctx.save(); ctx.translate(W - 50, 92); ctx.rotate(-0.1 - comboPop * 0.1); ctx.scale(1 + comboPop * 0.5, 1 + comboPop * 0.5);
     dtext('x' + combo, 0, 0, 26, col, 'center'); text('RAPID', 0, 19, 8, col, 'center', 700);
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(-22, 27, 44, 4); ctx.fillStyle = col; ctx.fillRect(-22, 27, 44 * left, 4); ctx.restore();
   }
@@ -8789,13 +8916,24 @@ function drawHUD() {
   drawAbilFeed();
   drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire))) for (let i = 0; i < knivesTotal; i++) {
-    ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
-    ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
-    drawKnife(); ctx.restore();
-  }
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire))) drawMagazine();
 }
 
+// the knife magazine: a slotted steel rack, lit knives still to throw, empty slots spent, the next one up highlighted
+let hudShown = 0;
+function drawMagazine() {
+  const n = knivesTotal, sp = Math.min(22, 230 / Math.max(1, n)), x = 24, y0 = H - 46, top = y0 - (n - 1) * sp;
+  ctx.fillStyle = 'rgba(8,8,10,.62)'; ctx.fillRect(x - 15, top - 20, 30, (n - 1) * sp + 36); ctx.fillStyle = '#ff2e45'; ctx.fillRect(x - 15, top - 20, 30, 2);
+  text('x' + knivesLeft, x, top - 30, 10, knivesLeft <= 2 ? '#ff6070' : '#ffffff', 'center', 700);
+  for (let i = 0; i < n; i++) {
+    const y = y0 - i * sp, live = i < knivesLeft, next = i === knivesLeft - 1;
+    ctx.fillStyle = '#16161b'; ctx.fillRect(x - 11, y - 3, 22, 6);
+    if (!live) { ctx.strokeStyle = '#2a2a31'; ctx.lineWidth = 1; ctx.strokeRect(x - 11, y - 3, 22, 6); continue; }
+    ctx.save(); ctx.translate(x + (next ? Math.sin(time * 6) * 1.5 : 0), y); ctx.rotate(Math.PI / 2); ctx.scale(0.24, 0.24); ctx.translate(0, -KL / 2);
+    drawKnife(); ctx.restore();
+    if (next) { ctx.strokeStyle = `rgba(255,210,63,${0.5 + 0.4 * Math.sin(time * 6)})`; ctx.lineWidth = 1.5; ctx.strokeRect(x - 14, y - 5, 28, 10); }
+  }
+}
 // ---------- anatomical heart, engraved line-art style (drawn in a 100 x 120 box) ----------
 const HEART_PAL = {
   live:  { fill: '#1c0202', line: '#ff3b2f', hi: '#ff9a8c', ink: '#000' },
@@ -8894,8 +9032,8 @@ function makeHeartSprite(pal, cracked) {
   const g = c.getContext('2d'); g.scale(S, S); engraveHeart(g, pal, cracked); return c;
 }
 const HEART_IMG = { live: makeHeartSprite(HEART_PAL.live, false), dead: makeHeartSprite(HEART_PAL.dead, true), white: makeHeartSprite(HEART_PAL.white, true) };
-const HUD_HW = 36, HUD_HH = 43;
-const heartX = i => W - 32 - i * 38, HEART_Y = 92;
+const HUD_HW = 28, HUD_HH = 34;
+const heartX = i => 24 + i * 30, HEART_Y = 84;
 
 // lub-dub: two quick bumps per beat
 function heartbeat(t, bpm) {
@@ -9118,14 +9256,14 @@ function drawRewind() {
     f = lit ? 'none' : 'grayscale(1) contrast(40)';
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const fa = clamp(1 - (t - REW_FLASH) / 0.3, 0, 1);
-    if (fa > 0) { ctx.fillStyle = `rgba(255,255,255,${fa})`; ctx.fillRect(0, 0, cv.width, cv.height); }
+    if (fa > 0) { ctx.fillStyle = `rgba(255,46,69,${fa * 0.5})`; ctx.fillRect(0, 0, cv.width, cv.height); }
     if (s >= 0 && popCanvas) {
       const u = clamp(s / 0.2, 0, 1), sc = 0.4 + 0.6 * easeOutBack(u), jit = s < 0.3 ? (0.3 - s) * 20 * dpr : 0;
       ctx.save(); ctx.translate(popPos[0] + rand(-jit, jit), popPos[1] + rand(-jit, jit)); ctx.scale(sc, sc);
       ctx.drawImage(popCanvas, -popCanvas.width / 2, -popCanvas.height / 2); ctx.restore();
     }
   }
-  if (view.style.filter !== f) view.style.filter = f;
+  outFilter(f);
 }
 
 function drawPieces() {
@@ -9190,7 +9328,7 @@ function drawImpact() {
     ctx.beginPath(); ctx.arc(0, 0, 26 + el * 400, 0, TAU); ctx.stroke();
     ctx.restore();
   } else if (el < hitstopLen() + 0.1) {
-    ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (el - hitstopLen()) / 0.1)})`; ctx.fillRect(-W, -H, W * 3, H * 3);
+    ctx.fillStyle = `rgba(255,46,69,${0.32 * (1 - (el - hitstopLen()) / 0.1)})`; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
 }
 
@@ -9231,7 +9369,7 @@ function drawScene() {
   ctx.fillStyle = '#060608'; ctx.fillRect(0, 0, cv.width, cv.height);
 
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
-  if (shake > 0) ctx.translate(rand(-shake, shake) / 2, rand(-shake, shake) / 2);
+  { const so = shakeOffset(); if (so) { ctx.translate(CX + so[0], CY + so[1]); ctx.rotate(so[2]); ctx.translate(-CX, -CY); } }
 
   ctx.save(); applyCam();
   drawBackdrop();
@@ -9285,16 +9423,18 @@ function drawScene() {
     const off = state === 'play' ? Math.pow(clamp(readyT / 0.09, 0, 1), 2) * 90 : 0, ky = KNIFE_Y + Math.min(off, 90);
     if (abil.state === 'armed') drawKnifeAura(ky, 1, ABILITY.mode === 'arm' ? ABILITY.id : 'strong');
     if (abil.ov > 0) drawOvervoltAura(ky);
+    if (state === 'play') { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(CX, ky + KL + 5, 15, 3.5, 0, 0, TAU); ctx.fill(); }
     ctx.save(); ctx.globalAlpha = clamp(1 - readyT / 0.12, 0.2, 1); ctx.translate(CX, ky); { const rk = clamp(readyT / 0.09, 0, 1); ctx.scale(1 - rk * 0.12, 1 + rk * 0.25); }
+    if (state === 'play' && readyT <= 0) ctx.translate(0, Math.sin(time * 2.4) * 1.2);
     if (stunT > 0) { ctx.translate(0, KL / 2); ctx.rotate(Math.sin(time * 9) * 0.3 * Math.min(1, stunT)); ctx.translate(0, -KL / 2); ctx.globalAlpha *= 0.5; }
-    if (abil.state === 'armed') drawKnifeGlow((AURA[ABILITY.id] || AURA.strong)[0]); else drawKnife();
+    if (abil.state === 'armed') drawKnifeGlow((AURA[ABILITY.id] || AURA.strong)[0]); else {
+      drawKnife();
+      const gp = (time % 2.4) / 0.55; if (gp < 1 && readyT <= 0) { const k = Math.sin(gp * Math.PI); ctx.save(); ctx.globalCompositeOperation = 'lighter'; star(0, 6 + gp * KL * 0.4, 4 + 4 * k, `rgba(255,243,196,${k})`); ctx.restore(); }
+    }
     ctx.restore();
     if (stunT > 0) drawStun(ky);
   }
-  for (const p of parts) {
-    ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-    ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore();
-  }
+  drawParts(); drawFlares();
   drawFxp();
   if (abil.pauseT > 0 && (state === 'play' || state === 'fx')) drawBeeSwarm(KNIFE_Y);
   drawZap();
@@ -9319,14 +9459,14 @@ function drawScene() {
 function draw() {
   if (state === 'tomenu') { drawToMenu(); pixelate(); return; }
   if (state === 'menu') {
-    drawMenuScreen(); if (view.style.filter !== 'none') view.style.filter = 'none'; pixelate();
+    drawMenuScreen(); outFilter('none'); pixelate();
     if (ui.trans && ui.trans.wantFrags) captureSlabFrags();
     return;
   }
   if (state === 'over') {
     drawOverScreen(); drawPieces();
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); drawMute();
-    if (view.style.filter !== 'grayscale(1)') view.style.filter = 'grayscale(1)';
+    outFilter('grayscale(1)');
     pixelate();
     return;
   }
@@ -9345,7 +9485,7 @@ function draw() {
   postFX();
   const f = fxFilter ? fxFilter : zapT > 0.85 ? (Math.floor(time * 30) % 2 ? INVERT : TWO_TONE) : state === 'impact' && el < hitstopLen() ? 'grayscale(1) contrast(40) invert(1)'
     : gray > 0 ? `grayscale(${gray.toFixed(3)}) contrast(${(1 + 39 * Math.pow(gray, 3)).toFixed(3)})` : 'none';
-  if (view.style.filter !== f) view.style.filter = f;
+  outFilter(f);
   if (pieces.length) drawPieces();
   pixelate();
 }
@@ -9391,60 +9531,125 @@ function pixelateCPU() {
 }
 
 // ---------- GPU pixel pass: palette LUT + ordered dither + chromatic split + zoom blur in one shader ----------
-function initGL() {
-  const gl = view.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false });
-  if (!gl) { view2d = view.getContext('2d'); return; }
-  const vs = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
-  const fsrc = `precision highp float;
-  uniform sampler2D tex, lut; uniform vec2 res, foc; uniform float ab, zb, dith; varying vec2 uv;
+// ---------- GPU present: bloom -> impact grade -> vignette -> palette LUT + ordered dither, all before quantize ----------
+// Bloom follows the HDR rule: extract what is genuinely bright (and saturated: sparks, fire, charge, neon), blur it at
+// quarter resolution, and add it BEFORE the palette pass so the glow is dithered into the same limited palette as
+// everything else. Impact frames (formerly CSS invert = a white screen) are graded in-shader to red and black.
+const GL_VS = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+const GL_MAIN = `precision highp float;
+  uniform sampler2D tex, lut, bloom; uniform vec2 res, foc; uniform float ab, zb, dith, bs, vig, fm, gy, gc, tint; varying vec2 uv;
   float b2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
   float b4(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
   vec3 S(vec2 q){ return texture2D(tex, q).rgb; }
+  const vec3 INK = vec3(0.031, 0.031, 0.04), BLOOD = vec3(1.0, 0.18, 0.27);
   void main(){
     vec2 px = floor(uv * res) + 0.5, q = px / res;
     vec3 c = S(q);
     if (ab > 0.01) { vec2 d = vec2(ab, ab * 0.3) / res; c = vec3(S(q + d).r, c.g, S(q - d).b); }
     if (zb > 0.01) { vec3 acc = c; for (int i = 1; i <= 4; i++) { float s = 1.0 / (1.0 + float(i) * 0.03 * zb); acc += S(foc + (q - foc) * s); } c = mix(c, acc / 5.0, min(1.0, zb) * 0.6); }
+    c += texture2D(bloom, q).rgb * bs;
+    float l = dot(c, vec3(0.3, 0.59, 0.11));
+    if (gy > 0.001) { float v = clamp((l - 0.5) * gc + 0.5, 0.0, 1.0); vec3 g = tint > 0.5 ? mix(INK, BLOOD, v) : vec3(v); c = mix(c, g, gy); }
+    if (fm > 0.5) { float v = step(0.42, l); if (fm > 1.5) v = 1.0 - v; c = mix(INK, BLOOD, v); }
+    vec2 vq = (q - 0.5) * vec2(res.x / res.y, 1.0); c *= 1.0 - vig * smoothstep(0.35, 0.95, length(vq));
     c = clamp(c + (b4(px) - 0.5) * dith, 0.0, 1.0);
     vec3 k = floor(c * 31.999);
     gl_FragColor = vec4(texture2D(lut, vec2((k.r * 32.0 + k.g + 0.5) / 1024.0, (k.b + 0.5) / 32.0)).rgb, 1.0);
   }`;
+const GL_BRIGHT = `precision mediump float; uniform sampler2D tex; uniform vec2 tx; uniform float thr; varying vec2 uv;
+  void main(){
+    vec3 c = (texture2D(tex, uv + tx * vec2(-1.0, -1.0)).rgb + texture2D(tex, uv + tx * vec2(1.0, -1.0)).rgb + texture2D(tex, uv + tx * vec2(-1.0, 1.0)).rgb + texture2D(tex, uv + tx).rgb) * 0.25;
+    float m = max(c.r, max(c.g, c.b)), lo = min(c.r, min(c.g, c.b)), sat = m > 0.001 ? (m - lo) / m : 0.0;
+    float w = smoothstep(0.64, 0.86, sat) + 0.28 * smoothstep(0.93, 1.0, m) * (1.0 - sat);
+    gl_FragColor = vec4(c * smoothstep(thr, thr + 0.14, m) * w, 1.0);
+  }`;
+const GL_BLUR = `precision mediump float; uniform sampler2D src; uniform vec2 dir; varying vec2 uv;
+  void main(){
+    vec3 s = texture2D(src, uv).rgb * 0.227;
+    s += (texture2D(src, uv + dir * 1.385).rgb + texture2D(src, uv - dir * 1.385).rgb) * 0.316;
+    s += (texture2D(src, uv + dir * 3.231).rgb + texture2D(src, uv - dir * 3.231).rgb) * 0.070;
+    gl_FragColor = vec4(s, 1.0);
+  }`;
+let glMode = { fm: 0, gy: 0, gc: 1, tint: 0 };
+// the old CSS filter strings, mapped onto shader grading (CSS is still used on the no-WebGL fallback)
+function outFilter(f) {
+  if (!GL) { if (view.style.filter !== f) view.style.filter = f; return; }
+  if (view.style.filter !== 'none') view.style.filter = 'none';
+  const m = glMode; m.fm = 0; m.gy = 0; m.gc = 1; m.tint = 0;
+  if (!f || f === 'none') return;
+  if (f === TWO_TONE) { m.fm = 1; return; }
+  if (f === INVERT || /invert\(1\)/.test(f)) { m.fm = 2; return; }
+  const g = /grayscale\(([\d.]+)\)/.exec(f), c = /contrast\(([\d.]+)\)/.exec(f);
+  if (g) { m.gy = +g[1]; m.gc = c ? +c[1] : 1; m.tint = m.gc > 2 ? 1 : 0; }
+}
+function initGL() {
+  const gl = view.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false });
+  if (!gl) { view2d = view.getContext('2d'); return; }
   const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  const prog = fs => { const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, GL_VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(pr, 0, 'p'); gl.linkProgram(pr); if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error('link'); const u = {}; return { pr, u: n => (u[n] = u[n] || gl.getUniformLocation(pr, n)) }; };
   try {
-    const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fsrc)); gl.linkProgram(pr);
-    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error('link');
-    gl.useProgram(pr);
+    const main = prog(GL_MAIN), bright = prog(GL_BRIGHT), blur = prog(GL_BLUR);
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    const mk = unit => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
-      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return t; };
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    const mk = (unit, filt) => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, filt], [gl.TEXTURE_MAG_FILTER, filt], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return t; };
     // palette LUT as a 1024x32 texture: x = r*32 + g, y = b (5 bits each), same mapping as the CPU table
-    const lutTex = mk(1), data = new Uint8Array(1024 * 32 * 4);
+    const lutTex = mk(1, gl.NEAREST), data = new Uint8Array(1024 * 32 * 4);
     for (let r = 0; r < 32; r++) for (let g = 0; g < 32; g++) for (let b = 0; b < 32; b++) {
       const p = PALETTE[LUT[r << 10 | g << 5 | b]], o = (b * 1024 + r * 32 + g) * 4;
       data[o] = p[0]; data[o + 1] = p[1]; data[o + 2] = p[2]; data[o + 3] = 255;
     }
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 32, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
-    const tex = mk(0);
+    const tex = mk(0, gl.NEAREST);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    const u = n => gl.getUniformLocation(pr, n);
-    gl.uniform1i(u('tex'), 0); gl.uniform1i(u('lut'), 1);
-    GL = { gl, tex, res: u('res'), foc: u('foc'), ab: u('ab'), zb: u('zb'), dith: u('dith') };
+    const bA = mk(2, gl.LINEAR), bB = mk(3, gl.LINEAR), fA = gl.createFramebuffer(), fB = gl.createFramebuffer();
+    gl.useProgram(main.pr); gl.uniform1i(main.u('tex'), 0); gl.uniform1i(main.u('lut'), 1); gl.uniform1i(main.u('bloom'), 2);
+    gl.useProgram(bright.pr); gl.uniform1i(bright.u('tex'), 0);
+    gl.useProgram(blur.pr);
+    GL = { gl, tex, main, bright, blur, bA, bB, fA, fB, bw: 0, bh: 0 };
     gl.viewport(0, 0, view.width, view.height);
   } catch (e) { GL = null; }
 }
-// present the frame: draws the 2D canvas through the pixel shader (or the CPU fallback)
+function glBloomTargets() {
+  const { gl } = GL, w = Math.max(8, Math.round(view.width / 4)), h = Math.max(8, Math.round(view.height / 4));
+  if (GL.bw === w && GL.bh === h) return;
+  GL.bw = w; GL.bh = h;
+  for (const [t, f, unit] of [[GL.bA, GL.fA, 2], [GL.bB, GL.fB, 3]]) {
+    gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+// present the frame: bloom chain, then the pixel shader (or the CPU fallback)
+let bloomBoost = 0;
 function pixelate() {
   if (GL) {
-    const { gl } = GL;
+    const { gl, main, bright, blur } = GL;
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, GL.tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+    glBloomTargets();
     const inGame = state !== 'menu' && state !== 'tomenu' && state !== 'over';
-    gl.uniform2f(GL.res, cv.width, cv.height);
-    gl.uniform1f(GL.ab, inGame ? Math.min(aberr, 2) * 9 * dpr * (aberr > 0.03 ? 1 : 0) : 0);
-    gl.uniform1f(GL.zb, inGame && zblur > 0.03 ? zblur : 0);
-    gl.uniform2f(GL.foc, (ox + cam.fx * scale) / (cv.width / dpr), 1 - (oy + cam.fy * scale) / (cv.height / dpr));
-    gl.uniform1f(GL.dith, 18 / 255);
+    // 1) bright extract at quarter resolution
+    gl.bindFramebuffer(gl.FRAMEBUFFER, GL.fA); gl.viewport(0, 0, GL.bw, GL.bh);
+    gl.useProgram(bright.pr); gl.uniform2f(bright.u('tx'), 1.5 / cv.width, 1.5 / cv.height); gl.uniform1f(bright.u('thr'), 0.8 - 0.1 * Math.min(1, bloomBoost));
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // 2) two separable gaussian passes, the second wider
+    gl.useProgram(blur.pr);
+    for (const sp of [1, 2.2]) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, GL.fB); gl.uniform1i(blur.u('src'), 2); gl.uniform2f(blur.u('dir'), sp / GL.bw, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, GL.fA); gl.uniform1i(blur.u('src'), 3); gl.uniform2f(blur.u('dir'), 0, sp / GL.bh); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    // 3) composite + grade + palette
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, view.width, view.height);
+    gl.useProgram(main.pr);
+    gl.uniform2f(main.u('res'), cv.width, cv.height);
+    gl.uniform1f(main.u('ab'), inGame ? Math.min(aberr, 2) * 9 * dpr * (aberr > 0.03 ? 1 : 0) : 0);
+    gl.uniform1f(main.u('zb'), inGame && zblur > 0.03 ? zblur : 0);
+    gl.uniform2f(main.u('foc'), (ox + cam.fx * scale) / (cv.width / dpr), 1 - (oy + cam.fy * scale) / (cv.height / dpr));
+    gl.uniform1f(main.u('dith'), 18 / 255);
+    gl.uniform1f(main.u('bs'), (inGame ? 1.1 : 0.9) + 0.7 * Math.min(1, bloomBoost));
+    gl.uniform1f(main.u('vig'), inGame ? 0.42 : 0.3);
+    gl.uniform1f(main.u('fm'), glMode.fm); gl.uniform1f(main.u('gy'), glMode.gy); gl.uniform1f(main.u('gc'), glMode.gc); gl.uniform1f(main.u('tint'), glMode.tint);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     return;
   }
@@ -9452,7 +9657,7 @@ function pixelate() {
   if (!view2d) view2d = view.getContext('2d');
   view2d.drawImage(cv, 0, 0);
 }
-
+// present the frame: draws the 2D canvas through the pixel shader (or the CPU fallback)
 // ---------- fast monochrome backdrop ----------
 let bgHalftone = null, bgScan = null, bgHalo = null;
 // static and scrolling backdrop layers are baked once per size and just blitted each frame
@@ -9508,6 +9713,7 @@ function drawBackdrop() {
     ctx.restore();
     if (state !== 'menu') { ctx.save(); ctx.translate(px * 0.5, py * 0.5); ctx.globalAlpha = 0.05 + (tgt ? tgt.hit * 0.06 : 0); dtext(String(stage).padStart(2, '0'), CX, CY + 6, 250, '#ffffff', 'center', null, -0.18); ctx.restore(); }
   }
+  if (!bk && state !== 'menu') { drawMillFloor(px, py); drawMillLight(px, py); }
   // hanging chains and hooks, swinging with the camera
   ctx.save(); ctx.translate(px * 0.8, py * 0.8);
   for (let i = 0; i < 5; i++) {
@@ -10182,7 +10388,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 47', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 48', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -10315,7 +10521,7 @@ function captureScreenFrags(vx, vy) {
 let toMenu = null;
 function startToMenu(x, y) {
   toMenu = { t: 0, frags: captureScreenFrags(x, y), x, y, pieces: null, built: false };
-  state = 'tomenu'; view.style.filter = 'none';
+  state = 'tomenu'; outFilter('none');
   shock(x, y, 0.45, 160); sfx.playShatter(); buzz([30, 20, 60]);
 }
 function buildMenuPieces() {
@@ -10361,7 +10567,7 @@ function enterMenu(intro = false) {
   setMusic('main');
   state = 'menu'; ui.screen = intro ? 'intro' : 'main'; view.style.cursor = 'none'; ui.enter = 0; ui.trans = null; ui.hov = {};
   tgt = null; flying = []; debris = []; parts = []; pieces = []; floaters = [];
-  setPix(PIX_MENU); view.style.filter = 'none';
+  setPix(PIX_MENU); outFilter('none');
 }
 
 // ---------- input ----------

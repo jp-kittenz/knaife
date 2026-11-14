@@ -2,6 +2,34 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 48
+- **Redesign pass on look, feel and sound** (theme kept: the sawmill, the pixel palette, the red accents).
+- **Lighting and rendering**:
+  - A warm work light falls on the log, with dust turning in the beam.
+  - The mill floor runs away beneath it in plank seams and sawdust.
+  - New GPU bloom: only genuinely hot things glow (sparks, fire, charge, neon), and the glow is dithered into the same palette as everything else.
+  - Vignette.
+  - Life-loss and impact frames are now red and black instead of a white screen.
+- **Effects**:
+  - Sparks are streaks that cool from white to red.
+  - Contact flares appear where knives stick.
+  - Screen shake now uses smooth trauma with a slight roll, so small hits stay subtle and big ones snap.
+  - The light swells on heavy hits.
+- **Knife**: a breathing bob, a glint running down the blade, and a contact shadow on the floor.
+- **HUD redesign**:
+  - Score plate with a count-up and BEST, with hearts under it.
+  - A stage track with progress line and boss diamond.
+  - Log-type info as a fitted chip (it no longer runs into the hearts).
+  - Apples by the mute button.
+  - A knife magazine rack.
+- **Sound engine**:
+  - Every sound varies slightly in pitch and stereo position.
+  - New damped stereo reverb with early reflections.
+  - Compressor plus limiter.
+  - Music ducks under heavy hits.
+  - Lighter on CPU, since noise is no longer generated per sound.
+  - New throw, stick, knife-on-knife clang and combo sounds.
+
 ## Build 47
 - **The Wire Clump, redesigned**: it is now a real 3D ball of cable. Two dozen insulated wires are wound like a ball of yarn, depth-sorted and lit, and it wobbles as it spins.
   - A charged core glows through the gaps and swells with the beat and the voltage.
