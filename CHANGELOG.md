@@ -2,6 +2,14 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 51.2
+- Water Tanker pipe obstacles redesigned:
+  - A lit steel cylinder whose shading follows the room light as the tank turns.
+  - A bolted base saddle with a weld bead, a weld seam and a mid collar with hex bolts.
+  - A hazard band and a red inline valve wheel.
+  - An elbow rising to a bolted end flange, with an open bore of water that pulses with the music.
+  - Pipes glow hot during heat cycles. The robot arm carries the matching pipe.
+
 ## Build 51.1
 - Hits no longer pause the log: the spin hitch and the per-hit freeze are gone, so it keeps spinning through every stick. The jolt, the knife spring-back and the impact ring stay.
 

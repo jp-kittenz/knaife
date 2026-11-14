@@ -7779,27 +7779,62 @@ function drawTankMounts(t) {
   ctx.strokeStyle = '#08080a'; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(CX, CY + oy, R + 5, 0, TAU); ctx.stroke();
   ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 5; ctx.stroke();
 }
+// a lit steel cylinder along +x in the current frame; ly is which side faces the light (-1: the -y edge)
+function pipeBody(x0, x1, w, ly, hot = 0) {
+  const g = ctx.createLinearGradient(0, -w / 2, 0, w / 2), hi = ly < 0 ? 0.28 : 0.72;
+  g.addColorStop(0, '#16161b'); g.addColorStop(Math.max(0.05, hi - 0.22), '#5c5c66'); g.addColorStop(hi, hot > 0.5 ? '#ffb070' : '#dcdce2'); g.addColorStop(Math.min(0.95, hi + 0.25), '#727280'); g.addColorStop(1, '#0d0d10');
+  ctx.fillStyle = '#08080a'; ctx.fillRect(x0, -w / 2 - 1.5, x1 - x0, w + 3);
+  ctx.fillStyle = g; ctx.fillRect(x0, -w / 2, x1 - x0, w);
+  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(x0, (hi - 0.5) * w - 0.75, x1 - x0, 1.5);
+  if (hot > 0.01) { ctx.fillStyle = `rgba(255,90,30,${0.35 * hot})`; ctx.fillRect(x0, -w / 2, x1 - x0, w); }
+}
+function hexBolt(x, y, r) { ctx.fillStyle = '#16161b'; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } ctx.closePath(); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.lineTo(x + Math.cos(a) * r * 0.7, y + Math.sin(a) * r * 0.7); } ctx.closePath(); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(x - r * 0.4, y - r * 0.4, r * 0.35, r * 0.35); }
+
 function drawOnePipe(t, P) {
   const g = clamp(P.grow, 0, 1); if (g <= 0) return;
-  const r0 = R * 0.42, r1 = R + 44;
+  const T = t.tank, r0 = R * 0.4, r1 = R + 46, w = 18, hot = T.heat || 0;
+  const la = Math.atan2(-0.8, -0.6) - (t.rot + P.a), ly = Math.sin(la) < 0 ? -1 : 1, sx = Math.cos(-(t.rot + P.a)) * 6 - Math.sin(-(t.rot + P.a)) * 9, sy = Math.sin(-(t.rot + P.a)) * 6 + Math.cos(-(t.rot + P.a)) * 9;
   ctx.save(); ctx.rotate(P.a);
   if (g < 0.12) {   // the punch: a pipe drives down out of the camera
-    const k = Math.pow(1 - g / 0.12, 2), sc = 1 + 2.6 * k; ctx.save(); ctx.translate(r0, 0); ctx.scale(sc, sc); ctx.globalAlpha = 1 - k * 0.5; ctx.fillStyle = '#16161b'; ctx.fillRect(-10, -10, 20, 20); ctx.fillStyle = '#8d8d97'; ctx.fillRect(-8, -8, 16, 16); ctx.restore(); ctx.restore(); return;
+    const k = Math.pow(1 - g / 0.12, 2), sc = 1 + 2.6 * k; ctx.save(); ctx.translate(r0, 0); ctx.scale(sc, sc); ctx.globalAlpha = 1 - k * 0.5; ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill(); ctx.restore(); ctx.restore(); return;
   }
-  if (g < 0.78) {   // the punched hole, jagged
-    ctx.fillStyle = '#030305'; ctx.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, r = i % 2 ? 8 : 12; ctx.lineTo(r0 + Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1; ctx.stroke();
+  if (g < 0.78) {   // the punched hole, torn metal petals round it
+    ctx.fillStyle = '#030305'; ctx.beginPath(); for (let i = 0; i < 14; i++) { const a = i / 14 * TAU, rr = i % 2 ? 8 : 13; ctx.lineTo(r0 + Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1.2; ctx.stroke();
   }
   if (g >= 0.45) {
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(r0, -7 + 6, r1 - r0, 14);
-    ctx.fillStyle = '#16161b'; ctx.fillRect(r0, -9, r1 - r0, 18); ctx.fillStyle = '#727280'; ctx.fillRect(r0, -7, r1 - r0, 14); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(r0, -6, r1 - r0, 3);
-    ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(r1, 0, 16, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(r1, 0, 13.5, 0, TAU); ctx.fill(); ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(r1, 0, 6.5, 0, TAU); ctx.fill();
-    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; ctx.fillStyle = '#c3c3ca'; ctx.fillRect(r1 + Math.cos(a) * 10.5 - 1.2, Math.sin(a) * 10.5 - 1.2, 2.4, 2.4); }
-    if (g >= 1) { ctx.fillStyle = 'rgba(42,216,255,.6)'; ctx.fillRect(r1 - 2, -1 + Math.sin(time * 9) * 2, 4, 2); }
+    const xe = r1 - 6;
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(r0 + sx, -w / 2 + sy, xe - r0, w);
+    pipeBody(r0, xe, w, ly, hot);
+    // weld seam and a mid collar with bolts
+    ctx.fillStyle = 'rgba(30,30,36,.8)'; for (let x = r0 + 12; x < r0 + 20; x += 2.5) ctx.fillRect(x, -w / 2, 1.2, w);
+    const xc = r0 + (xe - r0) * 0.5; ctx.save(); ctx.translate(xc, 0); pipeBody(-6, 6, w + 8, ly, hot); ctx.restore(); for (const yy of [-w / 2 - 1, w / 2 + 1]) { hexBolt(xc - 3, yy, 2.4); hexBolt(xc + 3, yy, 2.4); }
+    // hazard band near the end
+    ctx.save(); ctx.beginPath(); ctx.rect(xe - 30, -w / 2, 14, w); ctx.clip(); ctx.fillStyle = '#16161b'; ctx.fillRect(xe - 30, -w / 2, 14, w); ctx.fillStyle = '#ffd23f'; for (let x = xe - 40; x < xe - 10; x += 7) { ctx.beginPath(); ctx.moveTo(x, -w / 2); ctx.lineTo(x + 3.5, -w / 2); ctx.lineTo(x + 3.5 + w * 0.5, w / 2); ctx.lineTo(x + w * 0.5, w / 2); ctx.closePath(); ctx.fill(); } ctx.restore();
+    // inline valve wheel on top of the pipe
+    const xv = r0 + (xe - r0) * 0.28; ctx.save(); ctx.translate(xv, 0); ctx.rotate((T.valve || 0) * 0.6 + P.a);
+    ctx.strokeStyle = '#08080a'; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.stroke(); ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 2.6; ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); for (let i = 0; i < 3; i++) { const a = i / 3 * TAU; ctx.moveTo(Math.cos(a) * 10, Math.sin(a) * 10); ctx.lineTo(-Math.cos(a) * 10, -Math.sin(a) * 10); } ctx.stroke(); ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.fill(); ctx.restore();
+    // the elbow turning up toward you, ending in a bolted flange and an open bore
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.arc(r1 + sx, sy, 20, 0, TAU); ctx.fill();
+    const eg = ctx.createRadialGradient(r1 - 5, ly * 6, 2, r1, 0, 21); eg.addColorStop(0, hot > 0.5 ? '#ffd0a0' : '#f0f0f4'); eg.addColorStop(0.45, '#8d8d97'); eg.addColorStop(1, '#16161b');
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(r1, 0, 21, 0, TAU); ctx.fill(); ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(r1, 0, 19, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#38383f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(r1, 0, 13, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + 0.2; hexBolt(r1 + Math.cos(a) * 15.5, Math.sin(a) * 15.5, 2.3); }
+    ctx.fillStyle = '#ff7a1a'; ctx.beginPath(); ctx.arc(r1, 0, 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.arc(r1, 0, 8.5, 0, TAU); ctx.fill();
+    if (g >= 1) {   // water in the bore, pulsing with the music, spitting droplets
+      const F = typeof musicFeel === 'function' ? musicFeel('boss') : null, pulse = F ? 0.4 + 0.6 * F.bass : 0.5 + 0.5 * Math.sin(time * 6);
+      const wg = ctx.createRadialGradient(r1, 0, 0, r1, 0, 8.5); wg.addColorStop(0, `rgba(200,244,255,${0.5 + 0.4 * pulse})`); wg.addColorStop(0.6, 'rgba(42,216,255,.55)'); wg.addColorStop(1, 'rgba(31,95,209,.2)'); ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(r1, 0, 8.5, 0, TAU); ctx.fill();
+      for (let i = 0; i < 3; i++) { const u = (time * 1.6 + i / 3 + P.a) % 1; ctx.strokeStyle = `rgba(160,230,255,${0.5 * (1 - u) * pulse})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(r1, 0, 9 + u * 18 * pulse, 0, TAU); ctx.stroke(); }
+    }
   }
-  if (g >= 0.75) {   // the base flange, bolted down
-    ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(r0, 0, 15, 18, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); ctx.ellipse(r0, 0, 12.5, 15.5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#727280'; ctx.fillRect(r0 - 2, -7, 12, 14);
-    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.5; ctx.fillStyle = '#38383f'; ctx.fillRect(r0 + Math.cos(a) * 10 - 1.4, Math.sin(a) * 12.5 - 1.4, 2.8, 2.8); }
+  if (g >= 0.75) {   // the base saddle: a bolted mounting plate with a weld bead round the root
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(r0 - 14 + sx, -17 + sy, 28, 34);
+    const bg = ctx.createLinearGradient(r0 - 14, -17, r0 + 14, 17); bg.addColorStop(0, '#c3c3ca'); bg.addColorStop(0.5, '#727280'); bg.addColorStop(1, '#38383f');
+    ctx.fillStyle = '#08080a'; ctx.fillRect(r0 - 15, -18, 30, 36); ctx.fillStyle = bg; ctx.fillRect(r0 - 13.5, -16.5, 27, 33);
+    for (const [bx, by] of [[-9, -11], [9, -11], [-9, 11], [9, 11], [-9, 0], [9, 0]]) hexBolt(r0 + bx, by, 2.4);
+    pipeBody(r0 - 5, r0 + 14, w, ly, hot);
+    ctx.fillStyle = '#c89a1a'; for (let i = 0; i < 8; i++) { const yy = -w / 2 + i * w / 7; ctx.beginPath(); ctx.arc(r0 - 5, yy, 1.5, 0, TAU); ctx.fill(); }
   }
   for (const [a0, a1] of [[0.45, 0.6], [0.76, 0.92]]) if (g > a0 && g < a1) { const k = Math.sin((g - a0) / (a1 - a0) * Math.PI); ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(r0, 0, 0, r0, 0, 26); gl.addColorStop(0, `rgba(200,244,255,${0.9 * k})`); gl.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = gl; ctx.fillRect(r0 - 26, -26, 52, 52); ctx.restore(); }
   ctx.restore();
@@ -7830,7 +7865,7 @@ function drawTankRobot(t) {
     for (const [x, y, r] of [[ax, ay, 16], [ex, ey, 10], [hx, hy, 7]]) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(x, y, r - 4, 0, TAU); ctx.fill(); }
     const ha = Math.atan2(hy - ey, hx - ex); ctx.save(); ctx.translate(hx, hy); ctx.rotate(ha);
     ctx.fillStyle = '#16161b'; ctx.fillRect(2, -9, 10, 4); ctx.fillRect(2, 5, 10, 4);
-    if (hold === 'pipe') { ctx.rotate(w - ha); ctx.fillStyle = '#16161b'; ctx.fillRect(-4, -9, 66, 18); ctx.fillStyle = '#727280'; ctx.fillRect(-4, -7, 66, 14); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-4, -6, 66, 3); }
+    if (hold === 'pipe') { ctx.rotate(w - ha); pipeBody(-4, 80, 18, -1); ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(86, 0, 19, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(86, 0, 17, 0, TAU); ctx.fill(); ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.arc(86, 0, 8, 0, TAU); ctx.fill(); }
     if (hold === 'flange') { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(10, 0, 15, 18, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); ctx.ellipse(10, 0, 12, 15, 0, 0, TAU); ctx.fill(); }
     ctx.restore();
     if (hold === 'weld') { flare(tgt2[0], tgt2[1], 0.35, '#2ad8ff'); if (Math.random() < 0.7) parts.push({ x: tgt2[0], y: tgt2[1], vx: rand(-260, 260), vy: rand(-320, 40), life: rand(0.2, 0.45), max: 0.45, c: Math.random() < 0.5 ? '#ffffff' : '#ffd23f', s: 2, rot: 0, vr: 0 }); }
