@@ -423,8 +423,20 @@ function playTrack(tr, fromStart) {
         const el = tr.el; tr.el = null;
         if (el) { let v = el.volume; const fade = setInterval(() => { v -= 0.05; if (v <= 0) { el.pause(); clearInterval(fade); } else el.volume = v; }, 40); }
       })
-      .catch(() => { tr.failed = true; tr.loading = false; });
+      .catch(() => {
+        tr.loading = false;
+        // usually out of memory on a phone: drop every other decoded track and try once more
+        if (!tr.retried) { tr.retried = true; for (const n in music.tracks) if (n !== tr.name) releaseTrack(music.tracks[n], true); setTimeout(() => { if (music.cur === tr.name) playTrack(tr, false); }, 60); }
+        else tr.failed = true;
+      });
   }
+}
+// free a track's decoded audio (tens of MB each) once it is silent; it is fetched and decoded again if needed
+function releaseTrack(tr, force) {
+  if (!tr || (tr.loading && !tr.buf) || (!force && tr.name === music.cur)) return;
+  if (tr.node) { try { tr.node.stop(); } catch (e) {} tr.node = null; }
+  if (tr.gain) { try { tr.gain.disconnect(); tr.filt.disconnect(); } catch (e) {} }
+  tr.buf = null; tr.gain = null; tr.filt = null; tr.mix = 0; tr.loading = false;
 }
 function startMusic() { music.unlocked = true; playTrack(trackObj(music.cur), false); }
 // switch tracks: the new one starts from the top, the old one fades out
@@ -472,7 +484,7 @@ function updateMusic(rdt) {
     if (tr.node) {
       tr.node.playbackRate.value = music.rate; tr.filt.frequency.value = music.cut;
       tr.gain.gain.value = v;
-      if (!on && tr.mix < 0.003) { try { tr.node.stop(); } catch (e) {} tr.node = null; }
+      if (!on && tr.mix < 0.003) { try { tr.node.stop(); } catch (e) {} tr.node = null; if (name !== 'main') releaseTrack(tr); }
     } else if (tr.el) {
       if (tick) { try { if (Math.abs(tr.el.playbackRate - music.rate) > 0.01) tr.el.playbackRate = Math.max(0.5, music.rate); } catch (e) {} }
       tr.el.volume = clamp(v * (music.cut < 2500 ? 0.55 : 1), 0, 1);
@@ -8450,7 +8462,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 39', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 40', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
