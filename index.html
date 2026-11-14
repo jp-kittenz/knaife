@@ -509,7 +509,7 @@ function updateMusic(rdt) {
   else if (fx && fx.type === 'queenrise') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'wireintro') { rate = 1; cut = fx.t < WSHOT.reveal ? 700 + 3000 * clamp(fx.t / WSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = fx.t < TSHOT.reveal ? 800 + 2800 * clamp(fx.t / TSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
-  else if (fx && fx.type === 'gearintro') { rate = 1; cut = fx.t < GSHOT.reveal ? 700 + 3200 * clamp(fx.t / GSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'gearintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
   if (zapT > 0) cut = 900;
   if (!fx && tgt && tgt.wire && tgt.wire.blackout > 0) cut = Math.min(cut, 2200);
@@ -2052,7 +2052,7 @@ function stickNormal(k, t) {
   if (F && F.rings) ringHit(t, s);
   if (t.gear) {
     const T = t.gear, bi = Math.round(normA(a) / TAU * GEAR_TEETH) % GEAR_TEETH;
-    burst(CX, CY + R, 22, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 60, 2.5, 0.45); sfx.clank();
+    burst(CX, CY + R, 22, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 60, 2.5, 0.45); sfx.gearHit();
     if (!T.lost.has(bi) && T.lost.size < GEAR_TEETH - 6) { T.lost.add(bi); debris.push({ kind: 'tooth', x: CX + rand(-6, 6), y: CY + R + 6, vx: rand(-220, 220), vy: rand(-380, -200), rot: rand(TAU), vr: rand(-20, 20) }); }
   }
   if (t.tank) { s.detach = tankDetachTime(t); t.tank.dents.push(a); if (t.tank.dents.length > 24) t.tank.dents.shift(); sfx.clank(); }
@@ -3553,84 +3553,6 @@ function brackets(x, y, w, h, c, l = 9) {
 }
 
 // ---------- the boss face ----------
-function makeGearTexture(t) {
-  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
-  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
-  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 4, 0, 0, R);
-  gr.addColorStop(0, '#a8a8b2'); gr.addColorStop(0.5, '#5c5c66'); gr.addColorStop(1, '#1e1e24');
-  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
-  g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 0.6; for (let r = 5; r < R; r += 2) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
-  // six spoke windows with the machine visible behind
-  for (let i = 0; i < 6; i++) {
-    const a1 = i / 6 * TAU + 0.2, a2 = (i + 1) / 6 * TAU - 0.2;
-    g.save(); g.beginPath(); g.arc(0, 0, R - 17, a1, a2); g.arc(0, 0, R * 0.38, a2, a1, true); g.closePath();
-    g.fillStyle = '#08080a'; g.fill(); g.clip();
-    const am = (a1 + a2) / 2, cx = Math.cos(am) * R * 0.62, cy = Math.sin(am) * R * 0.62;
-    g.fillStyle = '#45210b'; g.beginPath(); g.arc(cx + 8, cy + 6, 16, 0, TAU); g.fill();
-    g.strokeStyle = '#c89a1a'; g.lineWidth = 3; g.setLineDash([3, 3]); g.beginPath(); g.arc(cx + 8, cy + 6, 15, 0, TAU); g.stroke(); g.setLineDash([]);
-    g.fillStyle = '#16161b'; g.beginPath(); g.arc(cx + 8, cy + 6, 4, 0, TAU); g.fill();
-    g.strokeStyle = 'rgba(0,0,0,.75)'; g.lineWidth = 8; g.beginPath(); g.arc(0, 0, R - 17, a1, a2); g.arc(0, 0, R * 0.38, a2, a1, true); g.closePath(); g.stroke();
-    g.restore();
-    g.strokeStyle = '#c3c3ca'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R - 17, a1, a2); g.stroke();
-    g.strokeStyle = '#16161b'; g.lineWidth = 1.2; g.beginPath(); g.arc(0, 0, R * 0.38, a1, a2); g.stroke();
-  }
-  // spokes: rivets and a lit edge
-  for (let i = 0; i < 6; i++) {
-    const a = i / 6 * TAU;
-    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(Math.cos(a - 0.14) * R * 0.4, Math.sin(a - 0.14) * R * 0.4); g.lineTo(Math.cos(a - 0.1) * (R - 18), Math.sin(a - 0.1) * (R - 18)); g.stroke();
-    for (const rr of [R * 0.5, R * 0.63, R * 0.76]) { g.fillStyle = '#16161b'; g.beginPath(); g.arc(Math.cos(a) * rr + 0.5, Math.sin(a) * rr + 0.5, 1.8, 0, TAU); g.fill(); g.fillStyle = '#dcdce2'; g.beginPath(); g.arc(Math.cos(a) * rr, Math.sin(a) * rr, 1.3, 0, TAU); g.fill(); }
-  }
-  // rim band: bolts and a stamped plate
-  g.strokeStyle = '#16161b'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R - 16, 0, TAU); g.stroke();
-  for (let i = 0; i < 30; i++) { const a = i / 30 * TAU, rr = R - 8; g.fillStyle = '#16161b'; g.fillRect(Math.cos(a) * rr - 1.8, Math.sin(a) * rr - 1.8, 3.6, 3.6); g.fillStyle = '#a8a8b2'; g.fillRect(Math.cos(a) * rr - 1.2, Math.sin(a) * rr - 1.4, 2.4, 2.4); }
-  g.save(); g.rotate(-0.55); g.font = `700 6px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(255,210,63,.8)'; g.fillText('GBX-02  //  900 RPM', 0, -R + 4.5); g.restore();
-  // brass hub ring
-  const hg = g.createRadialGradient(-6, -8, 2, 0, 0, R * 0.38); hg.addColorStop(0, '#ffe680'); hg.addColorStop(0.6, '#c89a1a'); hg.addColorStop(1, '#5e2e10');
-  g.fillStyle = hg; g.beginPath(); g.arc(0, 0, R * 0.36, 0, TAU); g.fill();
-  g.fillStyle = '#16161b'; g.beginPath(); g.arc(0, 0, R * 0.24, 0, TAU); g.fill();
-  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + 0.2; g.fillStyle = '#5e2e10'; g.beginPath(); g.arc(Math.cos(a) * R * 0.3, Math.sin(a) * R * 0.3, 2, 0, TAU); g.fill(); g.fillStyle = '#fff0cc'; g.fillRect(Math.cos(a) * R * 0.3 - 0.8, Math.sin(a) * R * 0.3 - 1, 1.2, 1.2); }
-  // scuffs
-  const rnd = mulberry(t.seed);
-  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 0.6;
-  for (let i = 0; i < 22; i++) { const a = rnd() * TAU, r0 = R * (0.4 + rnd() * 0.5); g.beginPath(); g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); g.lineTo(Math.cos(a + 0.1) * r0 + rnd() * 6, Math.sin(a + 0.1) * r0 + rnd() * 6); g.stroke(); }
-  return c;
-}
-function drawGearLive(t) {
-  const T = t.gear, s = TAU / GEAR_TEETH, hw0 = s * R * 0.32, hw1 = s * R * 0.2;
-  for (let i = 0; i < GEAR_TEETH; i++) {
-    if (T.lost.has(i)) continue;
-    ctx.save(); ctx.rotate(i * s);
-    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(R - 3, -hw0 - 1); ctx.lineTo(R + 12, -hw1 - 1); ctx.lineTo(R + 12, hw1 + 1); ctx.lineTo(R - 3, hw0 + 1); ctx.fill();
-    ctx.fillStyle = T.seize > 0 ? shadeRGB([255, 122, 26], 0.5 + T.seize * 0.5) : '#727280'; ctx.beginPath(); ctx.moveTo(R - 2, -hw0); ctx.lineTo(R + 11, -hw1); ctx.lineTo(R + 11, hw1); ctx.lineTo(R - 2, hw0); ctx.fill();
-    ctx.fillStyle = '#c3c3ca'; ctx.fillRect(R + 8, -hw1, 2.5, hw1 * 2); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(R - 2, 0, 13, hw1);
-    ctx.restore();
-  }
-  if (T.exposed > 0) {
-    const p = (0.55 + 0.25 * Math.sin(time * 7)) * T.exposed;
-    for (let i = 0; i < 6; i++) {
-      const a1 = i / 6 * TAU + 0.2, a2 = (i + 1) / 6 * TAU - 0.2;
-      ctx.beginPath(); ctx.arc(0, 0, R - 17, a1, a2); ctx.arc(0, 0, R * 0.38, a2, a1, true); ctx.closePath();
-      ctx.fillStyle = `rgba(255,122,26,${0.35 * p})`; ctx.fill(); ctx.strokeStyle = `rgba(255,230,128,${0.7 * p})`; ctx.lineWidth = 1.5; ctx.stroke();
-      const am = (a1 + a2) / 2; ctx.fillStyle = `rgba(255,230,128,${p})`; ctx.fillRect(Math.cos(am) * R * 0.6 - 2, Math.sin(am) * R * 0.6 - 2, 4, 4);
-    }
-  }
-  // counter-rotating inner cog behind the eye
-  drawCog(0, 0, R * 0.17, 10, -T.inner * 3 - t.rot * 2, { body: '#c89a1a', hub: null, lo: '#5e2e10', shade: true });
-  ctx.save(); ctx.rotate(-t.rot);
-  const col = T.jam > 0 ? [124, 255, 79] : T.sw ? [255, 210, 63] : [255, 46, 69], pul = 0.65 + 0.35 * Math.sin(time * (T.sw ? 16 : 5));
-  const eg = ctx.createRadialGradient(0, 0, 1, 0, 0, 22); eg.addColorStop(0, `rgba(${col},${pul})`); eg.addColorStop(1, `rgba(${col},0)`);
-  ctx.fillStyle = eg; ctx.fillRect(-22, -22, 44, 44);
-  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, TAU); ctx.fill();
-  ctx.fillStyle = `rgb(${col})`; ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(-2.5, -3, 2, 2);
-  ctx.restore();
-  if (T.jam > 0) { ctx.fillStyle = 'rgba(124,255,79,.15)'; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
-  if (T.seize > 0) {
-    ctx.strokeStyle = `rgba(255,122,26,${T.seize})`; ctx.lineWidth = 1 + T.seize * 2;
-    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.4, Math.sin(a) * R * 0.4); ctx.lineTo(Math.cos(a + 0.15) * R * 0.65, Math.sin(a + 0.15) * R * 0.65); ctx.lineTo(Math.cos(a + 0.05) * R * 0.95, Math.sin(a + 0.05) * R * 0.95); ctx.stroke(); }
-  }
-}
-
 // ---------- setup and spin ----------
 function setupGear(t) {
   t.gear = { phase: 1, next: 4, sw: null, ox: 0, oy: 0, s: 1, sats: [], dec: null, jam: 0, seize: 0, lost: new Set(), hide: false, inner: 0, tick: 0, flashHP: 0, shots: [], shotNext: 5, exposed: 0 };
@@ -3909,9 +3831,6 @@ const GB_BACK = [{ x: -30, y: 120, r: 110, d: 1 }, { x: W + 25, y: 210, r: 130, 
 const DRIVE_R = 40, DRIVE_D = R + 8 + DRIVE_R + 4;    // drive gears mesh with the boss teeth on both sides
 function drawGearBackdrop(t) {
   const T = t.gear, sw = T.sw, alarm = sw && sw.st !== 'retract' && sw.st !== 'snapped';
-  ctx.save(); ctx.globalAlpha = 0.55;
-  for (const g of GB_BACK) drawCogFast(g.x, g.y, g.r, Math.round(g.r / 5), time * 0.25 * g.d * 90 / g.r, { spokes: 5, body: '#1e1e24', hub: '#2a2a31', shade: false, hi: 'rgba(255,255,255,.06)', lo: '#08080a' });
-  ctx.restore();
   // brackets from the walls holding the drive gears
   for (const sd of [-1, 1]) {
     const x = CX + sd * DRIVE_D;
@@ -6807,6 +6726,7 @@ function beatInfo(name) {
   return { b, k, u, pulse: Math.exp(-u * 5.5), half: Math.exp(-((b * 2) % 1) * 6), down: (((k % 4) + 4) % 4) === 0 ? Math.exp(-u * 4) : 0, bar: Math.floor(b / 4), barU: (((b % 4) + 4) % 4) / 4, phrase: Math.floor(b / 16) };
 }
 function bossBgKey(t) {
+  if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
   if (t && t.tank && fx && fx.type === 'tankintro' && fx.t > TI.top - 0.3) return 'boss';
   if (!t || introCovering()) return null;
   if (t.tank && !t.tank.hide) return 'boss'; if (t.gear && !t.gear.hide) return 'gear'; if (t.tire && !t.tire.hide) return 'tire';
@@ -6835,45 +6755,6 @@ function beam(x, y, ang, len, w0, w1, col) { const c = Math.cos(ang), s = Math.s
 // ======== WATER TANKER: a flooded pumping station, pressure pounding with the track ========
 
 // ======== GEARBOX: the engine room, gears ticking a tooth a beat, pistons hammering, molten light below ========
-const GBG = [[40, 120, 150, 30, 1], [400, 300, 170, 34, -1], [-10, 560, 120, 24, -1], [430, 650, 110, 22, 1], [210, -40, 120, 24, 1]];
-BG.gear = (B, px, py) => {
-  bgFill('gear', [[0, '#0d0503'], [0.55, '#2e1004'], [0.85, '#6b2604'], [1, '#b4480a']]);
-  const tick = Math.floor(B.b) + stepEase(B.u), half = Math.floor(B.b * 2) / 2 + stepEase((B.b * 2) % 1) / 2;
-  // far gears, dark bronze, stepping a tooth per beat
-  ctx.save(); ctx.translate(px * 0.22, py * 0.22);
-  for (const [x, y, r, n, d] of GBG) drawCogFast(x, y, r, n, d * tick * TAU / n, { spokes: 6, body: '#2a1206', hub: '#45210b', shade: false, hi: 'rgba(255,122,26,.12)', lo: '#0d0503' });
-  ctx.restore();
-  // furnace light breathing up from below
-  blit(bakeSprite('gearGlow', -60, H - 380, W + 120, 420, g => { const gg = g.createLinearGradient(0, H - 380, 0, H + 40); gg.addColorStop(0, 'rgba(255,122,26,0)'); gg.addColorStop(1, 'rgba(255,150,40,.55)'); g.fillStyle = gg; g.fillRect(-60, H - 380, W + 120, 420); }));
-  ctx.save(); ctx.globalAlpha = 0.5 * B.pulse; blit(sprites.gearGlow); ctx.restore();
-  // mid gears, steel with hot rims, on half-beats
-  ctx.save(); ctx.translate(px * 0.5, py * 0.5);
-  for (const [x, y, r, n, d] of [[-30, 330, 90, 18, 1], [450, 120, 80, 16, -1], [455, 520, 70, 14, 1]]) drawCogFast(x, y, r, n, d * half * TAU / n, { spokes: 5, body: '#38383f', hub: '#ff7a1a' });
-  // pistons along the top: one slams down on every beat, in turn
-  for (let i = 0; i < 5; i++) {
-    const x = 30 + i * 90, mine = ((B.k % 5) + 5) % 5 === i, e = mine ? (B.u < 0.12 ? B.u / 0.12 : Math.max(0, 1 - (B.u - 0.12) / 0.7)) : 0, ext = 30 + e * 70;
-    ctx.fillStyle = '#16161b'; ctx.fillRect(x - 18, -40, 36, 60); ctx.fillStyle = '#5c5c66'; ctx.fillRect(x - 18, 14, 36, 6);
-    ctx.fillStyle = '#c3c3ca'; ctx.fillRect(x - 6, 20, 12, ext); ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 4, 20, 3, ext);
-    ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - 16, 20 + ext, 32, 12); ctx.fillStyle = '#08080a'; for (let s = 0; s < 4; s++) ctx.fillRect(x - 16 + s * 9, 20 + ext, 4, 12);
-    if (mine && B.u < 0.35) { const k = B.u / 0.35; for (let s = 0; s < 8; s++) { const a = HALF + (s - 3.5) * 0.35, d2 = 10 + k * 60; ctx.fillStyle = s % 2 ? '#ffd23f' : '#ff7a1a'; ctx.fillRect(x + Math.cos(a) * d2, 32 + ext + Math.sin(a) * d2 * 0.6 + k * k * 30, 3, 3); } }
-  }
-  ctx.restore();
-  // hazard rails scrolling at half the beat
-  for (const y of [86, H - 150]) { ctx.save(); ctx.beginPath(); ctx.rect(-W, y, W * 3, 14); ctx.clip(); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-W, y, W * 3, 14); ctx.fillStyle = '#08080a'; const o = (B.b * 14) % 28; for (let x = -60 - o; x < W + 60; x += 28) { ctx.beginPath(); ctx.moveTo(x, y + 14); ctx.lineTo(x + 14, y); ctx.lineTo(x + 26, y); ctx.lineTo(x + 12, y + 14); ctx.fill(); } ctx.restore(); }
-  // conveyor at the bottom carrying castings, rollers turning
-  const cy = H - 70 + py * 0.6, scroll = B.b * 22;
-  ctx.fillStyle = '#16161b'; ctx.fillRect(-W, cy, W * 3, 26); ctx.fillStyle = '#2a2a31'; ctx.fillRect(-W, cy, W * 3, 4);
-  for (let x = -30; x < W + 40; x += 30) { const xx = x - (scroll % 30); ctx.save(); ctx.translate(xx, cy + 13); ctx.rotate(-scroll / 9); ctx.fillStyle = '#5c5c66'; ctx.fillRect(-8, -1.5, 16, 3); ctx.fillRect(-1.5, -8, 3, 16); ctx.restore(); }
-  for (let i = 0; i < 5; i++) { const x = ((i * 110 - scroll * 1.0) % 550 + 550) % 550 - 60; drawCogFast(x, cy - 16, 16, 9, -scroll / 16, { body: '#8d8d97', hub: '#ffd23f' }); }
-  // embers pouring up, thicker on the downbeat
-  for (let i = 0; i < 44; i++) { const sp = 60 + hash(i, 2, 1) * 120, x = hash(i, 2, 2) * W + Math.sin(time * 1.6 + i) * 14 + px * 0.8, y = H + 20 - ((time * sp + hash(i, 2, 3) * 900) % (H + 40)), fl = 0.5 + 0.5 * Math.sin(time * 9 + i); ctx.fillStyle = fl > 0.6 ? '#ffd23f' : '#ff7a1a'; ctx.fillRect(x, y, 2 + B.down * 2, 2 + B.down * 2); }
-  // steam vents puffing on the off-beats
-  ctx.save(); const off = Math.exp(-((B.b + 0.5) % 1) * 4);
-  for (const x of [-10, W + 10]) introSmoke(x, H - 120, time, 5, 30, 160 + 120 * off, x > 0 ? 7 : 8, 0.25 + 0.3 * off);
-  ctx.restore();
-  bgFlash('#ff7a1a', 0.14 * B.down);
-  bgStage();
-};
 
 // ======== MONSTER TIRE: a monster-truck arena at midnight, synthwave sun, crowd, floodlights, fireworks ========
 let tireCrowd = null;
@@ -7128,92 +7009,6 @@ function cineEnd(q) { cineVignette(); drawGrain(0.13); cineBlack(cineDip(q.s, q.
 
 // ======================= WATER TANKER =======================
 // ======================= GEARBOX =======================
-const GEAR_SHOTS = [2.6, 2.6, 2.6, 2.6];
-const GSHOT = { reveal: 10.4, hero: -99 };
-const GI_END = GSHOT.reveal + 4.2, HOLO = '#7cff4f';
-let cineBelt = null;
-function startGearIntro(t) {
-  fx = { type: 'gearintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
-  t.gear.hide = true; cinema(true, 0.9); setMusic('gear'); sfx.groanFar();
-}
-function skipGearIntro() { if (fx && fx.type === 'gearintro' && fx.t < GSHOT.reveal) { fx.t = GSHOT.reveal - 0.01; fx.skipped = true; } }
-function updateGearIntro(t) {
-  tscale = 0; const tg = fx.tg, T = tg.gear, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
-  const S0 = cineStarts(GEAR_SHOTS);
-  if (t < S0[1] && Math.floor(t / 0.65) !== fx.tk) { fx.tk = Math.floor(t / 0.65); sfx.gearClank(); }
-  if (t > S0[1] && t < S0[2] && Math.floor(t * 3) !== fx.rt) { fx.rt = Math.floor(t * 3); sfx.ratchet(); }
-  if (cineCue('s1', S0[1])) sfx.groanFar(); if (cineCue('oil', S0[1] + 1.6)) sfx.plunk();
-  if (cineCue('s2', S0[2])) sfx.chain(); if (cineCue('st1', S0[2] + 0.8)) sfx.gush(); if (cineCue('st2', S0[2] + 1.8)) sfx.gush();
-  for (let i = 0; i < 3; i++) if (cineCue('L' + i, S0[3] + 0.3 + i * 0.6)) { sfx.breaker(); shake = 4; }
-  if (cineCue('spin', S0[3] + 1.6)) { sfx.servo(); sfx.riser(); }
-  if (t >= GSHOT.reveal && !fx.revealed) { fx.revealed = true; T.hide = false; T.oy = 380; }
-  if (fx.revealed) {
-    const s = t - GSHOT.reveal, k = Math.min(4, Math.floor(s / 0.4)), f = k >= 4 ? 1 : (k + stepEase((s % 0.4) / 0.4)) / 4; T.oy = 380 * (1 - f);
-    if (k < 4 && k !== fx.step) { fx.step = k; sfx.ratchet(); sfx.gearClank(); shake = Math.max(shake, 6); }
-    if (cineCue('land', GSHOT.reveal + 1.6)) { T.oy = 0; shake = 22; kick(0.35, 0.06, 1.6, 1); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.land(); sfx.gearClank(); buzz([60, 30, 90]); }
-  }
-  fxFilter = null;
-  if (t > GI_END) { T.oy = 0; T.next = 4; endFx('play'); floater('SNAP THE CHAIN WHEN IT SWAPS', CX, CY + R + 80, '#ffd23f'); }
-}
-function drawGearIntro(t) {
-  const tg = fx.tg, T = tg.gear;
-  if (t < GSHOT.reveal) {
-    const q = cineSeq(GEAR_SHOTS, t), s = q.s, u = q.u;
-    ctx.save(); ctx.fillStyle = '#040202'; fillView();
-    if (q.i === 0) {
-      // SHOT 1: a furnace glow behind a wall of teeth, the great wheel clunking round one tooth at a time
-      const z = 1 + 0.1 * easeIO(u); ctx.save(); ctx.translate(CX, CY + 60); ctx.scale(z, z); ctx.translate(-CX, -CY - 60);
-      const gl = ctx.createRadialGradient(CX + 70, 280, 10, CX + 70, 280, 360); gl.addColorStop(0, '#ffb04a'); gl.addColorStop(0.3, '#b4480a'); gl.addColorStop(1, '#0d0503'); ctx.fillStyle = gl; fillView();
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 6; i++) beam(CX + 70, 280, i / 6 * TAU + 0.2, 520, 2, 40, 'rgba(255,170,80,.08)'); ctx.restore();
-      const step = Math.floor(s / 0.65) + stepEase((s % 0.65) / 0.65);
-      drawCogFast(CX - 50, 330, 240, 36, step * TAU / 36, { spokes: 6, body: '#060302', hub: '#0d0503', shade: false, hi: 'rgba(255,160,60,.15)', lo: '#030101' });
-      drawCogFast(CX + 210, 120, 110, 18, -step * TAU / 18 + 0.1, { spokes: 5, body: '#080402', hub: '#0d0503', shade: false, hi: 'rgba(255,160,60,.12)', lo: '#030101' });
-      ctx.restore();
-      cineDust(s, 'rgba(255,200,140,.9)', 34);
-      cineCaption('THE OLD MILL ENGINE', s, 600, '#ffd23f', 10, 0.6);
-    } else if (q.i === 1) {
-      // SHOT 2: two giant gears meshing in a slow pan; a bead of oil lets go and falls
-      const r1 = 190, r2 = 110, x1 = CX - 90 - 50 * u, y1 = 300, ang = 0.62, dd = r1 + r2 + 22, x2 = x1 + Math.cos(ang) * dd, y2 = y1 + Math.sin(ang) * dd, a1 = s * 0.35;
-      const bg = ctx.createRadialGradient(CX + 120, 200, 20, CX + 120, 200, 520); bg.addColorStop(0, '#3a1606'); bg.addColorStop(1, '#040202'); ctx.fillStyle = bg; fillView();
-      drawCog3D(x1, y1, r1, 40, a1, [16, 10], { spokes: 6, body: '#6b6b76', hub: '#c89a1a', layers: 5 });
-      drawCog3D(x2, y2, r2, 23, -a1 * r1 / r2 + 0.13, [10, 7], { spokes: 5, body: '#8d8d97', hub: '#ff7a1a', layers: 4 });
-      const mx = x1 + Math.cos(ang) * (r1 + 10), my = y1 + Math.sin(ang) * (r1 + 10);
-      for (let i = 0; i < 14; i++) { const k = ((s * 2 + hash(i, 6, 1)) % 1), a = ang + HALF + (hash(i, 6, 2) - 0.5) * 1.2; ctx.fillStyle = k < 0.5 ? '#ffd23f' : '#ff7a1a'; ctx.fillRect(mx + Math.cos(a) * k * 90, my + Math.sin(a) * k * 90 + k * k * 60, 2.5, 2.5); }
-      const ox = x1 + 40, oyy = y1 - r1 * 0.3; const ou = clamp((s - 1.6) / 1, 0, 1), oyD = oyy + ou * ou * 420; ctx.fillStyle = '#c89a1a'; ctx.beginPath(); ctx.ellipse(ox, oyD, 4, 6 + ou * 4, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffe2a6'; ctx.fillRect(ox - 1, oyD - 3, 1.5, 3);
-      cineCaption('A HUNDRED YEARS WITHOUT A STOP', s, 610, '#ffd23f', 9, 0.6);
-    } else if (q.i === 2) {
-      // SHOT 3: tilting up a drive chain into the dark, steam bursting off the housings
-      if (!cineBelt) cineBelt = beltPath(0, 0, 64, 0, -1100, 64);
-      const tilt = 520 * easeIO(u);
-      const cg = ctx.createLinearGradient(-60, 0, W + 60, 0); cg.addColorStop(0, '#6b2604'); cg.addColorStop(0.3, '#0a0503'); cg.addColorStop(0.7, '#0a0503'); cg.addColorStop(1, '#8a3a08'); ctx.fillStyle = cg; fillView();
-      ctx.save(); ctx.translate(CX, 640 + tilt);
-      drawCog3D(0, 0, 64, 14, s * 1.6, [6, 4], { spokes: 5, body: '#8d8d97', hub: '#ff7a1a', layers: 3 });
-      drawCog3D(0, -1100, 64, 14, s * 1.6, [6, 4], { spokes: 5, body: '#8d8d97', hub: '#ff7a1a', layers: 3 });
-      drawBeltLinks(cineBelt, s * 1.6 * 70, 9, 1.4);
-      for (const y of [-260, -560, -860]) { ctx.fillStyle = '#16161b'; ctx.fillRect(-150, y, 70, 40); ctx.fillRect(80, y + 60, 70, 40); ctx.fillStyle = '#ff7a1a'; ctx.fillRect(-150, y + 36, 70, 4); }
-      ctx.restore();
-      for (const [x, at, sd] of [[60, 0.8, 1], [W - 60, 1.8, 2]]) if (s > at) introSmoke(x, 420, s - at, 6, 50, 260, sd, 0.6 * clamp(1 - (s - at) / 1.6, 0, 1));
-      ctx.fillStyle = 'rgba(255,122,26,.15)'; ctx.fillRect(-W, H - 120, W * 3, 160);
-      cineCaption('AND IT IS STILL TURNING', s, 600, '#ffd23f', 10, 0.6);
-    } else {
-      // SHOT 4: the studio: three lamps clank on, one at a time, and the wheel winds itself up
-      drawStudio();
-      const L = [0.3, 0.9, 1.5].map(a => s > a ? 1 : 0), on = L[0] + L[1] + L[2];
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      [[CX - 150, -0.35], [CX + 150, 0.35], [CX, 0]].forEach(([x, a], i) => { if (L[i]) beam(x, -40, HALF + a * 0.9, 760, 10, 150, 'rgba(255,214,150,.12)'); });
-      ctx.restore();
-      drawHeroRig(CX, CY + 30, 0.7 + 0.12 * easeIO(u), s * s * 0.7, t, 1, 5);
-      ctx.fillStyle = `rgba(3,3,5,${0.88 - on * 0.27})`; fillView();
-      cineDust(s, 'rgba(255,230,190,.9)', 24);
-    }
-    cineEnd(q); ctx.restore(); cineSkipHint();
-  } else {
-    const s = t - GSHOT.reveal;
-    cineRevealLight(s, CX, CY + T.oy, 'rgba(255,170,80,.12)');
-    cineTitle('GEARBOX', 'SNAP THE CHAIN WHEN IT SWAPS  /  ' + GEAR_HP + ' HITS', s - 1.0, '#ffd23f', '#ff7a1a');
-  }
-}
-
 // ======================= MONSTER TIRE =======================
 const TIRE_SHOTS = [2.6, 2.6, 2.6, 2.6];
 const TSHOT = { reveal: 10.4 };
@@ -7509,6 +7304,7 @@ function drawWireIntro(t) {
 // Per-beat energy / bass / highs measured from the track file (base-36, one char per beat), so the backgrounds know
 // what section they are in and what is coming 8 beats ahead; a live AnalyserNode on the music bus adds the transients.
 const MUSIC_MAP = { boss: {"e": "vkc50000wld60blnwhd40002wkff9gilrjqiqiqjqipiqiqhpiphrhqiqipizxzzuhpjpkqkqjpiqjqipjqjpjqiqhqirjjnrkrjrlrlrlrlqlqiqmqnrlqlqssszzqrtmsotnsntmsmsmsotntosntntnrozzzotpsotnsosmsntmsnsososnsosnrnspqosustststrsqssuttrssssstrrrstrrqqstttsusurtssttttstttrusuqusuzyzwpipiqholphpgpiqholojoipinhpkzzzrqhqiqhripipioipjpipjqiqhpprpuqnqsmsosnrosnsnsnsmtmrntmsntlsmzzzosmrosmrpsmrmslsmtnsotnsosmrmronossrurstrrstrrrsqtstsssrtqsqtqrqrsusurvttqussttttsutusvttstruzzzxqooronnooooqooopoooroooqoooruqurvsvuqqoroqosoqorqtqtoqotoqnsoqoquqtstturutstttstturustrtssststsssssrtuvvvvvvwuvwswvvustruwxuutuvwvxyxqwswsxxxrvtwqwywsvtwrxywrxtyzzzzsrrjpopsusvstttsssrstrsstttstsurtstssrrsttuststrursrtrsrtstsuutturtzyzwyqjfd85200000000000000000000000", "b": "zc730000zf720249za820000zc761122p7n5n6o8o5n5n6n4m6o5q5o6q5p5zyuuo5o8oan9n5o5o5m5n7o6n6p5o4o5rff4o8n5n4n7m6m4k7m3o8l8l6m7mmmmzzonq4m6n4m5n4m5n4m6m5n6l5m5n6m6zzz6l7m6o4m6m4n4o5l6m8m7l7m6n6m4m776momomonoopnrpqpqmnnnomnmmoqrnqopolnmmmmmpmomqmommmmlnmnmlpnnzztrn6n8o6mbm6n4o5q4mcl7n6o7n7nawzz9m3n4o4r6o5m4l6m3m5m9p5n5nnqmtqlmm4m7l6l7m6n5m6m5o4m4n4n6n5o4zzz6m5m9m5l9m5n4n5l5o4m6m6n6n6m4m586mnmpnmnmnpqooonnonnomnmonomroooonnmmmonllnolrnplnmmmnmnmpmkozzwtkkkskkkmkkkokkkokklqkkkokllrolppproojjknkjknkjkkmooqkjlpkjlnkjklpnlpnoqgoloopmmpomnponnnplqpqlnmnmolpqouovmrpnnvitnpkjjnltsojlkrjpmgq6lbnclyqagem9hxpcfanaowsaiafnpqzllf3344kmnnnlokolpkonmlnlmmmmlnpmpnqlqlmmmmolnllqnlmmmmnlnmnlomrnlnzzwrzleb863100000000000000000000000", "h": "11000000110000001100000011000000iidhbgbd69282828171817272828rrpq8c9c9c9dad9d8d8c7c9d9ebeae8cbfgm9fbeeihliiegdfbfbgdhjgeghgijth3rzxmsuxstzxktlqjszynsvzqsrzlvoshszymrqzoryuitkwhqtvnpyvlqzviuelpqodccbabbbaaaabbaabcb9bcb9aa9ca87ighfggggfdgggeggkfhfffiffdfeimjo795959394959584a495949585959acck6b7a6b6a7a7b7a7b5b7a6b6a7777ik3tqvhnpvlpythtlqipqzlpxvqpstgtirgqxujoxuqortgujofnpvkpwvmpruerfvpmnebbbccc9bb9abacbbbbbbcb9aa9d978jfihhdghgeeeheggifiihfihfdfekoinme9aab9aedbadcabdcabddbbcbacpjmjspltoecdgfddfdbddddcedddfdccdcbdkkmjkoltrjiejhiejhhekggekigdiiifighdw9zdxdyazbyczdwfzbzbxfv9xbzczguruzzwzzxxxzzwyzyyxyzvxzyxvyzvzyyyl6112aipoiihhegggegeefgggfjhgejhfdeflcabgfiigfhgfdgfhfieigjhifgfedgehijp5200000000000000000000000000000"} };
+MUSIC_MAP.gear = {"e":"02314245658622570464744667b9b9ghpuwryxuyxzzywntwtsyszwxxzwxuwqwxwl500k7c0k500l6i4o701i100m500padhnslptururtotrupuqvqrvuyyxtnwytozvvwyvswyzzzymrywuwtzxuxwyysztuwywvwzxuywzzwwmpxuuxswuvyvzyuvprvthilloqmkmmlpprosgngikppnmnnntsrwwwwzuwyuzyvwnsxuwwtxwvvwwvvwrtxyjccff9afk9c8dbbhgegie5cdl932jhaillgfebfomigbd5hgnkhfcecbl712e7cf500030322331005111035332665538fluswzwuxyzywxouxyxtszwuvwwtuwrrvwvrvzwvvvzzvvqsuwvtvyuvwwyxvxootvvruzwuuuxwvxmpttustwsutuvuvxoott7000","b":"02415250349335362381733037b6a35dfvo8vs9o7wl5x58nawo9ss8m9wt6wf8o8i000i000i210i041j000i000i000ibejrj6qpj3qpi3pqh3qri6qph3pqh2qqh3swnbzn9i7xk5y85kbxkavl9h8yl6y75jcxlcyl9iaxh7ya5heykcvlbeaxkazb7gc7346311251135114735631225113jfhiyjezibfayf9za7gayfdwhccbyhazc9eda69b412263568469b69b312273568468b69b312264568568b69b312263568446260242034655437534253404886c349cyeizbh8cwbdz66cexdiwai7cycgy9abdz9izai7dzbfz65bezakz9j6ezchz75agxajz9j6dz8hz94bfz9ky9j6dy9jz8caf0000","h":"0000000000000000000000013132378dojvrmkvqzkxslouuvlwrpmrszcroipmot2220210011200000121131001210100082c2lhjbb293jkkha3e3plwkhfgenppoixrjmqpylypkrsrujxrqmpsucqmeuoqtlzpjmpozkzrkprtukyoompttaskhsmoy5862337f5b7234ba4a3a35582142iekjlzqklmnymzpkrruwkznnmoruawjftmqy2000000000000000000000000000000000000000000000000000000000000000000000000000000000000012041178dqpzoknkoumzpmqssxozlrmmtsezggvmszoymlnlnpozkkssnunxlpmmopozjkxptzpynkniorozmmwooxnzhlolorlximwnuz6000"};
 const musicDec = {};
 function musicArr(name) {
   let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
@@ -8051,7 +7847,7 @@ function drawTankArrival() {
   for (const [x, y, d] of [[CX - 220, -60, 0], [CX, -100, 0.06], [CX + 220, -60, 0.12]]) { const on = T > d ? 1 : 0, ang = Math.atan2(CY - y, CX - x), len = Math.hypot(CX - x, CY - y) + R; beam(x, y, ang, len, 8, R + 30, `rgba(255,220,160,${0.09 * a * on})`); beam(x, y, ang, len, 4, R * 0.6, `rgba(255,230,190,${0.05 * a * on})`); }
   for (let i = 0; i < 40; i++) { const h = hash(i, 12, 1), x = CX - 200 + h * 400, y = ((hash(i, 12, 2) * 400 + T * 60 * (0.5 + h)) % 420) - 40; ctx.fillStyle = `rgba(255,240,210,${0.5 * a})`; ctx.fillRect(x, y, 1.6, 1.6); }
   ctx.strokeStyle = `rgba(255,214,150,${0.45 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CX, CY, R + 8 + (1 - a) * 40, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = `rgba(42,216,255,${0.6 * Math.exp(-T * 2.5)})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(CX, CY, R + 20 + T * 500, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(${tgt && tgt.gear ? '255,150,40' : '42,216,255'},${0.6 * Math.exp(-T * 2.5)})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(CX, CY, R + 20 + T * 500, 0, TAU); ctx.stroke();
   ctx.restore();
 }
 // ======================= build 50: HD mode, sound variety, upright tanker, heavier intro =======================
@@ -8207,6 +8003,393 @@ function updateTankArrival(dt) {
   if (tankArrive.on) { const t0 = tankArrive.t; tankArrive.t += dt; if (t0 < 0.9 && tankArrive.t >= 0.9) { for (const [x, y] of [[70, 36], [CX, 24], [W - 70, 34], [24, H - 120], [W - 70, H - 90]]) flare(x, y, 0.9, '#ffd23f'); bloomBoost = Math.max(bloomBoost, 0.8); sfx.ready(); } if (tankArrive.t > 3) tankArrive.on = false; }
   knifeRiseT = Math.max(0, knifeRiseT - dt);
 }
+// ======================= GEARBOX, redesigned (build 52) =======================
+// The intro is cut to gear.mp3: an ambient bed from 0.39s, two hits at 7.11 / 7.99, a build from 8.68, a six-hit
+// snare roll 9.74-11.17 and the drop at 11.33. The roll is played on the live boss through the game camera: one
+// ratchet tooth per hit while the camera steps out, landing on the gameplay framing exactly on the drop.
+function introMusicClock(name) { const tr = music.tracks[name]; if (!tr || !music.unlocked || music.cur !== name) return null; const p = tr.el && !tr.node ? tr.el.currentTime : tr.pos; return p > 0.05 ? p : null; }
+const GI = { first: 0.395, wall: 3.6, chain: 7.115, door: 7.995, spin: 8.68, roll: [9.745, 10.105, 10.275, 10.635, 10.815, 11.175], drop: 11.335 };
+const GSHOT = { reveal: GI.drop, hero: -99 };
+const HOLO = '#7cff4f';
+const GI_Z = [3.2, 2.6, 2.15, 1.75, 1.45, 1.2], GI_A = -0.85, GI_OFF = [Math.cos(-0.85) * R * 0.72, Math.sin(-0.85) * R * 0.72];
+function giRollK(t) { let k = -1; for (let i = 0; i < GI.roll.length; i++) if (t >= GI.roll[i]) k = i; return k; }
+function giZoom(t) { const k = giRollK(t); if (k < 0) return GI_Z[0]; const e = ease3(clamp((t - GI.roll[k]) / 0.1, 0, 1)), z0 = k ? GI_Z[k - 1] : GI_Z[0] + 0.5; return z0 + (GI_Z[k] - z0) * e; }
+function startGearIntro(t) {
+  fx = { type: 'gearintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0, rot0: t.rot }; state = 'fx';
+  t.gear.hide = true; t.gear.ox = t.gear.oy = 0; cinema(true, 1); setHD(true);
+  cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+  slamMusic('gear');
+}
+function skipGearIntro() { if (fx && fx.type === 'gearintro' && fx.t < GI.drop - 0.3) { fx.t = GI.drop - 0.3; fx.skipped = true; for (const k of ['first', 'wall', 'chain', 'door', 'spin', 'r0', 'r1', 'r2', 'r3', 'r4']) fx.cuts[k] = true; } }
+function updateGearIntro(t) {
+  tscale = 0; const tg = fx.tg, T = tg.gear, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  // hold on black until the track is really sounding, then ride its clock
+  const mp = introMusicClock('gear');
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.35) { fx.wait += d; fx.t = 0; fx.lt = 0; return; }
+  if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
+  if (cineCue('first', GI.first)) { sfx.groanFar(); sfx.hum(); }
+  if (cineCue('wall', GI.wall)) sfx.servo();
+  if (t > GI.wall && t < GI.chain && Math.floor((t - GI.wall) / 0.7) !== fx.tk) { fx.tk = Math.floor((t - GI.wall) / 0.7); sfx.tick(); }
+  if (cineCue('chain', GI.chain)) { sfx.chain(); sfx.clank(); shake = 14; kick(0.15, 0.04, 1, 0.5); buzz(30); }
+  if (cineCue('door', GI.door)) { sfx.breaker(); sfx.steamJet(); shake = 12; bloomBoost = 0.6; buzz(30); }
+  if (cineCue('spin', GI.spin)) { sfx.servoWhirr(); sfx.riser(); }
+  if (t >= GI.roll[0] - 0.02 && !fx.rollOn) { fx.rollOn = true; T.hide = false; }
+  GI.roll.forEach((h, i) => {
+    if (!cineCue('r' + i, h)) return;
+    sfx.ratchet(); sfx.gearClank(); if (i % 2) sfx.clang(); buzz(20);
+    shake = Math.max(shake, 6 + i * 2); bloomBoost = Math.max(bloomBoost, 0.25 + i * 0.05);
+    const x = CX + Math.cos(GI_A) * (R + 9), y = CY + Math.sin(GI_A) * (R + 9);
+    burst(x, y, 14 + i * 4, ['#ffffff', '#ffd23f', '#ff7a1a'], 380, 30, 2.2, 0.4); flare(x, y, 0.5 + i * 0.1, '#ffd23f');
+  });
+  if (fx.rollOn && t < GI.drop) {
+    const k = giRollK(t), step = TAU / GEAR_TEETH, part = k >= 0 ? ease3(clamp((t - GI.roll[k]) / 0.07, 0, 1)) : 0;
+    tg.rot = fx.rot0 + (Math.max(0, k) + part) * step;
+    const z = giZoom(t), f = z / (GI_Z[0] - 1);
+    cam.z = cam.tz = z; cam.fx = cam.tfx = CX + GI_OFF[0] * f; cam.fy = cam.tfy = CY + GI_OFF[1] * f;
+  }
+  if (t >= GI.drop && !fx.revealed) {
+    fx.revealed = true; T.hide = false; tg.rot = fx.rot0 + GI.roll.length * TAU / GEAR_TEETH;
+    cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+    tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.55;
+    shake = 24; kick(0.3, 0.05, 0.7, 0.5); shocks(CX, CY, 2, 300); sfx.spotOn(); sfx.stamp(); sfx.subDrop(); sfx.gearClank(); sfx.knifeRise(); buzz([60, 30, 90]);
+    for (let i = 0; i < 48; i++) { const a = rand(TAU), sp = rand(240, 680); parts.push({ x: CX + Math.cos(a) * (R + 12), y: CY + Math.sin(a) * (R + 12), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.3, 0.7), max: 0.7, c: ['#ffffff', '#ffd23f', '#ff7a1a'][i % 3], s: 3, rot: 0, vr: 0 }); }
+    T.next = 4; endFx('play'); floater('SNAP THE CHAIN WHEN IT SWAPS', CX, CY + R + 80, '#ffd23f');
+  }
+  fxFilter = null;
+}
+function giEmbers(s, n, x0, w, a = 1) {
+  for (let i = 0; i < n; i++) { const h = hash(i, 13, 1), y = H + 20 - ((s * (30 + h * 60) + hash(i, 13, 2) * 800) % (H + 60)), x = x0 + hash(i, 13, 3) * w + Math.sin(s * 1.3 + i) * 14; ctx.fillStyle = h > 0.6 ? '#ffd23f' : '#ff7a1a'; ctx.globalAlpha = a * (0.35 + 0.65 * Math.sin(s * 3 + i) ** 2); ctx.fillRect(x, y, 2, 2); }
+  ctx.globalAlpha = 1;
+}
+function drawGearIntro(t) {
+  ctx.save();
+  const roll = t >= GI.roll[0];
+  if (!roll) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= GI.first && t < GI.wall) {
+    // SHOT 1: the furnace wakes behind one great wheel; a lit crescent of teeth, embers lifting
+    const s = t - GI.first, u = s / (GI.wall - GI.first), z = 1 + 0.1 * u, fade = clamp(s / 1.2, 0, 1) * clamp((GI.wall - t) / 0.5, 0, 1);
+    ctx.save(); ctx.globalAlpha = fade; ctx.translate(CX, CY + 120); ctx.scale(z, z); ctx.translate(-CX, -CY - 120);
+    const fg = ctx.createRadialGradient(CX, H + 40, 20, CX, H, 560); fg.addColorStop(0, `rgba(255,150,50,${0.3 + 0.55 * u})`); fg.addColorStop(0.4, `rgba(140,50,10,${0.15 + 0.3 * u})`); fg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = fg; fillView();
+    drawCogFast(CX, CY + 230, 250, 40, s * 0.05, { spokes: 6, body: '#060302', hub: '#0d0503', shade: false, hi: 'rgba(255,170,80,.22)', lo: '#020101' });
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) { ctx.strokeStyle = `rgba(255,${150 + i * 30},80,${(0.25 + 0.45 * u) / (i + 1)})`; ctx.lineWidth = 2 + i * 3; ctx.beginPath(); ctx.arc(CX, CY + 230, 286 + i, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke(); }
+    ctx.restore();
+    giEmbers(s, 40, CX - 190, 380, fade);
+    cineCaption('THE OLD MILL ENGINE', s, 600, '#ffd23f', 10, 0.9, GI.wall - GI.first);
+  } else if (t >= GI.wall && t < GI.chain) {
+    // SHOT 2: a wall of clockwork ticking in the warm dark, an escapement pendulum swinging through the light
+    const s = t - GI.wall, u = s / (GI.chain - GI.wall), px = -36 * u, fade = clamp(s / 0.6, 0, 1);
+    const bg = ctx.createRadialGradient(CX, 220, 30, CX, 320, 560); bg.addColorStop(0, '#3a1606'); bg.addColorStop(1, '#050202'); ctx.fillStyle = bg; fillView();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(CX + 40, -60, HALF + 0.12, 780, 14, 170, 'rgba(255,180,90,.07)'); ctx.restore();
+    const tickA = Math.floor(s / 0.7) + stepEase((s % 0.7) / 0.7);
+    for (const [x, y, r, n, dir, dz] of [[60, 210, 150, 30, 1, 0.5], [300, 120, 110, 22, -1, 0.5], [330, 400, 170, 34, 1, 0.8], [40, 560, 120, 24, -1, 0.8], [220, 330, 80, 16, -1, 1.25]])
+      drawCogFast(x + px * dz, y, r, n, dir * tickA * TAU / n, { spokes: 6, body: dz > 1 ? '#16161b' : '#2a1206', hub: '#c89a1a', shade: dz > 1, hi: 'rgba(255,170,80,.18)', lo: '#0d0503' });
+    const pa = Math.sin(s * TAU / 1.4) * 0.5; ctx.save(); ctx.translate(CX + 20, -20); ctx.rotate(pa);
+    ctx.fillStyle = '#08080a'; ctx.fillRect(-3, 0, 6, 430); ctx.fillStyle = '#c89a1a'; ctx.beginPath(); ctx.arc(0, 440, 34, 0, TAU); ctx.fill(); ctx.fillStyle = '#5e2e10'; ctx.beginPath(); ctx.arc(0, 440, 24, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffe680'; ctx.beginPath(); ctx.arc(-10, 430, 8, 0, TAU); ctx.fill(); ctx.restore();
+    cineDust(s, 'rgba(255,220,170,.85)', 30, CX - 160, 0, 360, 700);
+    if (fade < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - fade})`; fillView(); }
+    cineCaption('STILL TURNING AFTER A HUNDRED YEARS', s, 620, '#ffd23f', 9, 0.5, GI.chain - GI.wall);
+  } else if (t >= GI.chain && t < GI.door) {
+    // SHOT 3: the drive chain snaps taut and screams across frame
+    const s = t - GI.chain, jolt = Math.exp(-s * 10) * Math.sin(s * 70) * 14, y = CY + jolt, sc = s * 640;
+    ctx.fillStyle = '#0a0503'; fillView();
+    const lg = ctx.createLinearGradient(0, y - 120, 0, y + 120); lg.addColorStop(0, 'rgba(255,122,26,0)'); lg.addColorStop(0.5, 'rgba(255,122,26,.18)'); lg.addColorStop(1, 'rgba(255,122,26,0)'); ctx.fillStyle = lg; ctx.fillRect(-W, y - 120, W * 3, 240);
+    ctx.fillStyle = '#16161b'; ctx.fillRect(-W, y - 16, W * 3, 32);
+    for (let x = -60 - (sc % 40); x < W + 60; x += 40) { ctx.fillStyle = '#08080a'; ctx.fillRect(x - 2, y - 15, 40, 30); ctx.fillStyle = '#8d8d97'; ctx.fillRect(x, y - 12, 34, 24); ctx.fillStyle = '#dcdce2'; ctx.fillRect(x, y - 12, 34, 3); ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(x + 6, y, 4, 0, TAU); ctx.arc(x + 28, y, 4, 0, TAU); ctx.fill(); }
+    drawCog3D(W - 30, y, 90, 18, sc / 90, [8, 6], { spokes: 5, body: '#8d8d97', hub: '#ff7a1a', layers: 3 });
+    for (let i = 0; i < 34; i++) { const k = (s * 3 + hash(i, 14, 1)) % 1, a = Math.PI + (hash(i, 14, 2) - 0.5) * 1.2; ctx.fillStyle = k < 0.5 ? '#ffffff' : '#ffd23f'; ctx.fillRect(W - 110 + Math.cos(a) * k * 220, y + Math.sin(a) * k * 220 + k * k * 90, 3, 2); }
+  } else if (t >= GI.door && t < GI.roll[0]) {
+    // SHOT 4: the furnace doors slam open; the great engine spins up in the firelight
+    const s = t - GI.door, op = ease3(clamp(s / 0.25, 0, 1)), sp = t > GI.spin ? t - GI.spin : 0;
+    const fire = ctx.createRadialGradient(CX, CY + 40, 10, CX, CY + 40, 440); fire.addColorStop(0, '#ffe680'); fire.addColorStop(0.25, '#ff7a1a'); fire.addColorStop(0.6, '#6b2604'); fire.addColorStop(1, '#0d0503'); ctx.fillStyle = fire; fillView();
+    giEmbers(s * 2, 50, -20, W + 40);
+    drawHeroRig(CX, CY + 40, 0.72 + 0.06 * sp, sp * sp * 5 + s * 0.4, t, 1, 4);
+    if (sp > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 1; i <= 3; i++) { ctx.strokeStyle = `rgba(255,214,150,${0.14 * Math.min(1, sp) / i})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(CX, CY + 40, 90 + i * 22 + sp * 30, 0, TAU); ctx.stroke(); } ctx.restore(); }
+    for (const sd of [-1, 1]) { const x0 = sd < 0 ? CX - W * 0.5 - op * W * 0.6 : CX + op * W * 0.6; ctx.fillStyle = '#16161b'; ctx.fillRect(x0, -H, W * 0.5 + 2, H * 3); ctx.fillStyle = '#2a2a31'; for (let r = 0; r < 12; r++) ctx.fillRect(x0 + 10, -20 + r * 70, W * 0.5 - 20, 3); ctx.fillStyle = '#ffd23f'; ctx.fillRect(sd < 0 ? x0 + W * 0.5 - 8 : x0, -H, 8, H * 3); }
+    cineCaption('IT IS AWAKE', s, 640, '#ffd23f', 12, 0.4);
+  } else if (roll) {
+    // THE ROLL, over the live boss: a pawl clicks it round a tooth per hit while the dark lifts a notch at a time
+    const k = giRollK(t), z = cam.z, hk = k >= 0 ? Math.exp(-(t - GI.roll[k]) * 14) : 0, P = [CX + GI_OFF[0] * (z - 1) / (GI_Z[0] - 1), CY + GI_OFF[1] * (z - 1) / (GI_Z[0] - 1)];
+    if (t < GI.drop) {
+      // the pawl: pivots outside the rim, its tip riding the teeth
+      const lift = 0.32 * hk, pv = [CX + Math.cos(GI_A + 0.32) * (R + 44), CY + Math.sin(GI_A + 0.32) * (R + 44)];
+      ctx.save(); ctx.translate(pv[0], pv[1]); ctx.rotate(Math.atan2(CY + Math.sin(GI_A) * (R + 6) - pv[1], CX + Math.cos(GI_A) * (R + 6) - pv[0]) - lift);
+      const L = Math.hypot(Math.cos(GI_A) * (R + 6) - Math.cos(GI_A + 0.32) * (R + 44), Math.sin(GI_A) * (R + 6) - Math.sin(GI_A + 0.32) * (R + 44));
+      ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(-8, -9); ctx.lineTo(L, -2); ctx.lineTo(L + 4, 3); ctx.lineTo(-8, 9); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#727280'; ctx.beginPath(); ctx.moveTo(-6, -7); ctx.lineTo(L - 1, -1); ctx.lineTo(L + 2, 2); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#dcdce2'; ctx.fillRect(-4, -6.5, L - 6, 1.5);
+      ctx.fillStyle = '#c89a1a'; ctx.beginPath(); ctx.arc(0, 0, 7, 0, TAU); ctx.fill(); ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill();
+      ctx.restore();
+      // darkness, centred on the frame and screen-sized, lifting with every hit
+      const dark = 0.82 - 0.1 * Math.max(0, k), g = ctx.createRadialGradient(P[0], P[1], 50 / z, P[0], P[1], 330 / z);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${dark})`); ctx.fillStyle = g; fillView();
+      // the tach stamps up with each hit
+      if (k >= 0) { const pop = 1 + 0.3 * hk, sx = cam.fx + (CX - cam.fx) / z, sy = cam.fy + (H * 0.8 - cam.fy) / z; text(String((k + 1) * 150), sx, sy, 46 / z * pop, k === 5 ? '#ff2e45' : '#ffd23f', 'center', 900); text('R P M', sx, sy + 34 / z, 11 / z, '#c3c3ca', 'center', 800); }
+      if (hk > 0.02) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,170,60,${0.1 * hk})`; fillView(); ctx.restore(); }
+    }
+  }
+  if (!roll) {
+    blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); }));
+    drawGrain(0.1);
+  }
+  ctx.restore();
+  if (!roll) cineSkipHint();
+}
+
+// ---------- the boss gear: machined face ----------
+function makeGearTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  const rnd = mulberry(t.seed || 7), WIN = i => [i / 6 * TAU + 0.2, (i + 1) / 6 * TAU - 0.2];
+  const winPath = (i, r0 = R - 17, r1 = R * 0.38) => { const [a1, a2] = WIN(i); g.beginPath(); g.arc(0, 0, r0, a1, a2); g.arc(0, 0, r1, a2, a1, true); g.closePath(); };
+  // blued gunmetal, no baked key light (the live sheen supplies it so it stays put as the gear turns)
+  let gr = g.createRadialGradient(0, 0, R * 0.3, 0, 0, R); gr.addColorStop(0, '#3e3e48'); gr.addColorStop(0.72, '#4c4c58'); gr.addColorStop(0.9, '#33333c'); gr.addColorStop(1, '#16161b');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  // lathe rings
+  for (let r = R * 0.38; r < R - 1; r += 1.3) { g.strokeStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.025 + rnd() * 0.04})` : `rgba(0,0,0,${0.05 + rnd() * 0.06})`; g.lineWidth = 0.6; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+  // heat temper around the hub: straw, bronze, violet, blue
+  gr = g.createRadialGradient(0, 0, R * 0.34, 0, 0, R * 0.7); gr.addColorStop(0, 'rgba(214,170,80,.28)'); gr.addColorStop(0.35, 'rgba(170,96,50,.22)'); gr.addColorStop(0.65, 'rgba(120,60,160,.2)'); gr.addColorStop(0.88, 'rgba(60,100,190,.14)'); gr.addColorStop(1, 'rgba(60,100,190,0)');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R * 0.7, 0, TAU); g.fill();
+  // raised rim band with a bevel each side and a knurled outer lip
+  gr = g.createRadialGradient(0, 0, R - 17, 0, 0, R); gr.addColorStop(0, '#16161b'); gr.addColorStop(0.12, '#8d8d97'); gr.addColorStop(0.5, '#5c5c66'); gr.addColorStop(0.86, '#727280'); gr.addColorStop(1, '#0d0d10');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.arc(0, 0, R - 17, 0, TAU, true); g.fill('evenodd');
+  g.strokeStyle = '#08080a'; g.lineWidth = 1.6; g.beginPath(); g.arc(0, 0, R - 17.5, 0, TAU); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = 0.7; g.beginPath(); g.arc(0, 0, R - 15.8, 0, TAU); g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 0.8; for (let i = 0; i < 150; i++) { const a = i / 150 * TAU; g.beginPath(); g.moveTo(Math.cos(a) * (R - 3), Math.sin(a) * (R - 3)); g.lineTo(Math.cos(a + 0.012) * (R - 0.5), Math.sin(a + 0.012) * (R - 0.5)); g.stroke(); }
+  // hex bolts round the rim
+  const hexB = (x, y, r) => { g.fillStyle = '#08080a'; g.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; g.lineTo(x + Math.cos(a) * (r + 0.6) + 0.4, y + Math.sin(a) * (r + 0.6) + 0.5); } g.fill();
+    g.fillStyle = '#a8a8b2'; g.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + 0.3; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } g.fill();
+    g.fillStyle = '#dcdce2'; g.beginPath(); g.arc(x - r * 0.2, y - r * 0.2, r * 0.42, 0, TAU); g.fill(); g.fillStyle = '#38383f'; g.fillRect(x - r * 0.5, y - 0.3, r, 0.6); };
+  for (let i = 0; i < 24; i++) { const a = (i + 0.5) / 24 * TAU; hexB(Math.cos(a) * (R - 8.5), Math.sin(a) * (R - 8.5), 2.3); }
+  // six spoke windows: cut deep, chamfered edges (the live layer draws the machinery inside)
+  for (let i = 0; i < 6; i++) {
+    winPath(i); g.fillStyle = '#050302'; g.fill();
+    g.save(); winPath(i); g.clip(); g.strokeStyle = 'rgba(0,0,0,.9)'; g.lineWidth = 7; winPath(i); g.stroke(); g.restore();
+    g.strokeStyle = '#a8a8b2'; g.lineWidth = 1.1; winPath(i); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 0.6; winPath(i, R - 19.5, R * 0.38 - 2.5); g.stroke();
+  }
+  // spokes: tapered ribs, rivets, a cap screw at the root, one hazard plate and one stencilled serial
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * TAU;
+    for (const [o, col] of [[-0.11, 'rgba(255,255,255,.22)'], [0.11, 'rgba(0,0,0,.4)']]) { g.strokeStyle = col; g.lineWidth = 0.9; g.beginPath(); g.moveTo(Math.cos(a + o * 1.3) * R * 0.42, Math.sin(a + o * 1.3) * R * 0.42); g.lineTo(Math.cos(a + o * 0.75) * (R - 19), Math.sin(a + o * 0.75) * (R - 19)); g.stroke(); }
+    for (const rr of [R * 0.55, R * 0.67, R * 0.78]) { const x = Math.cos(a) * rr, y = Math.sin(a) * rr; g.fillStyle = '#0d0d10'; g.beginPath(); g.arc(x + 0.4, y + 0.5, 1.9, 0, TAU); g.fill(); gr = g.createRadialGradient(x - 0.5, y - 0.5, 0.2, x, y, 1.6); gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#727280'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, 1.5, 0, TAU); g.fill(); }
+    const sx = Math.cos(a) * R * 0.44, sy = Math.sin(a) * R * 0.44; g.fillStyle = '#08080a'; g.beginPath(); g.arc(sx, sy, 3, 0, TAU); g.fill(); g.fillStyle = '#5c5c66'; g.beginPath(); g.arc(sx, sy, 2.3, 0, TAU); g.fill(); g.fillStyle = '#08080a'; g.beginPath(); for (let k = 0; k < 6; k++) { const q = k / 6 * TAU; g.lineTo(sx + Math.cos(q) * 1.1, sy + Math.sin(q) * 1.1); } g.fill();
+    if (i === 0 || i === 3) {
+      g.save(); g.rotate(a); g.translate(R * 0.61, 0);
+      if (i === 0) { g.beginPath(); g.rect(-7, -4.5, 14, 9); g.clip(); g.fillStyle = '#ffd23f'; g.fillRect(-7, -4.5, 14, 9); g.fillStyle = '#08080a'; for (let x = -12; x < 10; x += 4) { g.beginPath(); g.moveTo(x, 4.5); g.lineTo(x + 4.5, -4.5); g.lineTo(x + 6.5, -4.5); g.lineTo(x + 2, 4.5); g.fill(); } }
+      else { g.rotate(HALF); g.font = `700 4.6px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText('GBX-02', 0, 0); }
+      g.restore();
+    }
+  }
+  // stencils on the rim band
+  g.font = `800 5.6px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const [a, s] of [[-0.55, 'GBX-02  //  900 RPM'], [-0.55 + Math.PI, 'KEEP HANDS CLEAR']]) { g.save(); g.rotate(a); g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(s, 0.4, -R + 4.4); g.fillStyle = 'rgba(255,210,63,.85)'; g.fillText(s, 0, -R + 4); g.restore(); }
+  // brass hub: a steel collar, machined brass with an engraved ring of text, a dark well for the iris
+  g.fillStyle = '#16161b'; g.beginPath(); g.arc(0, 0, R * 0.395, 0, TAU); g.fill();
+  gr = g.createRadialGradient(0, 0, R * 0.34, 0, 0, R * 0.39); gr.addColorStop(0, '#38383f'); gr.addColorStop(0.5, '#a8a8b2'); gr.addColorStop(1, '#2a2a31'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R * 0.385, 0, TAU); g.arc(0, 0, R * 0.345, 0, TAU, true); g.fill('evenodd');
+  gr = g.createRadialGradient(0, 0, R * 0.2, 0, 0, R * 0.345); gr.addColorStop(0, '#7a4a12'); gr.addColorStop(0.3, '#e0b84a'); gr.addColorStop(0.6, '#c89a1a'); gr.addColorStop(0.85, '#f2d27a'); gr.addColorStop(1, '#6b3e10');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R * 0.345, 0, TAU); g.fill();
+  for (let r = R * 0.22; r < R * 0.34; r += 0.9) { g.strokeStyle = rnd() < 0.5 ? 'rgba(255,240,190,.12)' : 'rgba(80,40,0,.12)'; g.lineWidth = 0.4; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+  const ring = 'KNAIFE FOUNDRY  •  GEARBOX MK II  •  900 RPM  •  ', step = TAU / ring.length;
+  g.font = `800 3.6px ${FONT}`;
+  for (let i = 0; i < ring.length; i++) { g.save(); g.rotate(i * step); g.translate(0, -R * 0.285); g.fillStyle = 'rgba(255,240,190,.5)'; g.fillText(ring[i], 0.25, 0.3); g.fillStyle = 'rgba(70,34,6,.9)'; g.fillText(ring[i], 0, 0); g.restore(); }
+  g.fillStyle = '#0d0d10'; g.beginPath(); g.arc(0, 0, R * 0.235, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(255,240,190,.4)'; g.lineWidth = 0.6; g.beginPath(); g.arc(0, 0, R * 0.235, 0, TAU); g.stroke();
+  // grime: oil stains, scratches, rust specks at the rim
+  for (let i = 0; i < 7; i++) { const a = rnd() * TAU, r0 = R * (0.45 + rnd() * 0.4), x = Math.cos(a) * r0, y = Math.sin(a) * r0, rr = 5 + rnd() * 9; gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, 'rgba(10,6,2,.35)'); gr.addColorStop(1, 'rgba(10,6,2,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+  g.lineWidth = 0.5; for (let i = 0; i < 34; i++) { const a = rnd() * TAU, r0 = R * (0.42 + rnd() * 0.55), l = 0.03 + rnd() * 0.12; g.strokeStyle = `rgba(255,255,255,${0.08 + rnd() * 0.12})`; g.beginPath(); g.arc(0, 0, r0, a, a + l); g.stroke(); }
+  for (let i = 0; i < 46; i++) { const a = rnd() * TAU, r0 = R - 1 - rnd() * 16; g.fillStyle = rnd() < 0.5 ? 'rgba(140,60,20,.45)' : 'rgba(90,40,14,.5)'; g.fillRect(Math.cos(a) * r0, Math.sin(a) * r0, 0.8 + rnd(), 0.8 + rnd()); }
+  return c;
+}
+
+// ---------- the boss gear: live layers drawn over the face every frame ----------
+const GEAR_LA = -2.25;   // the room's key light comes from the upper left
+function drawGearDepth(t) {
+  const T = t.gear, F = musicFeel('gear');
+  // the machinery behind the spoke windows: a counter-rotating cog and a hot glow that breathes with the bass
+  ctx.save(); ctx.beginPath();
+  for (let i = 0; i < 6; i++) { const a1 = i / 6 * TAU + 0.2, a2 = (i + 1) / 6 * TAU - 0.2; ctx.moveTo(Math.cos(a1) * (R - 18), Math.sin(a1) * (R - 18)); ctx.arc(0, 0, R - 18, a1, a2); ctx.arc(0, 0, R * 0.38 + 1, a2, a1, true); ctx.closePath(); }
+  ctx.clip();
+  ctx.fillStyle = '#050302'; ctx.fillRect(-R, -R, R * 2, R * 2);
+  ctx.save(); ctx.rotate(-t.rot);
+  const hg = ctx.createRadialGradient(0, R * 0.9, 4, 0, R * 0.5, R * 1.2); hg.addColorStop(0, `rgba(255,140,40,${Math.min(1, 0.35 + 0.45 * F.bass + 0.3 * T.exposed)})`); hg.addColorStop(1, 'rgba(255,80,10,0)'); ctx.fillStyle = hg; ctx.fillRect(-R, -R, R * 2, R * 2);
+  ctx.restore();
+  drawCogFast(R * 0.1, R * 0.08, R * 0.84, 28, -t.rot * 2.2 + (T.inner || 0) * 0.3, { spokes: 6, body: '#4a2410', hub: '#c89a1a', shade: true, hi: 'rgba(255,200,120,.3)', lo: '#140802' });
+  drawCogFast(-R * 0.42, -R * 0.36, R * 0.3, 12, t.rot * 4.5, { body: '#2a2a31', hub: '#ff7a1a', shade: true, hi: 'rgba(255,255,255,.2)', lo: '#08080a' });
+  const sh = ctx.createRadialGradient(0, 0, R * 0.36, 0, 0, R - 16); sh.addColorStop(0, 'rgba(0,0,0,.7)'); sh.addColorStop(0.5, 'rgba(0,0,0,.25)'); sh.addColorStop(1, 'rgba(0,0,0,.6)'); ctx.fillStyle = sh; ctx.fillRect(-R, -R, R * 2, R * 2);
+  ctx.restore();
+  // polished metal: a sheen that stays with the room light while the gear turns
+  ctx.save(); ctx.rotate(-t.rot); ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.clip(); ctx.globalCompositeOperation = 'lighter';
+  blit(bakeSprite('gearSheen', -R, -R, R * 2, R * 2, g => {
+    const sg = g.createLinearGradient(-R, -R * 0.7, R * 0.7, R); sg.addColorStop(0.18, 'rgba(255,255,255,0)'); sg.addColorStop(0.33, 'rgba(255,236,200,.2)'); sg.addColorStop(0.4, 'rgba(255,255,255,.05)'); sg.addColorStop(0.58, 'rgba(255,236,200,.09)'); sg.addColorStop(0.68, 'rgba(255,255,255,0)');
+    g.fillStyle = sg; g.fillRect(-R, -R, R * 2, R * 2);
+    const rim = g.createRadialGradient(-R * 0.45, -R * 0.55, 2, -R * 0.45, -R * 0.55, R * 0.9); rim.addColorStop(0, 'rgba(255,240,215,.18)'); rim.addColorStop(1, 'rgba(255,240,215,0)'); g.fillStyle = rim; g.fillRect(-R, -R, R * 2, R * 2);
+  }));
+  ctx.restore();
+}
+function drawGearIris(t) {
+  const T = t.gear, F = musicFeel('gear'), col = T.jam > 0 ? [124, 255, 79] : T.sw ? [255, 210, 63] : [255, 46, 69];
+  const open = T.jam > 0 ? 1 : T.sw ? 0.35 + 0.25 * Math.sin(time * 16) : 0.55 + 0.25 * F.bass, rr = R * 0.215, ap = rr * (0.25 + 0.6 * open);
+  // counter-rotating inner cog behind the iris
+  drawCog(0, 0, R * 0.2, 12, -T.inner * 3 - t.rot * 2, { body: '#c89a1a', hub: null, lo: '#5e2e10', shade: true });
+  ctx.save(); ctx.rotate(-t.rot);
+  const eg = ctx.createRadialGradient(0, 0, 1, 0, 0, 30); eg.addColorStop(0, `rgba(${col},${0.75 + 0.25 * open})`); eg.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = eg; ctx.fillRect(-30, -30, 60, 60);
+  ctx.fillStyle = `rgb(${col})`; ctx.beginPath(); ctx.arc(0, 0, rr - 1, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, ap * 0.45, 0, TAU); ctx.fill();
+  // six aperture blades, turning as they open and close
+  const tw = 0.9 - open * 0.7;
+  ctx.save(); ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.clip();
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * TAU + tw, cx = Math.cos(a) * ap, cy = Math.sin(a) * ap, ta = a + HALF;
+    ctx.fillStyle = i % 2 ? '#1e1e24' : '#16161b'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ta) * rr * 2, cy + Math.sin(ta) * rr * 2); ctx.lineTo(cx + Math.cos(ta) * rr * 2 + Math.cos(a) * rr * 2, cy + Math.sin(ta) * rr * 2 + Math.sin(a) * rr * 2); ctx.lineTo(cx + Math.cos(a) * rr * 2, cy + Math.sin(a) * rr * 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ta) * rr * 2, cy + Math.sin(ta) * rr * 2); ctx.stroke();
+  }
+  ctx.restore();
+  // housing ring, screws and the lens glint
+  ctx.strokeStyle = '#08080a'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = '#c89a1a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, rr + 1.4, 0, TAU); ctx.stroke();
+  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.5; ctx.fillStyle = '#ffe680'; ctx.fillRect(Math.cos(a) * (rr + 1.4) - 0.8, Math.sin(a) * (rr + 1.4) - 0.8, 1.6, 1.6); }
+  ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.ellipse(-rr * 0.38, -rr * 0.42, rr * 0.28, rr * 0.12, -0.6, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawGearLive(t) {
+  const T = t.gear, s = TAU / GEAR_TEETH, hw0 = s * R * 0.34, hw1 = s * R * 0.2, sc = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+  drawGearDepth(t);
+  // machined teeth: each flank lit by where it faces in the room
+  for (let i = 0; i < GEAR_TEETH; i++) {
+    if (T.lost.has(i)) continue;
+    const wa = i * s + t.rot, Lt = 0.5 + 0.5 * Math.cos(wa - GEAR_LA), Lm = 0.5 + 0.5 * Math.cos(wa - HALF - GEAR_LA), Lp = 0.5 + 0.5 * Math.cos(wa + HALF - GEAR_LA);
+    const base = T.seize > 0 ? [255, 122 + 60 * T.seize, 26] : [72, 72, 82], k = T.seize > 0 ? 0.6 + 0.4 * T.seize : 1;
+    const shade = L => sc(base.map((v, j) => Math.round(Math.min(255, (v * (0.45 + 0.9 * L)) * k + (j === 2 ? 8 : 0) * L))));
+    ctx.save(); ctx.rotate(i * s);
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(R - 3, -hw0 - 1.2); ctx.lineTo(R + 12.5, -hw1 - 1.2); ctx.lineTo(R + 12.5, hw1 + 1.2); ctx.lineTo(R - 3, hw0 + 1.2); ctx.fill();
+    ctx.fillStyle = shade(Lm); ctx.beginPath(); ctx.moveTo(R - 2, -hw0); ctx.lineTo(R + 11, -hw1); ctx.lineTo(R + 11, 0); ctx.lineTo(R - 2, 0); ctx.fill();
+    ctx.fillStyle = shade(Lp); ctx.beginPath(); ctx.moveTo(R - 2, 0); ctx.lineTo(R + 11, 0); ctx.lineTo(R + 11, hw1); ctx.lineTo(R - 2, hw0); ctx.fill();
+    ctx.fillStyle = shade(Math.min(1, Lt + 0.25)); ctx.fillRect(R + 8, -hw1, 3, hw1 * 2);
+    if (Lt > 0.6) { ctx.fillStyle = `rgba(255,255,255,${(Lt - 0.6) * 1.6})`; ctx.fillRect(R + 10, -hw1, 1, hw1 * 2); }
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(R - 2, -0.4, 13, 0.8);
+    ctx.restore();
+  }
+  if (T.exposed > 0) {
+    const p = (0.55 + 0.25 * Math.sin(time * 7)) * T.exposed;
+    for (let i = 0; i < 6; i++) {
+      const a1 = i / 6 * TAU + 0.2, a2 = (i + 1) / 6 * TAU - 0.2;
+      ctx.beginPath(); ctx.arc(0, 0, R - 17, a1, a2); ctx.arc(0, 0, R * 0.38, a2, a1, true); ctx.closePath();
+      ctx.fillStyle = `rgba(255,122,26,${0.3 * p})`; ctx.fill(); ctx.strokeStyle = `rgba(255,230,128,${0.75 * p})`; ctx.lineWidth = 1.5; ctx.stroke();
+      const am = (a1 + a2) / 2; ctx.fillStyle = `rgba(255,230,128,${p})`; ctx.fillRect(Math.cos(am) * R * 0.6 - 2, Math.sin(am) * R * 0.6 - 2, 4, 4);
+    }
+  }
+  drawGearIris(t);
+  if (T.jam > 0) { ctx.fillStyle = 'rgba(124,255,79,.15)'; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+  if (T.seize > 0) {
+    ctx.strokeStyle = `rgba(255,122,26,${T.seize})`; ctx.lineWidth = 1 + T.seize * 2;
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.4, Math.sin(a) * R * 0.4); ctx.lineTo(Math.cos(a + 0.15) * R * 0.65, Math.sin(a + 0.15) * R * 0.65); ctx.lineTo(Math.cos(a + 0.05) * R * 0.95, Math.sin(a + 0.05) * R * 0.95); ctx.stroke(); }
+  }
+}
+
+// ======== GEARBOX background: the engine hall, run by the song ========
+// Quiet sections cool the hall to steel blue and slow the machines; loud ones bring the furnace up, the pistons
+// all hammer on the downbeat and the tach ring round the boss swings into the red. A build-up ahead lifts a glow
+// from the floor before it lands.
+const GB52 = { lt: null, s: 0, tach: 0 };
+const GB_COLS = [[-20, 150, 120, 24, 1], [70, 360, 70, 14, -1], [-10, 540, 110, 22, 1], [W + 20, 120, 130, 26, -1], [W - 60, 330, 64, 13, 1], [W + 10, 560, 100, 20, -1]];
+BG.gear = (B, px, py) => {
+  const F = musicFeel('gear'), sec = F.sec, cold = clamp((0.5 - sec) / 0.3, 0, 1), hot = clamp((sec - 0.3) / 0.4, 0, 1);
+  if (GB52.lt === null) GB52.lt = time; const dt = clamp(time - GB52.lt, 0, 0.1); GB52.lt = time;
+  GB52.s += dt * (0.3 + 1.4 * hot + 1.2 * F.drop);
+  GB52.tach += (clamp((sec - 0.08) / 0.72 + 0.25 * F.drop + 0.12 * F.bass, 0, 1) - GB52.tach) * Math.min(1, dt * 10);
+  bgFill('gear52', [[0, '#080302'], [0.45, '#1a0904'], [0.8, '#3e1605'], [1, '#7a2c08']]);
+  const [vx0, vx1] = viewX();
+  // far wall: tall foundry windows, light shafts flickering with the hats
+  ctx.save(); ctx.translate(px * 0.1, py * 0.1);
+  const wc = cold > 0.5 ? '70,110,170' : '255,150,60';
+  for (let i = 0; i < 4; i++) { const x = 20 + i * 104; ctx.fillStyle = '#050202'; ctx.fillRect(x, -40, 70, 250); ctx.fillStyle = `rgba(${wc},${0.1 + 0.12 * hot + 0.08 * cold})`; for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) ctx.fillRect(x + 6 + c * 31, -30 + r * 58, 27, 52); }
+  ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) { const fl = 0.5 + 0.5 * Math.sin(time * 2 + i * 1.7), a = (0.025 + 0.05 * F.high * fl) * (0.6 + 0.6 * hot); beam(55 + i * 104 + px * 0.1, 0, HALF - 0.28, 820, 22, 90, cold > 0.5 ? `rgba(120,160,230,${a})` : `rgba(255,190,110,${a})`); }
+  ctx.restore();
+  // the great flywheel behind everything
+  ctx.save(); ctx.translate(px * 0.16, py * 0.16);
+  { // drawn as strokes, not a rotated full-screen sprite: the teeth are a dashed ring turned by its dash offset
+    const fx0 = CX, fy0 = CY + 60, fr = 296, fa = GB52.s * 0.06, tp = TAU * (fr + 12) / 64;
+    ctx.strokeStyle = '#150803'; ctx.lineWidth = 24; ctx.setLineDash([tp * 0.48, tp * 0.52]); ctx.lineDashOffset = -fa * (fr + 12); ctx.beginPath(); ctx.arc(fx0, fy0, fr + 12, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#120703'; ctx.lineWidth = 34; ctx.beginPath(); ctx.arc(fx0, fy0, fr - 16, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,140,60,.09)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx0, fy0, fr - 32, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = '#100603'; ctx.lineWidth = 30; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = fa + i / 6 * TAU; ctx.moveTo(fx0 + Math.cos(a) * 50, fy0 + Math.sin(a) * 50); ctx.lineTo(fx0 + Math.cos(a) * (fr - 20), fy0 + Math.sin(a) * (fr - 20)); } ctx.stroke();
+    ctx.fillStyle = '#1e0c04'; ctx.beginPath(); ctx.arc(fx0, fy0, 62, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  // furnace light breathing up from below, swelling with the song and ahead of a build
+  blit(bakeSprite('gearGlow', -60, H - 380, W + 120, 420, g => { const gg = g.createLinearGradient(0, H - 380, 0, H + 40); gg.addColorStop(0, 'rgba(255,122,26,0)'); gg.addColorStop(1, 'rgba(255,150,40,.55)'); g.fillStyle = gg; g.fillRect(-60, H - 380, W + 120, 420); }));
+  ctx.save(); ctx.globalAlpha = clamp(0.25 + 0.55 * hot + 0.35 * F.bass + 1.2 * Math.max(0, F.ahead), 0, 1); blit(sprites.gearGlow); ctx.restore();
+  // side gear trains stepping a tooth per beat (twice a beat in the loud parts)
+  const per = hot > 0.6 ? 2 : 1, bb = B.b * per, tick = Math.floor(bb) + stepEase(((bb % 1) + 1) % 1);
+  ctx.save(); ctx.translate(px * 0.35, py * 0.35);
+  for (const [x, y, r, n, d] of GB_COLS) drawCogFast(x, y, r, n, d * tick * TAU / n, { spokes: r > 80 ? 5 : 4, body: '#2e1407', hub: '#c89a1a', shade: true, hi: 'rgba(255,170,80,.22)', lo: '#0d0503' });
+  // vertical drive chains on both walls, speed with the song
+  const cs = GB52.s * 90;
+  for (const x of [52, W - 52]) { ctx.fillStyle = '#08080a'; ctx.fillRect(x - 5, -60, 10, H + 120); for (let y = -60 + (cs % 16); y < H + 60; y += 16) { ctx.fillStyle = '#5c5c66'; ctx.fillRect(x - 4, y, 8, 11); ctx.fillStyle = '#a8a8b2'; ctx.fillRect(x - 4, y, 8, 2); } }
+  ctx.restore();
+  // the tach ring round the boss: lit segments follow the song's intensity, redline on the drops
+  const NS = 44, a0 = HALF + 0.75, span = TAU - 1.5, lit = Math.round(NS * GB52.tach), r0 = R + 64, r1 = R + 78;
+  const seg = (i, rA, rB) => { const a = a0 + (i + 0.12) / NS * span, b = a0 + (i + 0.88) / NS * span; ctx.moveTo(Math.cos(a) * rA + CX, Math.sin(a) * rA + CY); ctx.lineTo(Math.cos(b) * rA + CX, Math.sin(b) * rA + CY); ctx.lineTo(Math.cos(b) * rB + CX, Math.sin(b) * rB + CY); ctx.lineTo(Math.cos(a) * rB + CX, Math.sin(a) * rB + CY); ctx.closePath(); };
+  ctx.save(); ctx.translate(px * 0.6, py * 0.6);
+  ctx.fillStyle = 'rgba(8,8,10,.75)'; ctx.beginPath(); ctx.arc(CX, CY, r1 + 4, a0 - 0.03, a0 + span + 0.03); ctx.arc(CX, CY, r0 - 4, a0 + span + 0.03, a0 - 0.03, true); ctx.closePath(); ctx.fill();
+  const red = F.drop > 0.25 && Math.sin(time * 30) > 0 ? '#ffffff' : '#ff2e45';
+  for (const [c, f] of [['#1e1e24', i => i >= lit], ['#ffd23f', i => i < lit && i < NS * 0.62], ['#ff7a1a', i => i < lit && i >= NS * 0.62 && i < NS * 0.84], [red, i => i < lit && i >= NS * 0.84]]) { ctx.fillStyle = c; ctx.beginPath(); for (let i = 0; i < NS; i++) if (f(i)) seg(i, r0, r1); ctx.fill(); }
+  if (lit > 0) { const a = a0 + lit / NS * span, gx = CX + Math.cos(a) * (r0 + 7), gy = CY + Math.sin(a) * (r0 + 7); ctx.globalCompositeOperation = 'lighter'; const gg = ctx.createRadialGradient(gx, gy, 1, gx, gy, 26); gg.addColorStop(0, 'rgba(255,220,140,.8)'); gg.addColorStop(1, 'rgba(255,120,30,0)'); ctx.fillStyle = gg; ctx.fillRect(gx - 26, gy - 26, 52, 52); }
+  ctx.restore();
+  // pistons along the top: one per beat in turn; all of them on the downbeat when the song is loud
+  ctx.save(); ctx.translate(px * 0.5, py * 0.5);
+  for (let i = 0; i < 5; i++) {
+    const x = 30 + i * 90, mine = ((B.k % 5) + 5) % 5 === i || (hot > 0.6 && B.down > 0.05), e = mine ? (B.u < 0.1 ? B.u / 0.1 : Math.max(0, 1 - (B.u - 0.1) / 0.6)) : 0, ext = 26 + e * (60 + 30 * hot);
+    ctx.fillStyle = '#16161b'; ctx.fillRect(x - 18, -40, 36, 60); ctx.fillStyle = '#38383f'; ctx.fillRect(x - 18, -40, 4, 60); ctx.fillStyle = '#5c5c66'; ctx.fillRect(x - 18, 14, 36, 6);
+    ctx.fillStyle = '#a8a8b2'; ctx.fillRect(x - 6, 20, 12, ext); ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 4, 20, 2.5, ext); ctx.fillStyle = '#38383f'; ctx.fillRect(x + 3, 20, 3, ext);
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - 16, 20 + ext, 32, 12); ctx.fillStyle = '#08080a'; for (let s = 0; s < 4; s++) ctx.fillRect(x - 16 + s * 9, 20 + ext, 4, 12);
+    if (mine && B.u < 0.35) { const k = B.u / 0.35; for (let s = 0; s < 10; s++) { const a = HALF + (s - 4.5) * 0.32, d2 = 10 + k * 70; ctx.fillStyle = s % 2 ? '#ffd23f' : '#ffffff'; ctx.fillRect(x + Math.cos(a) * d2, 32 + ext + Math.sin(a) * d2 * 0.6 + k * k * 34, 3, 2); } }
+  }
+  ctx.restore();
+  // a molten channel along the floor, flowing with the song, brighter on the bass
+  const my = H - 46 + py * 0.6, flow = GB52.s * 60;
+  ctx.fillStyle = '#16161b'; ctx.fillRect(vx0, my - 10, vx1 - vx0, 34);
+  const mg = ctx.createLinearGradient(0, my - 4, 0, my + 18); mg.addColorStop(0, '#ffe680'); mg.addColorStop(0.4, '#ff7a1a'); mg.addColorStop(1, '#6b2604'); ctx.fillStyle = mg; ctx.fillRect(vx0, my - 4, vx1 - vx0, 22);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,240,180,${Math.min(1, 0.25 + 0.5 * F.bass)})`;
+  for (let x = vx0 - (flow % 46); x < vx1; x += 46) { ctx.beginPath(); ctx.ellipse(x, my + 4 + Math.sin(x * 0.07 + time * 3) * 2, 14, 2.2, 0, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  ctx.fillStyle = '#2a2a31'; ctx.fillRect(vx0, my - 12, vx1 - vx0, 5); ctx.fillStyle = '#ffd23f'; for (let x = Math.floor(vx0 / 28) * 28; x < vx1; x += 28) ctx.fillRect(x, my - 12, 14, 5);
+  // grinders in the lower corners throw spark fans on the hats and snares
+  const sf = Math.exp(-B.u * 6) * F.high;
+  if (sf > 0.05) { for (const [gx, d] of [[14, 1], [W - 14, -1]]) for (let i = 0; i < 14; i++) { const k = (B.u * 2.4 + hash(i, 21, 1) * 0.3) % 1, a = -HALF + d * (0.4 + hash(i, 21, 2) * 0.9), sp = 120 + hash(i, 21, 3) * 160; ctx.fillStyle = i % 3 ? '#ffd23f' : '#ffffff'; ctx.globalAlpha = sf * (1 - k); ctx.fillRect(gx + Math.cos(a) * sp * k, H - 140 + Math.sin(a) * sp * k + 260 * k * k, 2.5, 1.5); } ctx.globalAlpha = 1; }
+  // embers pouring up, thicker as the song builds
+  const ne = Math.round(16 + 48 * hot);
+  for (let i = 0; i < ne; i++) { const sp = 60 + hash(i, 2, 1) * 120, x = hash(i, 2, 2) * W + Math.sin(time * 1.6 + i) * 14 + px * 0.8, y = H + 20 - ((time * sp * (0.6 + 0.7 * hot) + hash(i, 2, 3) * 900) % (H + 40)), fl = 0.5 + 0.5 * Math.sin(time * 9 + i); ctx.fillStyle = fl > 0.6 ? '#ffd23f' : '#ff7a1a'; ctx.fillRect(x, y, 2 + B.down * 2, 2 + B.down * 2); }
+  // steam vents puffing on the off-beats
+  const off = Math.exp(-((((B.b + 0.5) % 1) + 1) % 1) * 4);
+  for (const x of [-10, W + 10]) introSmoke(x, H - 120, time, 5, 30, 160 + 120 * off, x > 0 ? 7 : 8, 0.2 + 0.3 * off);
+  // the quiet sections run cold
+  if (cold > 0.02) { ctx.fillStyle = `rgba(10,22,48,${0.62 * cold})`; fillView(); }
+  bgFlash('#ff7a1a', 0.1 * B.down * (0.3 + 0.7 * hot));
+  if (B.u < 0.1 && hot > 0.5) bloomBoost = Math.max(bloomBoost, 0.12 + 0.25 * hot * B.pulse);
+  bgStage();
+};
+
+// ---------- gear sounds with variety ----------
+const GEARHITS = [
+  () => { const f = rand(380, 430); [[1, 0.12, 0.7], [2.41, 0.07, 0.45], [4.7, 0.04, 0.3]].forEach(([r, g, d], i) => tone(i ? 'sine' : 'triangle', f * r, f * r * 0.99, d, g, { wet: 0.5, attack: 0.001 })); noise(0.04, 5200, 1, 0.55, 'highpass'); tone('sine', 140, 52, 0.16, 0.55, { drive: true }); for (let i = 0; i < 3; i++) tone('square', rand(2200, 3000), rand(1800, 2200), 0.02, 0.03, { delay: 0.04 + i * 0.035 }); },
+  () => { const f = rand(520, 580); [[1, 0.11, 0.55], [2.9, 0.06, 0.35], [5.3, 0.035, 0.25]].forEach(([r, g, d]) => tone('sine', f * r, f * r, d, g, { wet: 0.6, attack: 0.001 })); noise(0.05, 3800, 1.6, 0.6, 'bandpass', { drive: true }); tone('sine', 170, 60, 0.12, 0.5, { drive: true }); },
+  () => { const f = rand(300, 340); tone('square', f, f * 0.97, 0.25, 0.05, { wet: 0.5 }); tone('sine', f * 3.1, f * 3.05, 0.4, 0.05, { wet: 0.6 }); noise(0.03, 6500, 1, 0.5, 'highpass'); noise(0.12, 900, 2, 0.5, 'bandpass', { curve: 2 }); tone('sine', 120, 44, 0.2, 0.6, { drive: true }); },
+];
+const RATCHETS = [
+  () => { tone('square', 2400, 1900, 0.025, 0.05); noise(0.03, 3500, 3, 0.18, 'bandpass'); tone('sine', 180, 120, 0.05, 0.12); },
+  () => { tone('square', 2900, 2300, 0.02, 0.045); noise(0.025, 4200, 4, 0.2, 'bandpass'); tone('triangle', 240, 150, 0.04, 0.1); },
+  () => { tone('square', 2100, 1700, 0.03, 0.05); noise(0.04, 3000, 2.5, 0.16, 'bandpass', { drive: true }); tone('sine', 150, 100, 0.06, 0.13); },
+];
+Object.assign(sfx, {
+  gearHit() { GEARHITS[pickVar('gearhit', GEARHITS.length)](); },
+  ratchet() { RATCHETS[pickVar('ratchet', RATCHETS.length)](); },
+});
+
 
 
 
@@ -10958,7 +11141,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 51', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 52', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

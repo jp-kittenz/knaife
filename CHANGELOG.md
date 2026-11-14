@@ -2,6 +2,27 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 52
+- **Gearbox redesigned.**
+- **New intro, cut to the boss track.** The music starts on the black screen and the picture follows it:
+  - 0:00: black. 0:00.4: a furnace wakes behind one great wheel.
+  - 0:03.6: a wall of clockwork ticks in the dark.
+  - 0:07.1: the drive chain snaps taut. 0:08: the furnace doors slam open and the engine spins up.
+  - 0:09.7 to 0:11.2: on each hit of the snare roll, a pawl clicks the live boss round one tooth while the camera steps out and the RPM readout climbs.
+  - 0:11.3: the drop lands on the gameplay framing with no cut. The HUD assembles from shards and the knife rises into place.
+- **Boss art:**
+  - A machined gunmetal face with lathe rings and heat-tempered colour around the hub.
+  - A raised, knurled rim with hex bolts, and chamfered spoke windows.
+  - Behind the windows, machinery turns and glows with the bass.
+  - An engraved brass hub, and an iris eye whose blades open and close with the music.
+  - Teeth lit per flank from the room light, plus a sheen that stays put as the gear turns.
+- **Background follows the song, not just the beat:**
+  - Quiet sections cool the engine hall to steel blue and slow the machines.
+  - Loud sections bring the furnace up, double the gear-train speed and slam every piston on the downbeat.
+  - A tach ring around the boss fills with the song's intensity and flashes the redline on drops.
+  - Also: foundry windows with light shafts, a flywheel, wall chains, a molten floor channel, grinder spark fans on the hats, embers and steam.
+- **Sound variety:** gear hits and ratchet clicks each pick from several recipes.
+
 ## Build 51.2
 - Water Tanker pipe obstacles redesigned:
   - A lit steel cylinder whose shading follows the room light as the tank turns.
