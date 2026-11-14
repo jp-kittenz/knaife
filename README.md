@@ -33,3 +33,8 @@ A knife-throwing web game. Open `index.html` in a browser.
 ## Build 39
 - Hornet's Nest has its own music: the nest theme (Flamewall cut, loops bars 33.2s-110.0s on a crossfaded seam) and a queen theme (loops 0.12s-19.32s). The hive break tape-stops the stage music and slams into the nest theme; the queen's hatch tape-stops it, cuts to silence and slams into the queen theme.
 - 28 ability interactions per knife (11 log types, 5 branch kinds, 4 birds, apples, hidden knives, 4 named bosses, the queen, classic bosses), called out in an on-screen feed and listed per knife in the encyclopedia.
+
+## Build 44
+- Every log feature redrawn and reanimated: shaded tapered branches with flipping leaves, layered flames that rise with the screen, a steel coil spring, a swinging beehive that drips honey, a frayed sparking cable, a sagging padlocked chain, layered swaying bushes, scalloped moss with strands and dew, tunnel weak spots with beating cores and a walking beetle, a hollow with brow, eyes, jaw, tongue and breath, bevelled armour with a sweeping sheen, a motion-blurred saw.
+- New log types: LODESTONE (magnetic pulses bunch knives, poles repel), BRAMBLE (orbiting thorn vines snag), FUNGAL LOG (mushrooms x2 + spore haze), RUNESTONE (hit the lit rune for x2 and charge).
+- 32 ability interactions per knife.
