@@ -2,6 +2,33 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 54
+- **Hornet's Nest redrawn.** This is a visual retouch only: every rule, timer and hit test is unchanged.
+- **New intro, cut to the boss track.** The hive still splits in slow motion in the game, then the track slams in on black:
+  - 0:01.3: the spinning star.
+  - 0:03: face to face with a hornet, its mandibles snapping shut on each kick.
+  - 0:07.9: the swarm pours straight at the camera.
+  - 0:09.7: deep in the comb, the royal cell beats until it cracks and a red eye opens.
+  - 0:11.6: the real nest lowers into the live hive on its paper stalk, tearing down a notch at 0:12.4 and 0:12.7.
+  - 0:13.0: it lands on the drop, with no cut. The HUD assembles from shards and the knife rises.
+- **Hornets:**
+  - Redrawn in high resolution: glossy striped bodies, fuzzy thoraxes, compound eyes, mandibles and two pairs of veined wings.
+  - The queen gets a crown and red eyes.
+  - Orbiting wasps leave short flight trails.
+- **The nest:**
+  - Swirling, layered paper with fibre streaks, shadowed band edges and a raised entrance, plus a warm rim light and sheen.
+  - Infested spots are chewed open to comb with larvae, and breaches tear open with curled paper flaps.
+  - Royal jelly is now glossy amber.
+  - The queen's cracks glow red.
+- **Hive background follows the song:**
+  - Two walls of comb in parallax with capped cells, honey and larvae, plus light shafts and glossy honey running down.
+  - Quiet parts dim the hive and thin the swarm. Loud parts thicken the swarm and send light racing through the cells.
+  - Drops flash the comb in rings. The queen's chamber is the same hive in red, with her crown.
+- **Queen moves reanimated:**
+  - Royal Guard is now a honeycomb shield. Stinger Volley fires gold darts with trails and shows the shots remaining.
+  - Swarm Call sends out shriek rings, Royal Jelly throws a spray, and Dive Bomb gets afterimages and a hex reticle.
+  - Dazed spins stars round her. A crowned "The Queen" card plays at the hatch.
+
 ## Build 53
 - **Monster Tire redrawn.** This is a visual retouch only: every rule, timer and hit test is unchanged.
 - **New intro, cut to the boss track.** The music starts on the black screen:
