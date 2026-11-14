@@ -862,8 +862,13 @@ function newStage() {
   const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
-  const type = tanker || gearB || tireB ? 'plain' : nestB ? 'branches' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB || tireB ? 'plain' : nestB ? 'branches' : forceType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
+  if (hasPassive('birdheart') && !boss && type !== 'branches' && stage > 1 && Math.random() < 0.3) {   // a bonus perch on any other log
+    const taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a), (tgt.f.kegs || []).map(k => k.a), (tgt.f.ice || []).map(i => i.a), tgt.f.treehole ? [tgt.f.treehole.a] : [], tgt.f.bushes.map(b => b.a), tgt.f.moss.map(m => m.a));
+    const a = placeAngles(1, 0.55, taken)[0];
+    if (a !== undefined) { tgt.f.branches.push(makeBranch(a, 'bird')); pending.push({ t: 0.6, f: () => { floater("BIRD'S HEART: A BIRD LANDS", CX, CY - R - 40, '#ff2e45'); sfx.tweet(); abil.pop.passive2 = 1; } }); }
+  }
   fxp = []; pending = []; zapT = 0; ghostSaws = []; ixq = [];
   if (abil.state === 'used' && !fx) { abil.state = 'cooldown'; abil.charge = 0; }
   const tn = type === 'plain' ? '' : TYPE_NAME[type];
@@ -1824,7 +1829,9 @@ function decorate(t, type) {
   const pick = arr => arr[Math.floor(rand(arr.length))];
   if (type === 'branches') {
     const n = 2 + Math.floor(rand(3)), subs = [];
-    for (let i = 0; i < n; i++) subs.push(pick(BRANCH_SUBS));
+    const heart = hasPassive('birdheart') && !t.boss;
+    for (let i = 0; i < n; i++) subs.push(heart && Math.random() < 0.45 ? 'bird' : pick(BRANCH_SUBS));
+    if (heart && !subs.includes('bird')) subs[0] = 'bird';
     if (subs.filter(s => s === 'linked').length === 1) subs[subs.indexOf('linked')] = 'plain';
     // linked branches come in neighbouring pairs
     const angs = [];
@@ -2469,6 +2476,28 @@ function logoBird(fg, bg) {
   poly([[-3, -5], [3, -5], [0, 0]]); ctx.fillStyle = bg; ctx.fill();
 }
 
+function logoHeart(fg, bg) {
+  const off = fg === '#5c5c66', red = off ? '#6a0a18' : '#ff2e45', dk = off ? '#4a0712' : '#a3122a';
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // body and folded wing
+  ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(-10, 2); ctx.quadraticCurveTo(-16, 12, -15, 20); ctx.lineTo(12, 20); ctx.quadraticCurveTo(18, 10, 10, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = bg; ctx.lineWidth = 1.4; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-8 + i * 2, 6 + i * 4); ctx.quadraticCurveTo(2, 4 + i * 4, 13, 8 + i * 4); ctx.stroke(); }
+  // head, hooked beak
+  ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(-3, -9, 9.5, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-10, -12); ctx.quadraticCurveTo(-22, -6, -20, 6); ctx.quadraticCurveTo(-14, -2, -6, -3); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = bg; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-18, 2); ctx.quadraticCurveTo(-13, -4, -7, -5); ctx.stroke();
+  // the ringed eye
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(-4, -11, 4.6, 0, TAU); ctx.fill(); ctx.strokeStyle = fg; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(-4, -11, 3.2, 0, TAU); ctx.stroke();
+  ctx.fillStyle = red; ctx.beginPath(); ctx.arc(-3.6, -11, 1.5, 0, TAU); ctx.fill();
+  // veins
+  ctx.strokeStyle = red; ctx.lineWidth = 1.2;
+  for (const pts of [[[7, 2], [10, -8], [9, -16]], [[9, 3], [15, -3], [18, -8]], [[4, 6], [-6, 9], [-12, 14], [-8, 18]], [[8, 7], [14, 12], [16, 18]], [[5, 1], [0, -2], [-4, -1]]]) { ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke(); }
+  // the heart: two lobes, the great vessels on top
+  ctx.fillStyle = red; ctx.beginPath(); ctx.moveTo(6, 11); ctx.bezierCurveTo(-2, 6, 0, -1, 5, 0); ctx.bezierCurveTo(7, -3, 13, -1, 12, 4); ctx.bezierCurveTo(11, 8, 8, 10, 6, 11); ctx.fill();
+  ctx.fillStyle = dk; ctx.fillRect(4, -4, 2.2, 4.5); ctx.fillRect(7.5, -5, 2.2, 5.5); ctx.beginPath(); ctx.arc(10.5, -1.5, 1.6, 0, TAU); ctx.fill();
+  ctx.strokeStyle = dk; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(6, 1.5); ctx.quadraticCurveTo(8, 5, 6.5, 9); ctx.stroke();
+}
+
 // ---------- registry ----------
 Object.assign(KNIFE_ABILITIES.strong, { id: 'strong', mode: 'arm', logo: (f, b) => drawLogo(f, b) });
 KNIFE_ABILITIES.marker = { id: 'marker', name: 'MARKER', kind: 'ACTIVE', mode: 'instant', need: 5, logo: logoMarker,
@@ -2482,6 +2511,7 @@ KNIFE_ABILITIES.cook = { id: 'cook', name: 'COOK', kind: 'ACTIVE', mode: 'instan
 const PASSIVES = {
   overvolt: { id: 'overvolt', name: 'OVERVOLT', kind: 'PASSIVE', logo: logoOvervolt, desc: 'Landing in an electric arc overvolts the knife: double damage for 3 hits. Live wires no longer stun you.' },
   getbird: { id: 'getbird', name: 'GET THE BIRD', kind: 'PASSIVE', logo: logoBird, desc: 'Hitting a bird no longer ends the run. Each one is caught for cooking.' },
+  birdheart: { id: 'birdheart', name: "BIRD'S HEART", kind: 'PASSIVE', logo: logoHeart, desc: 'Birds are drawn to you. Each branch has a 45% chance to be a bird perch, every branched log has at least one, branched logs turn up more often, and any other stage has a 30% chance of a bonus perch.' },
 };
 KNIVES.length = 0;
 KNIVES.push(
@@ -2489,13 +2519,14 @@ KNIVES.push(
   { id: 'dagger', name: 'PRECISION DAGGER', lore: 'Balanced to the gram. It always finds the mark.', ability: KNIFE_ABILITIES.marker, passive: null, draw: drawDaggerVector, rarity: ['RARE', 0.6, '#3a7bff'], speed: ['FASTEST', 0.95], weight: ['FEATHER', 0.15] },
   { id: 'carving', name: 'CARVING KNIFE', lore: 'Whittles while it works. Smells of fresh pine.', ability: KNIFE_ABILITIES.carve, passive: null, draw: drawCarvingVector, rarity: ['UNCOMMON', 0.4, '#7fbf3a'], speed: ['STEADY', 0.55], weight: ['MEDIUM', 0.55] },
   { id: 'conductive', name: 'CONDUCTIVE KNIFE', lore: 'Rated 100V. Do not lick the blade.', ability: KNIFE_ABILITIES.chain, passive: PASSIVES.overvolt, draw: drawConductiveVector, rarity: ['EPIC', 0.85, '#9466ff'], speed: ['STEADY', 0.55], weight: ['HEAVY', 0.8] },
-  { id: 'kitchen', name: 'KITCHEN KNIFE', lore: 'From the mill canteen. Still sharp, still hungry.', ability: KNIFE_ABILITIES.cook, passive: PASSIVES.getbird, draw: drawKitchenVector, rarity: ['UNCOMMON', 0.4, '#7fbf3a'], speed: ['FAST', 0.7], weight: ['MEDIUM', 0.5] },
+  { id: 'kitchen', name: 'KITCHEN KNIFE', lore: 'From the mill canteen. Still sharp, still hungry.', ability: KNIFE_ABILITIES.cook, passive: PASSIVES.getbird, passive2: PASSIVES.birdheart, draw: drawKitchenVector, rarity: ['UNCOMMON', 0.4, '#7fbf3a'], speed: ['FAST', 0.7], weight: ['MEDIUM', 0.5] },
 );
 const knifeById = id => KNIVES.find(k => k.id === id) || KNIVES[0];
-let EQUIP = knifeById(load('knaife.knife', 'regular')).id, PASSIVE = null;
+let EQUIP = knifeById(load('knaife.knife', 'regular')).id, PASSIVE = null, PASSIVE2 = null;
+const hasPassive = id => !!((PASSIVE && PASSIVE.id === id) || (PASSIVE2 && PASSIVE2.id === id));
 function equip(id) {
   EQUIP = knifeById(id).id; save('knaife.knife', EQUIP);
-  const kn = knifeById(EQUIP); ABILITY = kn.ability; PASSIVE = kn.passive; abil.need = ABILITY.need;
+  const kn = knifeById(EQUIP); ABILITY = kn.ability; PASSIVE = kn.passive; PASSIVE2 = kn.passive2 || null; abil.need = ABILITY.need;
 }
 function drawKnifeOf(id) { const kn = knifeById(id); blit(bakeSprite('knife_' + id, -24, -2, 48, KL + 4, kn.draw)); }
 function drawWoodKnife() { blit(bakeSprite('woodknife', -12, -2, 24, KL + 4, drawWoodKnifeVector)); }
@@ -2761,6 +2792,12 @@ function drawTray() {
     ctx.scale(0.55, 0.55); PASSIVE.logo(on ? '#ffffff' : '#5c5c66', '#000'); ctx.restore();
     const n = PASSIVE.id === 'overvolt' ? abil.ov : abil.birds || 0;
     if (n) text(String(n), x + 12, y + 12, 9, PASSIVE.id === 'overvolt' ? '#2ad8ff' : '#ffa04a', 'center', 700);
+  }
+  if (PASSIVE2) {
+    const x = BTN[0] - 94, y = BTN[1] + 14, pp = abil.pop.passive2 || 0, beat = heartbeat(time, 60 + (tgt && tgt.f ? tgt.f.branches.filter(b => b.alive && b.bird && b.bird.on).length * 30 : 0));
+    ctx.save(); ctx.translate(x, y); const sc = 1 + 0.4 * Math.sin(pp * Math.PI) + 0.06 * beat; ctx.scale(sc, sc);
+    ctx.fillStyle = '#000'; rr(-15, -15, 30, 30, 5); ctx.fill(); ctx.strokeStyle = `rgba(255,46,69,${0.45 + 0.55 * beat})`; ctx.lineWidth = 1.5; rr(-15, -15, 30, 30, 5); ctx.stroke();
+    ctx.scale(0.55, 0.55); PASSIVE2.logo('#ffffff', '#000'); ctx.restore();
   }
 }
 function trayHit(x, y) { const e = trayEntries(); for (let i = 0; i < e.length; i++) if (Math.abs(x - ITEM_X) < 24 && Math.abs(y - (ITEM_Y0 - i * 52)) < 24) return e[i][0]; return null; }
@@ -8689,6 +8726,11 @@ function drawAbilityShowcase(x, y) {
     drawCoin(px, py, 30, kn.passive.logo, c2);
     text('PASSIVE', px, py + 40, 8, '#2ad8ff', 'center', 700);
   }
+  if (kn.passive2) {
+    const c3 = Math.cos(ui.spin * 0.8 + 2.4), px = x - 64, py = y + 100 + Math.sin(time * 1.9 + 1) * 5;
+    drawCoin(px, py, 30, kn.passive2.logo, c3);
+    text('PASSIVE', px, py + 40, 8, '#ff2e45', 'center', 700);
+  }
 }
 function drawShopScreen() {
   drawTitle('SHOP', 52, 34);
@@ -8704,7 +8746,7 @@ function drawShopScreen() {
         { stat: 'ABILITY', txt: P ? 'ACT+PAS' : 'ACTIVE', v: 1, col: actCol }, { stat: 'RARITY', txt: kn.rarity[0], v: kn.rarity[1], col: kn.rarity[2] }]), 1, [kx - 26, ky + 20]],
       ['lore', cardTex('kl-' + id, 76, 92, 'LORE', [{ text: kn.lore, size: 7 }]), 1, [kx - 8, ky + 92]],
       ['ability', cardTex('ka-' + id, 108, 176, kn.name, [{ text: 'ACTIVE', size: 8, col: actCol }, { text: A.name, size: 8, col: '#ffffff' },
-        { text: P ? 'PASSIVE' : 'NO PASSIVE', size: 8, col: P ? pasCol : '#5c5c66' }, ...(P ? [{ text: P.name, size: 8, col: '#ffffff' }] : []),
+        { text: P ? (kn.passive2 ? 'PASSIVES' : 'PASSIVE') : 'NO PASSIVE', size: 8, col: P ? pasCol : '#5c5c66' }, ...(P ? [{ text: P.name, size: 8, col: '#ffffff' }] : []), ...(kn.passive2 ? [{ text: kn.passive2.name, size: 8, col: '#ff6070' }] : []),
         { text: interCount(A.id) + ' INTERACTIONS', size: 8, col: '#ffd23f' }, { text: 'See the ABILITY tab.', size: 7, col: '#8d8d97' }]), -1, [kx + 22, ky - 60]],
     ];
   } else {
@@ -8712,8 +8754,8 @@ function drawShopScreen() {
     cards = [
       ['stats', cardTex('as-' + id, 122, 196, 'ABILITY STATS', [
         { stat: 'TYPE', txt: 'ACTIVE', v: 1, col: actCol }, { stat: 'USE', txt: A.mode === 'arm' ? 'ARM+THROW' : 'INSTANT', v: A.mode === 'arm' ? 0.6 : 1, col: '#ffd23f' },
-        { stat: 'RECHARGE', txt: A.need + ' HITS', v: A.need / 6, col: '#2ad8ff' }, { stat: 'PASSIVE', txt: P ? 'YES' : 'NONE', v: P ? 1 : 0.05, col: pasCol }]), 1, [kx - 60, ky + 20]],
-      ['lore', cardTex('ap-' + id, 76, 92, P ? P.name : 'PASSIVE', [{ text: P ? P.desc : 'This knife has no passive ability.', size: 6 }], P ? pasCol : '#5c5c66'), 1, [kx + 40, ky + 100]],
+        { stat: 'RECHARGE', txt: A.need + ' HITS', v: A.need / 6, col: '#2ad8ff' }, { stat: 'PASSIVE', txt: P ? (kn.passive2 ? 'TWO' : 'YES') : 'NONE', v: P ? 1 : 0.05, col: pasCol }]), 1, [kx - 60, ky + 20]],
+      ['lore', cardTex('ap-' + id, kn.passive2 ? 110 : 76, kn.passive2 ? 150 : 92, P ? (kn.passive2 ? 'PASSIVES' : P.name) : 'PASSIVE', P ? (kn.passive2 ? [{ text: P.name, size: 7, col: '#ffffff' }, { text: P.desc, size: 6 }, { text: kn.passive2.name, size: 7, col: '#ff6070' }, { text: kn.passive2.desc, size: 6 }] : [{ text: P.desc, size: 6 }]) : [{ text: 'This knife has no passive ability.', size: 6 }], P ? pasCol : '#5c5c66'), 1, [kx + 40, ky + 100]],
       ['ability', cardTex('ad-' + id, 108, 176, A.name, [{ text: A.desc, size: 7 }], actCol), -1, [kx + 60, ky - 40]],
     ];
   }
@@ -8804,7 +8846,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 42', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 43', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
