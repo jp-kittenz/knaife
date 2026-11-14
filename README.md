@@ -42,3 +42,14 @@ A knife-throwing web game. Open `index.html` in a browser.
 ## Build 45
 - New log types: SPIRALWOOD (three spiral tracks shift every 3 hits, carrying their knives), RESINWOOD (resin holds knives for 0 damage; a second hit cracks the patch), PETRIFIED LOG (stone ricochets harmlessly, hit the wooden seams; stone crumbles after 3 hits), EMBERCORE (drifting glowing cracks flare when hit and the glare hides nearby knives), RINGWOOD (three coloured rings; every 3 hits one rises and its knives slide outward).
 - 37 ability interactions per knife.
+
+## Build 46
+- New stage-5 boss: THE WIRE CLUMP (music: "Portal To The Other Side" cut, intro plays once, then loops 38.24s-93.61s on a crossfaded seam). Mechanics:
+  - Braids are safe; bare wire deals x3 but costs stability.
+  - A voltmeter shows SAFE / DANGEROUS voltage. Knives stuck during dangerous voltage fry, then explode or melt.
+  - Ground wires electrocute.
+  - Wire cutters appear from phase 2.
+  - Cable snaps trigger a 5s special blackout: red alarm lights, voltmeter off, ground-wire glow as the tell, and worker silhouettes in the window.
+- Beat-synced boss backgrounds. Each track's tempo and first downbeat were measured (Tanker 131, Gearbox 170.1, Tire 199.75, Nest 150.05, Queen 149.8, Wire 104.02 BPM). The beat clock follows the audio clock and wraps on the loop points.
+- Admin panel (bottom-left gear): next log type, next boss, next stage / boss now, refill hearts, charge ability, god mode.
+- 38 ability interactions per knife.

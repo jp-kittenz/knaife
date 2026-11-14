@@ -2,6 +2,21 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 46
+- New stage-5 boss: **The Wire Clump**, with its own music.
+  - Braided spots are safe. Bare wire deals x3 damage but drains **Stability**, and at 0 the clump explodes and ends the run.
+  - A **voltmeter** shows SAFE / RISING / DANGEROUS. At dangerous voltage, touching the clump costs a heart, and stuck knives glow, then explode or melt.
+  - Arcs and sparks drop **ground wires** that electrocute.
+  - From phase 2, big **wire cutters** must be smashed before they snip a cable.
+  - Snapped cables cause a 5s **special blackout**: red alarm beams only, the voltmeter dies, ground wires glow to show the voltage, and workers run past the lit window.
+  - Comes with a cinematic intro, an overload death and a meltdown game over.
+- Every boss now has its own beat-synced background that pulses with its music: sonar and bubbles for the Tanker, ticking gears and pistons for the Gearbox, a synthwave road for the Tire, flashing honeycomb for the Nest (red with a crown for the Queen), and circuit traces with an oscilloscope for the Wire Clump.
+- **Admin panel** (gear button, bottom-left; pauses the game):
+  - Pick the next log type and the next boss.
+  - Jump to the next stage or straight to the boss.
+  - Refill hearts, charge the ability, or turn on god mode.
+- Each knife now has 38 ability interactions (new: the Wire Clump).
+
 ## Build 45
 - New log types: **Spiralwood** (three spiral tracks shift every 3 hits, carrying their knives), **Resinwood** (resin holds a knife for 0 damage, a second hit cracks the patch), **Petrified Log** (stone ricochets harmlessly, only wooden seams take knives, stone crumbles after 3 hits), **Embercore** (drifting cracks flare when hit and the glare hides nearby knives), **Ringwood** (three coloured rings, one rises every 3 hits and its knives slide outward).
 - Every knife now has 37 ability interactions.
