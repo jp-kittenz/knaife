@@ -272,6 +272,12 @@ const sfx = {
   },
   land() { tone('sine', 95, 38, 0.35, 0.9, { drive: true, wet: 0.3 }); noise(0.3, 400, 0.7, 0.7, 'lowpass', { curve: 2, wet: 0.4 }); noise(0.08, 1500, 1.5, 0.3, 'bandpass', { delay: 0.02 }); },
   snap() { noise(0.09, 1800, 2, 0.8, 'bandpass', { drive: true, wet: 0.3 }); tone('square', 320, 70, 0.07, 0.15); for (let i = 0; i < 4; i++) noise(0.02, rand(1500, 3500), 3, 0.3, 'bandpass', { delay: 0.02 + i * 0.03 }); },
+  tireRev() { tone('sawtooth', 55, 210, 0.8, 0.16, { drive: true, wet: 0.4 }); tone('square', 110, 420, 0.8, 0.05, { wet: 0.3 }); noise(0.8, 500, 1.5, 0.2, 'bandpass', { rise: true, sweepTo: 2200 }); },
+  screech() { noise(0.7, 2600, 9, 0.22, 'bandpass', { sweepTo: 1900, curve: 0.6, wet: 0.4 }); tone('sawtooth', 1900, 1500, 0.6, 0.035, { wet: 0.5 }); },
+  tireBrake() { noise(0.5, 2200, 7, 0.2, 'bandpass', { sweepTo: 900, curve: 1.2, wet: 0.4 }); tone('sawtooth', 200, 60, 0.5, 0.1, { drive: true }); },
+  rubberThud() { tone('sine', 150, 55, 0.2, 0.4, { drive: true }); noise(0.1, 300, 1, 0.3, 'lowpass'); },
+  puncture() { noise(0.07, 3000, 1, 0.5, 'highpass'); tone('square', 500, 120, 0.09, 0.14); noise(0.45, 5200, 0.7, 0.22, 'highpass', { curve: 1.6, delay: 0.05 }); },
+  deflate() { noise(1.4, 4600, 0.8, 0.4, 'highpass', { curve: 0.8, sweepTo: 1400, wet: 0.4 }); tone('sawtooth', 520, 70, 1.4, 0.05, { wet: 0.5 }); },
   boing() { tone('sine', 160, 620, 0.18, 0.25, { wet: 0.4 }); tone('sine', 620, 240, 0.3, 0.15, { delay: 0.16, wet: 0.4 }); tone('triangle', 320, 900, 0.12, 0.08, { delay: 0.05 }); },
   hiss() { noise(0.8, 4200, 0.6, 0.45, 'highpass', { curve: 1.4, wet: 0.4 }); noise(0.5, 900, 1, 0.25, 'bandpass', { curve: 2 }); },
   bees() { tone('sawtooth', 218, 232, 1.3, 0.05, { wet: 0.3 }); tone('sawtooth', 247, 238, 1.3, 0.04); tone('sawtooth', 196, 205, 1.1, 0.03, { delay: 0.1 }); },
@@ -417,6 +423,7 @@ function updateMusic(rdt) {
   else if (state === 'over') { rate = 0.75; cut = 900; vol = 0.35; }
   else if (state === 'rewind') { rate = rewindT < REW_SWITCH ? 0.7 : 1; cut = rewindT < REW_SWITCH ? 500 : 20000; }
   else if (fx && fx.type === 'tankintro') { rate = 1; cut = fx.t < SHOT.reveal ? 900 + 2600 * clamp(fx.t / SHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'tireintro') { rate = 1; cut = fx.t < TSHOT.reveal ? 800 + 2800 * clamp(fx.t / TSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = fx.t < GSHOT.reveal ? 700 + 3200 * clamp(fx.t / GSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
   if (zapT > 0) cut = 900;
@@ -620,10 +627,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -792,7 +799,7 @@ function menuTarget() {
 }
 
 function newStage() {
-  if (isFirstBossSlot(stage)) firstBoss = forceBoss || (Math.random() < 0.5 ? 'tank' : 'gear');
+  if (isFirstBossSlot(stage)) firstBoss = forceBoss || ['tank', 'gear', 'tire'][Math.floor(rand(3))];
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
   knivesLeft = knivesTotal;
@@ -800,10 +807,10 @@ function newStage() {
   const stuck = placeAngles(pre, 0.6, []);
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
-  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage);
   const pal = boss ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss), stuck, appleAngles, boss);
-  const type = tanker || gearB ? 'plain' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB || tireB ? 'plain' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   fxp = []; pending = []; zapT = 0;
   if (abil.state === 'used' && !fx) { abil.state = 'cooldown'; abil.charge = 0; }
@@ -814,6 +821,7 @@ function newStage() {
   waterTarget = 0;
   if (tanker) { setupTanker(tgt); knivesTotal = knivesLeft = TANK_HP; banner.t = 0; startTankIntro(tgt); }
   if (gearB) { setupGear(tgt); knivesTotal = knivesLeft = GEAR_HP; banner.t = 0; startGearIntro(tgt); }
+  if (tireB) { setupTire(tgt); knivesTotal = knivesLeft = TIRE_HP; banner.t = 0; startTireIntro(tgt); }
 }
 
 function startGame() {
@@ -864,6 +872,7 @@ function stepKnife(k) {
   if (k.ability) k.trail.push(tip);
   if (t.gear) sprocketHit(k, t);
   if (t.gear && gearChainHit(k, t)) return;
+  if (t.tire && !k.ability && !k.wood && tireNutHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -882,6 +891,7 @@ function stepKnife(k) {
           kick(0.18, 0.05, 0.9, 0.5); shocks(px, py, 2, 90); shake = Math.max(shake, 14); floater('SPLIT X2', px, py - 20, '#f2cf94'); sfx.clank(); buzz([30, 20, 40]);
           hitWood = true; break;
         }
+        if (t.tire && t.tire.ripe && t.tire.layer === 'rubber' && !k.wood) { tireKnockOut(k, t, s, px, py); return; }
         if (k.ability) abilityClank(k, s);
         else if (Math.abs(d) >= GRAZE) ricochet(k, s, d, px, py);
         else fail(k);
@@ -891,6 +901,7 @@ function stepKnife(k) {
   }
   if (t.tank && !k.ability && !k.wood && tankPipeHit(k, t)) return;
   if (t.gear && !k.ability && !k.wood && gearPinionHit(k, t)) return;
+  if (t.tire && !k.ability && !k.wood && tireBladeHit(k, t)) return;
   if (!k.ability && !k.wood && featureHits(k, t)) return;
   for (const p of (t.pickups || []).slice()) { const w = t.rot + p.a; if (angDiff(w, HALF) < 0.2 && tip <= CY + R + 30) collectPickup(t, p, w); }
   // slice apples
@@ -983,6 +994,7 @@ function clearStage() {
   const t = tgt;
   if (t.tank && !t.tank.dead) { t.tank.dead = true; startTankDeath(t); return; }
   if (t.gear && !t.gear.dead) { t.gear.dead = true; startGearDeath(t); return; }
+  if (t.tire && !t.tire.dead) { t.tire.dead = true; startTireDeath(t); return; }
   state = 'clearing'; clearT = CLEAR_TOTAL; clearCues = {};
   breakTarget(t);
   if (t.boss) { banner = { text: 'BOSS DOWN!', sub: '+5 bonus', t: 1.1, color: '#ffd35c' }; score += 5; }
@@ -1518,6 +1530,9 @@ function updateFx(rdt) {
     case 'geardeath': updateGearDeath(t); break;
     case 'gearsnap': updateGearSnap(t); break;
     case 'gearphase': updateGearPhase(t); break;
+    case 'tireintro': updateTireIntro(t); break;
+    case 'tiredeath': updateTireDeath(t); break;
+    case 'tiredeflate': updateTireDeflate(t); break;
     case 'catch': updateCatchFx(t); break;
     case 'slice':
       fxFilter = TWO_TONE;
@@ -1811,8 +1826,10 @@ function stickNormal(k, t) {
   if (F && F.treehole && inArc(a, F.treehole.a, F.treehole.w)) { swallow(k, t); return; }
   let ovTrigger = PASSIVE && PASSIVE.id === 'overvolt' && inChainArc(t, a);
   if (F) for (const z of F.arcs) if (inArc(a, z.a, z.w)) { if (PASSIVE && PASSIVE.id === 'overvolt') { ovTrigger = true; break; } electrocute(k, t); return; }
+  if (t.tire && tireRubberHit(k, t, a)) return;
   k.done = true; chargeAbility();
   const s = { a, wob: 0.09 }; t.stuck.push(s); addMark(t, a);
+  if (t.tire) tireStuck(t, s, a);
   if (t.gear) {
     const T = t.gear, bi = Math.round(normA(a) / TAU * GEAR_TEETH) % GEAR_TEETH;
     burst(CX, CY + R, 22, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 60, 2.5, 0.45); sfx.clank();
@@ -3198,7 +3215,7 @@ function updateTankIntro(t) {
     if (Math.floor(t * 3) !== fx.rumble) { fx.rumble = Math.floor(t * 3); sfx.rumble(); shake = Math.max(shake, 6); }
     const lt = [SHOT.arrive + 0.35, SHOT.arrive + 1.05]; for (const l of lt) if (t >= l && !fx['l' + l]) { fx['l' + l] = true; fx.lightning = 1; sfx.thunder(); }
   }
-  const ldt = t - (fx.lt || 0); fx.lt = t;
+  const ldt = t - (fx.lt || 0); fx.lt = t; introTick(ldt);
   fx.lightning = Math.max(0, (fx.lightning || 0) - ldt * 4.8);
   if (cutAt('hoist', SHOT.hoist)) { sfx.chain(); sfx.clank(); }
   if (t >= SHOT.reveal && !fx.revealed) {
@@ -3947,6 +3964,7 @@ function startGearIntro(t) {
 function skipGearIntro() { if (fx && fx.type === 'gearintro' && fx.t < GSHOT.reveal) { fx.t = GSHOT.reveal - 0.01; fx.skipped = true; } }
 function updateGearIntro(t) {
   tscale = 0; const T = fx.tg.gear;
+  introTick(t - (fx.clt || 0));
   fx.cutFlash = Math.max(0, (fx.cutFlash || 0) - (t - (fx.clt || 0)) * 7); fx.clt = t;
   const at = (k, tt) => { if (t >= tt && !fx[k]) { fx[k] = true; return true; } return false; };
   if (t < GSHOT.wire - 0.2 && Math.floor(t * 16) !== fx.chirp) { fx.chirp = Math.floor(t * 16); sfx.dataChirp(); }
@@ -4111,6 +4129,628 @@ function drawGearIntro(t) {
     for (let d = 10; d >= 1; d--) text('GEARBOX', d * 0.7, d * 0.9, 40, d > 6 ? '#08080a' : '#38383f', 'center', 700);
     text('GEARBOX', -2, 0, 40, '#2ad8ff', 'center', 700); text('GEARBOX', 2, 0, 40, '#ff2e88', 'center', 700); text('GEARBOX', 0, 0, 40, '#ffffff', 'center', 700);
     text(typed('SUMMONS GEARS  /  SNAP THE CHAIN  /  ' + GEAR_HP + ' HITS', 0.15, s0, 50), 0, 34, 9, '#ffffff', 'center', 700);
+    ctx.restore();
+  }
+  if (fx.cutFlash > 0) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${fx.cutFlash})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
+}
+
+// ======================= BOSS: MONSTER TIRE =======================
+// Layer 1 is rubber: the first hit on a spot bounces and leaves a chalk dent, a second hit on that dent punctures.
+// Ten punctures, then knock any stuck knife out to deflate it. Layer 2 is bare steel: 20 hits.
+const TIRE_RUB_PAL = { name: 'MONSTER TIRE', style: 'tire', bark: '#16161b', barkHi: '#4a4a53', barkLo: '#08080a', sap: '#ffd23f', heart: '#5c5c66',
+  ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.1)', light: '#4a4a53', dark: '#16161b', knot: '#16161b' };
+const TIRE_STL_PAL = { name: 'MONSTER TIRE', style: 'tire', bark: '#38383f', barkHi: '#a8a8b2', barkLo: '#0d0d10', sap: '#ff7a1a', heart: '#5c5c66',
+  ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.1)', light: '#dcdce2', dark: '#5c5c66', knot: '#2a2a31' };
+const TIRE_RUBBER = 10, TIRE_STEEL = 20, TIRE_HP = TIRE_RUBBER + TIRE_STEEL;
+const TIRE = { slow: 7, rev: 0.8, fast: 4, dentLife: 9, dentTol: 0.17, lugs: 30, bladeLen: 30 };
+const isTireStage = n => isFirstBossSlot(n) && firstBoss === 'tire';
+const tireBusy = () => !!(fx && (fx.type === 'tireintro' || fx.type === 'tiredeath' || fx.type === 'tiredeflate'));
+
+// ---------- art ----------
+function tireArcText(g, str, rad, a0, size, col) {
+  g.save(); g.font = `700 ${size}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col;
+  const step = size * 0.86 / rad;
+  for (let i = 0; i < str.length; i++) { g.save(); g.rotate(a0 + (i - (str.length - 1) / 2) * step); g.translate(0, -rad); g.fillText(str[i], 0, 0); g.restore(); }
+  g.restore();
+}
+// the steel wheel: lip, drilled brake disc behind five spokes, hub. Lug nuts are baked only when asked.
+function wheelArt(g, r, nuts) {
+  const lip = g.createLinearGradient(-r, -r, r, r); lip.addColorStop(0, '#dcdce2'); lip.addColorStop(0.5, '#8d8d97'); lip.addColorStop(1, '#38383f');
+  g.fillStyle = '#08080a'; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+  g.fillStyle = lip; g.beginPath(); g.arc(0, 0, r - 1, 0, TAU); g.fill();
+  g.fillStyle = '#0d0d10'; g.beginPath(); g.arc(0, 0, r * 0.87, 0, TAU); g.fill();
+  // brake disc
+  const dg = g.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 0.74); dg.addColorStop(0, '#2a2a31'); dg.addColorStop(1, '#4a4a53');
+  g.fillStyle = dg; g.beginPath(); g.arc(0, 0, r * 0.74, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = Math.max(0.5, r * 0.008); for (let q = r * 0.4; q < r * 0.74; q += r * 0.045) { g.beginPath(); g.arc(0, 0, q, 0, TAU); g.stroke(); }
+  g.fillStyle = '#08080a'; for (let i = 0; i < 30; i++) { const a = i / 30 * TAU, q = r * (i % 2 ? 0.52 : 0.64); g.beginPath(); g.arc(Math.cos(a) * q, Math.sin(a) * q, r * 0.016, 0, TAU); g.fill(); }
+  // spokes
+  for (let i = 0; i < 5; i++) {
+    g.save(); g.rotate(i / 5 * TAU);
+    g.fillStyle = '#08080a'; g.beginPath(); g.moveTo(r * 0.18, -r * 0.16); g.lineTo(r * 0.88, -r * 0.1); g.lineTo(r * 0.88, r * 0.1); g.lineTo(r * 0.18, r * 0.16); g.fill();
+    const sg = g.createLinearGradient(0, -r * 0.13, 0, r * 0.13); sg.addColorStop(0, '#dcdce2'); sg.addColorStop(0.45, '#a8a8b2'); sg.addColorStop(1, '#4a4a53');
+    g.fillStyle = sg; g.beginPath(); g.moveTo(r * 0.18, -r * 0.135); g.lineTo(r * 0.875, -r * 0.08); g.lineTo(r * 0.875, r * 0.08); g.lineTo(r * 0.18, r * 0.135); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(r * 0.4, -r * 0.022, r * 0.4, r * 0.044);
+    g.restore();
+  }
+  for (let i = 0; i < 20; i++) { const a = i / 20 * TAU + 0.1, q = r * 0.935; g.fillStyle = '#16161b'; g.beginPath(); g.arc(Math.cos(a) * q, Math.sin(a) * q, Math.max(0.7, r * 0.018), 0, TAU); g.fill(); }
+  // hub
+  const hg = g.createRadialGradient(-r * 0.08, -r * 0.1, 1, 0, 0, r * 0.32); hg.addColorStop(0, '#f0f0f4'); hg.addColorStop(0.6, '#8d8d97'); hg.addColorStop(1, '#38383f');
+  g.fillStyle = '#08080a'; g.beginPath(); g.arc(0, 0, r * 0.33, 0, TAU); g.fill();
+  g.fillStyle = hg; g.beginPath(); g.arc(0, 0, r * 0.31, 0, TAU); g.fill();
+  if (nuts) for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + TAU / 10; nutArt(g, Math.cos(a) * r * 0.21, Math.sin(a) * r * 0.21, r * 0.055); }
+  g.fillStyle = '#16161b'; g.beginPath(); g.arc(0, 0, r * 0.12, 0, TAU); g.fill();
+}
+function nutArt(g, x, y, s) {
+  g.fillStyle = '#16161b'; g.beginPath(); for (let j = 0; j < 6; j++) g[j ? 'lineTo' : 'moveTo'](x + Math.cos(j / 6 * TAU) * s * 1.25, y + Math.sin(j / 6 * TAU) * s * 1.25); g.fill();
+  g.fillStyle = '#ffd23f'; g.beginPath(); for (let j = 0; j < 6; j++) g[j ? 'lineTo' : 'moveTo'](x + Math.cos(j / 6 * TAU) * s, y + Math.sin(j / 6 * TAU) * s); g.fill();
+  g.fillStyle = '#5e2e10'; g.beginPath(); g.arc(x, y, s * 0.4, 0, TAU); g.fill();
+}
+function makeTireTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  if (t.tire.layer === 'steel') { wheelArt(g, R, false); return c; }
+  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 4, 0, 0, R);
+  gr.addColorStop(0, '#38383f'); gr.addColorStop(0.55, '#1e1e24'); gr.addColorStop(1, '#0d0d10');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  // shoulder blocks
+  for (let i = 0; i < TIRE.lugs; i++) {
+    const a = i / TIRE.lugs * TAU, w = TAU / TIRE.lugs;
+    g.fillStyle = i % 2 ? '#16161b' : '#2a2a31'; g.beginPath(); g.arc(0, 0, R, a + w * 0.12, a + w * 0.88); g.arc(0, 0, R - 9, a + w * 0.7, a + w * 0.3, true); g.closePath(); g.fill();
+    g.strokeStyle = '#08080a'; g.lineWidth = 1; g.beginPath(); g.moveTo(Math.cos(a) * (R - 10), Math.sin(a) * (R - 10)); g.lineTo(Math.cos(a) * R, Math.sin(a) * R); g.stroke();
+  }
+  g.strokeStyle = '#08080a'; g.lineWidth = 1.4; g.beginPath(); g.arc(0, 0, R - 10, 0, TAU); g.stroke();
+  // sidewall: fine ribs, a painted stripe, raised lettering
+  g.strokeStyle = 'rgba(255,255,255,.045)'; g.lineWidth = 0.6; for (let q = R * 0.64; q < R - 11; q += 2) { g.beginPath(); g.arc(0, 0, q, 0, TAU); g.stroke(); }
+  g.strokeStyle = '#c89a1a'; g.lineWidth = 1.2; g.beginPath(); g.arc(0, 0, R * 0.665, 0, TAU); g.stroke();
+  tireArcText(g, 'KNAIFE  RADIAL', R * 0.775, 0, 8, '#c3c3ca');
+  tireArcText(g, '420/76  R92', R * 0.775, Math.PI, 7, '#8d8d97');
+  for (const a of [HALF, -HALF]) { g.save(); g.rotate(a); g.fillStyle = '#ffd23f'; g.beginPath(); g.moveTo(-4, -R * 0.82); g.lineTo(4, -R * 0.82); g.lineTo(0, -R * 0.74); g.fill(); g.restore(); }
+  const rnd = mulberry(t.seed || 7);
+  g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 0.6;
+  for (let i = 0; i < 16; i++) { const a = rnd() * TAU, r0 = R * (0.66 + rnd() * 0.22); g.beginPath(); g.arc(0, 0, r0, a, a + 0.1 + rnd() * 0.2); g.stroke(); }
+  wheelArt(g, R * 0.61, true);
+  return c;
+}
+let tireIntroTex = null;
+// a rubber tyre anywhere on screen (cinematic shots). blur > 0 smears the spin.
+function drawTireArt(x, y, r, rot, blur = 0, sx = 1, sy = 1) {
+  if (!tireIntroTex) tireIntroTex = makeTireTexture({ tire: { layer: 'rubber' }, seed: 5 });
+  const k = r / R, h = R + 4;
+  ctx.save(); ctx.translate(x, y); ctx.scale(sx * k, sy * k);
+  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, TAU); ctx.fill();
+  const n = blur > 0 ? 4 : 1, a0 = ctx.globalAlpha;
+  for (let i = 0; i < n; i++) { ctx.save(); ctx.rotate(rot - i * blur * 0.22); ctx.globalAlpha = a0 * (i ? 0.4 : 1); ctx.drawImage(tireIntroTex, -h, -h, h * 2, h * 2); ctx.restore(); }
+  ctx.globalAlpha = a0;
+  if (blur > 0.3) { ctx.strokeStyle = 'rgba(141,141,151,.35)'; ctx.lineWidth = 1.5; for (const q of [0.3, 0.5, 0.72, 0.9]) { ctx.beginPath(); ctx.arc(0, 0, R * q, rot * 3 + q * 9, rot * 3 + q * 9 + 2.2); ctx.stroke(); } }
+  else { ctx.save(); ctx.rotate(rot); tireLugs(0); ctx.restore(); }
+  const sh = ctx.createRadialGradient(-R * 0.35, -R * 0.4, 5, 0, 0, R + 6); sh.addColorStop(0, 'rgba(255,255,255,.14)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.45)');
+  ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function tireLugs(flat) {
+  const w = TAU / TIRE.lugs, h = 6 * (1 - flat * 0.7);
+  for (let i = 0; i < TIRE.lugs; i++) {
+    ctx.save(); ctx.rotate(i * w + w * 0.5);
+    ctx.fillStyle = '#08080a'; ctx.fillRect(R - 2, -R * w * 0.34, h + 1, R * w * 0.68);
+    ctx.fillStyle = i % 2 ? '#2a2a31' : '#38383f'; ctx.fillRect(R - 2, -R * w * 0.27, h, R * w * 0.54);
+    ctx.restore();
+  }
+}
+function drawTireLive(t) {
+  const T = t.tire, steel = T.layer === 'steel';
+  if (!steel) {
+    tireLugs(T.flat);
+    if (T.flat > 0) {   // going soft: the sidewall wrinkles
+      ctx.strokeStyle = `rgba(0,0,0,${0.6 * T.flat})`; ctx.lineWidth = 2;
+      for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + 0.2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.66, Math.sin(a) * R * 0.66); ctx.quadraticCurveTo(Math.cos(a + 0.12) * R * 0.8, Math.sin(a + 0.12) * R * 0.8, Math.cos(a - 0.04) * R * 0.97, Math.sin(a - 0.04) * R * 0.97); ctx.stroke(); }
+    }
+    // chalk dents: hit the same spot again
+    for (const d of T.dents) {
+      const u = clamp(d.life / TIRE.dentLife, 0, 1), pop = clamp((time - d.born) / 0.15, 0, 1), blink = d.life < 2.2 && Math.sin(time * 18) > 0;
+      ctx.save(); ctx.rotate(d.a);
+      ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(R + 6, -9); ctx.quadraticCurveTo(R - 9 * pop, 0, R + 6, 9); ctx.fill();
+      ctx.strokeStyle = blink ? '#ffffff' : '#ffd23f'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(R - 14, -5); ctx.lineTo(R - 4, 5); ctx.moveTo(R - 14, 5); ctx.lineTo(R - 4, -5); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, R + 13, -TIRE.dentTol, TIRE.dentTol); ctx.stroke();
+      ctx.strokeStyle = blink ? '#ff2e45' : '#ffd23f'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, R + 13, -TIRE.dentTol * u, TIRE.dentTol * u); ctx.stroke();
+      ctx.restore();
+    }
+    // valve stem: a free puncture
+    if (T.valve.open && !T.ripe) {
+      ctx.save(); ctx.rotate(T.valve.a);
+      ctx.fillStyle = '#08080a'; ctx.fillRect(R - 3, -4, 15, 8); ctx.fillStyle = '#c89a1a'; ctx.fillRect(R - 2, -2.5, 10, 5); ctx.fillStyle = '#ffe680'; ctx.fillRect(R + 8, -3.5, 4, 7);
+      const p = 0.5 + 0.5 * Math.sin(time * 7); ctx.strokeStyle = `rgba(255,210,63,${0.35 + 0.5 * p})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(R + 6, 0, 11 + p * 3, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    if (T.ripe) { const p = 0.5 + 0.5 * Math.sin(time * 10); ctx.strokeStyle = `rgba(255,46,69,${0.3 + 0.5 * p})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 9 + p * 2, 0, TAU); ctx.stroke(); }
+    return;
+  }
+  // bare steel: the disc glows through the windows as it heats
+  if (T.heat > 0.02) {
+    const p = T.heat * (0.8 + 0.2 * Math.sin(time * 9));
+    for (let i = 0; i < 5; i++) {
+      const a1 = i / 5 * TAU + 0.2, a2 = (i + 1) / 5 * TAU - 0.2;
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.84, a1, a2); ctx.arc(0, 0, R * 0.36, a2, a1, true); ctx.closePath();
+      ctx.fillStyle = `rgba(255,122,26,${0.42 * p})`; ctx.fill();
+    }
+    ctx.strokeStyle = `rgba(255,160,74,${0.7 * p})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R - 1, 0, TAU); ctx.stroke();
+  }
+  for (let i = 0; i < T.nuts; i++) { const a = i / 5 * TAU + TAU / 10; nutArt(ctx, Math.cos(a) * R * 0.21, Math.sin(a) * R * 0.21, R * 0.055); }
+  for (let i = T.nuts; i < 5; i++) { const a = i / 5 * TAU + TAU / 10; ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(Math.cos(a) * R * 0.21, Math.sin(a) * R * 0.21, R * 0.04, 0, TAU); ctx.fill(); }
+  // scythe blades fold out of the rim for the burnout
+  if (T.blades > 0.01) {
+    const L = TIRE.bladeLen * T.blades;
+    for (let i = 0; i < 3; i++) {
+      ctx.save(); ctx.rotate(i / 3 * TAU + 0.4);
+      ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(R - 4, -10); ctx.lineTo(R + L + 2, 7); ctx.lineTo(R - 4, 12); ctx.fill();
+      ctx.fillStyle = '#dcdce2'; ctx.beginPath(); ctx.moveTo(R - 3, -7); ctx.lineTo(R + L, 6); ctx.lineTo(R - 3, 9); ctx.fill();
+      ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(R - 3, -7); ctx.lineTo(R + L, 6); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.save(); ctx.rotate(-t.rot);
+  const pul = 0.6 + 0.4 * Math.sin(time * (T.mode === 'slow' ? 5 : 16));
+  const eg = ctx.createRadialGradient(0, 0, 1, 0, 0, 16); eg.addColorStop(0, `rgba(255,46,69,${pul})`); eg.addColorStop(1, 'rgba(255,46,69,0)');
+  ctx.fillStyle = eg; ctx.fillRect(-16, -16, 32, 32); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.fillRect(-2.5, -3, 2, 2);
+  ctx.restore();
+}
+
+// ---------- setup and spin ----------
+function setupTire(t) {
+  t.tire = { layer: 'rubber', mode: 'slow', cyc: 0, dir: 1, boost: 0, flip: false, over: null, dents: [], valve: { a: 4.1, open: true }, ripe: false, hide: false,
+    s: 1, ox: 0, oy: 0, flat: 0, heat: 0, nuts: 5, loose: [], blades: 0, acc: 0, tips: 0, flashHP: 0, burns: 0, pen: 0 };
+  t.pal = TIRE_RUB_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pat = tt => tireSpin(t, tt);
+}
+function tireSpin(t, tt) {
+  const T = t.tire; if (!T) return 0;
+  if (T.over !== null) return T.over;
+  if (T.mode === 'rev') return Math.sin(tt * 55) * 1.6;
+  const steel = T.layer === 'steel';
+  let v = steel ? 2.2 + 0.9 * Math.sin(tt * 1.3) : 1.5 + 0.5 * Math.sin(tt * 0.9);
+  if (steel && Math.sin(tt * 0.9) > 0.94) v = 0.12;                    // brake lock: it stops dead for a beat
+  return T.dir * (v + ((steel ? 9.5 : 8) - v) * T.boost);
+}
+function updateTire(t, dt) {
+  const T = t.tire; if (tireBusy()) return;
+  const steel = T.layer === 'steel';
+  T.flashHP = Math.max(0, T.flashHP - dt);
+  if (!steel) {
+    if (!flying.length) { T.pen = Math.max(T.pen, TIRE_HP - knivesLeft); knivesLeft = TIRE_HP - Math.min(T.pen, TIRE_RUBBER); }
+    if (T.pen >= TIRE_RUBBER && !T.ripe) { T.ripe = true; T.dents = []; floater('KNOCK A KNIFE OUT!', CX, CY + R + 104, '#ff2e45'); sfx.markerOn(); sfx.alarm(); }
+    for (const d of T.dents) d.life -= dt;
+    if (T.dents.some(d => d.life <= 0)) { T.dents = T.dents.filter(d => d.life > 0); sfx.pop(); }
+  }
+  // the burnout cycle: 7s cruising, a short rev, 4s flat out
+  T.cyc += dt;
+  if (T.mode === 'slow' && T.cyc >= TIRE.slow) { T.mode = 'rev'; T.cyc = 0; sfx.tireRev(); floater('BURNOUT!', CX, CY - R - 36, '#ff7a1a'); shake = Math.max(shake, 6); }
+  else if (T.mode === 'rev' && T.cyc >= TIRE.rev) {
+    T.mode = 'fast'; T.cyc = 0; T.burns++; sfx.screech(); shake = Math.max(shake, 12); kick(0.12, 0.04, 0.8, 0.5);
+    if (steel) tireFling(t); else tireSlap();
+  }
+  else if (T.mode === 'fast' && T.cyc >= TIRE.fast) { T.mode = 'slow'; T.cyc = 0; T.flip = true; sfx.tireBrake(); }
+  T.boost += ((T.mode === 'fast' ? 1 : 0) - T.boost) * Math.min(1, dt * 3.5);
+  if (T.flip && T.boost < 0.08) { T.flip = false; T.dir *= -1; }
+  if (T.mode === 'fast' && !steel && T.cyc > 1.8 && !T.slap2) { T.slap2 = true; tireSlap(); }
+  if (T.mode !== 'fast') T.slap2 = false;
+  T.blades += ((steel && T.mode !== 'slow' ? 1 : 0) - T.blades) * Math.min(1, dt * (T.mode === 'slow' ? 5 : 9));
+  T.heat += ((steel ? 0.25 + 0.75 * T.boost : 0) - T.heat) * Math.min(1, dt * 1.5);
+  // smoke off the tread, sparks off the steel
+  if (T.boost > 0.25 || T.mode === 'rev') {
+    T.acc += dt * (steel ? 26 : 34);
+    while (T.acc >= 1) {
+      T.acc -= 1; const a = rand(TAU), x = CX + Math.cos(a) * (R + 4), y = CY + Math.sin(a) * (R + 4), tx = -Math.sin(a) * T.dir, ty = Math.cos(a) * T.dir;
+      if (steel) parts.push({ x, y, vx: tx * rand(200, 520), vy: ty * rand(200, 520) - 60, life: rand(0.2, 0.45), max: 0.45, c: Math.random() < 0.5 ? '#ffd23f' : '#ff7a1a', s: 2, rot: 0, vr: 0 });
+      else smoke.push({ x, y, vx: tx * rand(60, 200), vy: ty * rand(60, 200), r: rand(4, 8), life: rand(0.7, 1.2), max: 1.2, g: rand(60, 105) });
+    }
+  }
+  if (steel) {
+    // every 4 hits shears a lug nut: the wheel wobbles harder and the nut rattles around your lane
+    while (T.nuts > Math.ceil((knivesLeft + flying.filter(k => !k.done && !k.wood).length) / 4) && T.nuts > 0) tireShearNut(t);
+    const wob = (5 - T.nuts) * 1.2; T.ox = Math.cos(t.rot * 1.0) * wob; T.oy = Math.sin(t.rot * 1.0) * wob * 0.6;
+    for (const n of T.loose) {
+      n.x += n.vx * dt; n.y += n.vy * dt; n.rot += dt * 14; n.life -= dt;
+      if (n.x < 16 && n.vx < 0) { n.vx *= -1; sfx.rivet(); } if (n.x > W - 16 && n.vx > 0) { n.vx *= -1; sfx.rivet(); }
+      if (n.y < CY + R + 44 && n.vy < 0) n.vy *= -1; if (n.y > KNIFE_Y - 70 && n.vy > 0) n.vy *= -1;
+    }
+    T.loose = T.loose.filter(n => n.life > 0);
+  }
+}
+// rubber flung off the tread smacks the screen
+function tireSlap() {
+  addPaint(rand(60, W - 60), rand(CY - 40, CY + R + 150), rand(58, 80), '#16161b'); sfx.splat(); shake = Math.max(shake, 8);
+}
+// steel burnout: everything stuck in the rim is thrown clear
+function tireFling(t) {
+  if (!t.stuck.length) return;
+  for (const s of t.stuck) { const w = t.rot + s.a, sp = rand(520, 760); debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 200, rot: w - HALF, vr: rand(-18, 18) }); }
+  t.stuck = []; floater('KNIVES THROWN OFF', CX, CY + R + 60, '#c3c3ca'); sfx.popOut();
+}
+function tireShearNut(t) {
+  const T = t.tire; T.nuts--; T.flashHP = 0.5;
+  const a = T.nuts / 5 * TAU + TAU / 10, [x, y] = worldAt(t, a, R * 0.21);
+  burst(x, y, 20, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 40, 2.5, 0.45); shock(x, y, 0.3, 50); shake = Math.max(shake, 10); sfx.rivet(); sfx.clank();
+  if (knivesLeft > 0) { T.loose.push({ x, y: CY + R + 50, vx: (Math.random() < 0.5 ? -1 : 1) * rand(150, 210), vy: rand(120, 170), rot: 0, life: 9 }); floater('LOOSE NUT!', CX, CY + R + 74, '#ffd23f'); }
+}
+// ---------- hits ----------
+// returns true when the knife bounced off (first touch on a fresh spot, or the tyre is already full)
+function tireRubberHit(k, t, a) {
+  const T = t.tire; if (T.layer !== 'rubber') return false;
+  const bounce = msg => {
+    deflect(k, undefined, 1.1); t.hit = 0.6; sfx.boing(); sfx.rubberThud(); buzz(10);
+    burst(CX, CY + R, 8, ['#4a4a53', '#16161b', '#8d8d97'], 240, 60, 3, 0.4);
+    if (msg) floater(msg, CX, CY + R + 56, '#ffd23f');
+  };
+  if (T.ripe) { bounce('FULL - KNOCK A KNIFE OUT'); return true; }
+  if (T.valve.open && inArc(a, T.valve.a, 0.14)) { T.valve.open = false; T.valveHit = true; return false; }
+  if (k.ab) return false;                                          // an armed knife goes straight in
+  const i = T.dents.findIndex(d => angDiff(d.a, a) < TIRE.dentTol);
+  if (i >= 0) { T.dents.splice(i, 1); return false; }
+  T.dents.push({ a, life: TIRE.dentLife, born: time });
+  bounce(T.tips++ < 3 ? 'BOUNCED - SAME SPOT AGAIN' : null);
+  return true;
+}
+// a knife went in
+function tireStuck(t, s, a) {
+  const T = t.tire;
+  if (T.layer === 'rubber') {
+    sfx.puncture(); T.flashHP = 0.3;
+    for (let i = 0; i < 10; i++) smoke.push({ x: CX + rand(-6, 6), y: CY + R, vx: rand(-80, 80), vy: rand(40, 160), r: rand(2, 5), life: 0.6, max: 0.6, g: rand(120, 170) });
+    T.pen += T.valveHit ? 2 : 1;
+    if (T.valveHit) { T.valveHit = false; knivesLeft = Math.max(0, knivesLeft - 1); score++; floater('VALVE BLOWN  X2', CX, CY + R + 56, '#ffd23f'); sfx.hiss(); shock(CX, CY + R, 0.3, 60); }
+    else floater('PUNCTURE ' + Math.min(TIRE_RUBBER, T.pen) + '/' + TIRE_RUBBER, CX + 4, CY + R + 56, '#c3c3ca');
+  } else {
+    burst(CX, CY + R, 22, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 60, 2.5, 0.45); sfx.clank();
+  }
+}
+// once it is full of holes, clipping or hitting any stuck knife tears it out and the tyre goes down
+function tireKnockOut(k, t, s, px, py) {
+  const w = t.rot + s.a;
+  t.stuck.splice(t.stuck.indexOf(s), 1);
+  debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * 520 + rand(-80, 80), vy: Math.sin(w) * 520 - 260, rot: w - HALF, vr: rand(-18, 18) });
+  deflect(k, undefined, 1.2);
+  burst(px, py, 26, ['#ffffff', '#ffd23f', '#c3c3ca'], 520, 60, 3, 0.45);
+  startTireDeflate(t, s.a);
+}
+function tireBladeHit(k, t) {
+  const T = t.tire; if (T.layer !== 'steel' || T.blades < 0.6) return false;
+  const a = normA(HALF - t.rot);
+  for (let i = 0; i < 3; i++) {
+    const ba = i / 3 * TAU + 0.4;
+    if (!inArc(a, ba + 0.04, 0.15) || k.y > CY + R + TIRE.bladeLen * T.blades) continue;
+    const [x, y] = worldAt(t, ba, R + 16);
+    burst(x, y, 30, ['#ffffff', '#ffd23f', '#ff2e45'], 500, 40, 3, 0.5); floater('SLICED BY THE BLADES', x, y - 24, '#ff2e45'); sfx.clank(); sfx.clang();
+    fail(k); return true;
+  }
+  return false;
+}
+function tireNutHit(k, t) {
+  const T = t.tire;
+  for (const n of T.loose) {
+    if (Math.abs(n.x - CX) > 13 || n.y < k.y - 8 || n.y > k.y + KL * 0.6) continue;
+    n.life = 0; deflect(k); stunT = 0.7; stunMax = 0.7;
+    debris.push({ kind: 'nut', x: n.x, y: n.y, vx: rand(-300, 300), vy: rand(-420, -220), rot: 0, vr: rand(-20, 20) });
+    burst(n.x, n.y, 18, ['#ffd23f', '#ffffff'], 380, 40, 2.5, 0.4); floater('CLANG!', n.x + 30, n.y - 10, '#ffd23f'); sfx.clang(); sfx.ping(); buzz(12);
+    return true;
+  }
+  return false;
+}
+function drawTireLoose(t) {
+  const T = t.tire; if (T.hide) return;
+  for (const n of T.loose) {
+    ctx.save(); ctx.globalAlpha = clamp(n.life / 0.6, 0, 1); ctx.translate(n.x, n.y);
+    ctx.fillStyle = 'rgba(255,210,63,.18)'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
+    ctx.rotate(n.rot); nutArt(ctx, 0, 0, 7); ctx.restore();
+  }
+}
+
+// ---------- set dressing: tyre stacks, a start-line light tree that counts down to the burnout, a tachometer ----------
+function drawTireBackdrop(t) {
+  const T = t.tire;
+  for (const [x, n] of [[26, 4], [W - 26, 5]]) for (let i = 0; i < n; i++) {
+    const y = H - 70 - i * 17;
+    ctx.fillStyle = '#08080a'; ctx.fillRect(x - 30, y - 8, 60, 17); ctx.fillStyle = i % 2 ? '#1e1e24' : '#16161b'; ctx.fillRect(x - 28, y - 7, 56, 14);
+    ctx.fillStyle = '#2a2a31'; for (let j = 0; j < 7; j++) ctx.fillRect(x - 26 + j * 8, y - 7, 3, 14);
+  }
+  ctx.fillStyle = '#16161b'; ctx.fillRect(-W, CY + R + 26, W * 3, 3);
+  for (let i = -2; i < 16; i++) { ctx.fillStyle = i % 2 ? '#c89a1a' : '#16161b'; ctx.beginPath(); const x = i * 30 + (time * 20 * T.dir * (0.2 + T.boost * 4)) % 60; ctx.moveTo(x, CY + R + 29); ctx.lineTo(x + 15, CY + R + 29); ctx.lineTo(x + 7, CY + R + 36); ctx.lineTo(x - 8, CY + R + 36); ctx.fill(); }
+  // light tree
+  const lx = 30, ly = 190, left = TIRE.slow - T.cyc;
+  ctx.fillStyle = '#08080a'; ctx.fillRect(lx - 11, ly - 12, 22, 86); ctx.fillStyle = '#1e1e24'; ctx.fillRect(lx - 9, ly - 10, 18, 82); ctx.fillStyle = '#08080a'; ctx.fillRect(lx - 2, ly + 72, 4, 60);
+  for (let i = 0; i < 4; i++) {
+    const green = i === 3, on = green ? T.mode === 'fast' : T.mode === 'rev' || (T.mode === 'slow' && left < 3 - i);
+    ctx.fillStyle = on ? (green ? '#7cff4f' : '#ffa04a') : '#08080a'; ctx.beginPath(); ctx.arc(lx, ly + i * 19, 6, 0, TAU); ctx.fill();
+    if (on) { ctx.fillStyle = green ? 'rgba(124,255,79,.2)' : 'rgba(255,160,74,.2)'; ctx.beginPath(); ctx.arc(lx, ly + i * 19, 11, 0, TAU); ctx.fill(); }
+  }
+}
+function drawTireTach(t) {
+  const T = t.tire, x = W - 44, y = 196, rpm = Math.abs(t.pat(t.t)) / 9.5;
+  T.rpmS = (T.rpmS || 0) + (clamp(rpm, 0, 1.05) - (T.rpmS || 0)) * 0.2;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.beginPath(); ctx.arc(x, y, 30, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 26, Math.PI * 0.75, Math.PI * 2.25); ctx.stroke();
+  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 26, Math.PI * 1.9, Math.PI * 2.25); ctx.stroke();
+  for (let i = 0; i <= 8; i++) { const a = Math.PI * (0.75 + 1.5 * i / 8); ctx.fillStyle = i >= 6 ? '#ff2e45' : '#c3c3ca'; ctx.fillRect(x + Math.cos(a) * 21 - 1, y + Math.sin(a) * 21 - 1, 2, 2); }
+  const na = Math.PI * (0.75 + 1.5 * T.rpmS) + (T.mode === 'rev' ? Math.sin(time * 40) * 0.25 : 0);
+  ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(na) * 22, y + Math.sin(na) * 22); ctx.stroke();
+  ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(x, y, 3, 0, TAU); ctx.fill();
+  text('RPM', x, y + 14, 6, '#8d8d97', 'center', 700);
+}
+function drawTireHUD() {
+  const t = tgt; if (!t || !t.tire || t.tire.hide) return;
+  const T = t.tire, x0 = 74, y = 104, cw = 6.5, steel = T.layer === 'steel';
+  const fill = fx && fx.type === 'tireintro' ? clamp((fx.t - TSHOT.reveal - 0.3) / 0.9, 0, 1) : 1, flash = T.flashHP > 0 && Math.sin(time * 30) > 0;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, TIRE_HP * cw + 12, 16);
+  for (let i = 0; i < TIRE_HP; i++) {
+    const rub = i >= TIRE_STEEL, hp = steel ? knivesLeft : TIRE_HP - Math.min(T.pen, TIRE_RUBBER), on = i < Math.min(hp, Math.floor(TIRE_HP * fill)), x = x0 + i * cw + (rub ? 4 : 0);
+    ctx.fillStyle = on ? (flash ? '#ffffff' : rub ? '#8d8d97' : i >= 10 ? '#ffd23f' : '#ff2e45') : '#1e1e24'; ctx.fillRect(x, y, cw - 2, 8);
+    if (rub && !steel && !on && i < TIRE_HP * fill) { ctx.fillStyle = '#ffd23f'; ctx.fillRect(x + 1.5, y + 2.5, 2, 3); }
+  }
+  text('RUBBER', x0 + TIRE_STEEL * cw + 4 + TIRE_RUBBER * cw / 2, y - 10, 7, steel ? '#4a4a53' : '#c3c3ca', 'center', 700);
+  text('STEEL', x0 + TIRE_STEEL * cw / 2, y - 10, 7, steel ? '#ffd23f' : '#5c5c66', 'center', 700);
+  let msg, col = '#8d8d97';
+  if (T.mode === 'rev') { msg = 'REVVING...'; col = Math.sin(time * 20) > 0 ? '#ff7a1a' : '#ffffff'; }
+  else if (T.mode === 'fast') { msg = 'BURNOUT  ' + Math.max(0, TIRE.fast - T.cyc).toFixed(1) + 's'; col = '#ff7a1a'; }
+  else if (!steel && T.ripe) { msg = 'KNOCK A KNIFE OUT TO DEFLATE IT'; col = Math.sin(time * 14) > 0 ? '#ff2e45' : '#ffd23f'; }
+  else if (!steel) msg = 'FIRST HIT BOUNCES  /  SAME SPOT PUNCTURES';
+  else msg = 'BARE STEEL  /  BLADES OUT ON THE BURNOUT';
+  text(msg, CX, y + 22, 9, col, 'center', 700);
+  if (T.mode === 'slow') { const u = clamp(T.cyc / TIRE.slow, 0, 1); ctx.fillStyle = '#1e1e24'; ctx.fillRect(CX - 60, y + 31, 120, 3); ctx.fillStyle = u > 0.6 ? '#ff7a1a' : '#5c5c66'; ctx.fillRect(CX - 60, y + 31, 120 * u, 3); }
+  drawTireTach(t);
+}
+function drawTireDebris(d) {
+  if (d.kind === 'nut') { nutArt(ctx, 0, 0, 6); return true; }
+  if (d.kind === 'rubber') {
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(-d.r, -d.w); ctx.quadraticCurveTo(0, -d.w - d.r * 0.5, d.r, -d.w); ctx.lineTo(d.r, d.w); ctx.quadraticCurveTo(0, d.w - d.r * 0.5, -d.r, d.w); ctx.fill();
+    ctx.fillStyle = '#2a2a31'; for (let i = -2; i <= 2; i++) ctx.fillRect(i * d.r * 0.36 - 1.5, -d.w - d.r * 0.22, 3, d.w * 0.8); return true;
+  }
+  if (d.kind === 'rimshard') { ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, d.r * 0.6, d.r + 1.5, -2.2, -0.9); ctx.arc(0, d.r * 0.6, d.r * 0.6, -0.9, -2.2, true); ctx.fill(); ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = d.r * 0.3; ctx.beginPath(); ctx.arc(0, d.r * 0.6, d.r * 0.82, -2.1, -1.0); ctx.stroke(); return true; }
+  if (d.kind === 'wheelcap') { ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, TAU); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, TAU); ctx.fill(); ctx.fillStyle = '#4a4a53'; ctx.fillRect(-12, -1, 24, 2); return true; }
+  return false;
+}
+
+// ---------- deflate: the air screams out, the rubber tears away, the steel wheel shoulders out to full size ----------
+function startTireDeflate(t, a) {
+  const T = t.tire; T.hole = a; T.ripe = false; T.dents = []; T.mode = 'slow'; T.cyc = 0; T.boost = 0; T.over = T.dir * 2;
+  fx = { type: 'tiredeflate', t: 0, lt: 0, freeze: 0.2, x: CX, y: CY + R, lines: impactLinesFor(28, 1000), tg: t };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.2); kick(0.3, 0.08, 1.4, 0.8);
+  sfx.puncture(); sfx.deflate(); sfx.subDrop(); buzz([60, 30, 120]);
+}
+function updateTireDeflate(t) {
+  const tg = fx.tg, T = tg.tire, dt = t - fx.lt; fx.lt = t;
+  tscale = 0.7;
+  if (t < 1.5) {
+    const u = clamp((t - 0.2) / 1.3, 0, 1);
+    T.flat = u; T.over = T.dir * (2 + u * 16); shake = Math.max(shake, 3 + u * 8); T.s = 1 - 0.07 * u + Math.sin(t * 50) * 0.012 * u;
+    // the jet from the hole
+    fx.acc = (fx.acc || 0) + dt * 90;
+    while (fx.acc >= 1) { fx.acc -= 1; const w = tg.rot + T.hole, [x, y] = worldAt(tg, T.hole, R + 2), sp = rand(300, 700); parts.push({ x, y, vx: Math.cos(w + rand(-0.2, 0.2)) * sp, vy: Math.sin(w + rand(-0.2, 0.2)) * sp, life: rand(0.2, 0.4), max: 0.4, c: Math.random() < 0.5 ? '#c3c3ca' : '#8d8d97', s: 2.5, rot: 0, vr: 0 }); }
+    if (Math.floor(t * 5) !== fx.hs) { fx.hs = Math.floor(t * 5); sfx.hiss(); }
+  }
+  if (t >= 1.5 && !fx.pop) {
+    fx.pop = true; T.layer = 'steel'; T.flat = 0; tg.tex = null; tg.pal = TIRE_STL_PAL; tg.marks = []; tg.craters = []; T.s = 0.62; T.over = T.dir * 3;
+    for (const s of tg.stuck) { const w = tg.rot + s.a, sp = rand(380, 700); debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 260, rot: w - HALF, vr: rand(-16, 16) }); }
+    tg.stuck = [];
+    for (let i = 0; i < 26; i++) { const a = i / 26 * TAU + rand(-0.1, 0.1), sp = rand(300, 800); debris.push({ kind: 'rubber', r: rand(12, 24), w: rand(4, 7), x: CX + Math.cos(a) * R * 0.85, y: CY + Math.sin(a) * R * 0.85, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 260, rot: a + HALF, vr: rand(-12, 12) }); }
+    for (let i = 0; i < 30; i++) { const a = rand(TAU); smoke.push({ x: CX + Math.cos(a) * R * 0.8, y: CY + Math.sin(a) * R * 0.8, vx: Math.cos(a) * rand(80, 300), vy: Math.sin(a) * rand(80, 300), r: rand(6, 12), life: rand(0.8, 1.4), max: 1.4, g: rand(50, 100) }); }
+    burst(CX, CY, 60, ['#16161b', '#4a4a53', '#8d8d97', '#ffd23f'], 760, 60, 4, 0.7); shocks(CX, CY, 3, 240); shake = 30; kick(0.45, 0.1, 1.8, 1.2);
+    knivesLeft = TIRE_STEEL; sfx.logExplode(); sfx.splat(); buzz([100, 40, 100]);
+  }
+  if (t >= 1.5) {
+    const u = clamp((t - 1.62) / 0.45, 0, 1); T.s = 0.62 + 0.38 * easeOutBack(u);
+    if (u > 0 && !fx.clk) { fx.clk = true; sfx.servo(); }
+    if (u >= 1 && !fx.lock) { fx.lock = true; sfx.gearClank(); sfx.stamp(); shake = Math.max(shake, 14); shock(CX, CY, 0.4, 200); burst(CX, CY, 30, ['#ffd23f', '#ffffff'], 500, 40, 2.5, 0.4); }
+    T.heat = clamp((t - 1.6) / 0.6, 0, 1) * 0.6;
+  }
+  if (t > 2.9) { T.s = 1; T.over = null; T.mode = 'slow'; T.cyc = 2.5; endFx('play'); floater('20 HITS ON THE STEEL', CX, CY + R + 80, '#ffd23f'); }
+}
+function drawTireDeflate(t) {
+  if (t < 1.5) return;
+  const s0 = t - 1.5, u = clamp(s0 / 0.2, 0, 1), a = clamp((1.4 - s0) / 0.3, 0, 1);
+  ctx.save(); ctx.globalAlpha = a;
+  const sc = 1 + Math.pow(1 - u, 3) * 1.4; ctx.translate(CX, CY + R + 76); ctx.scale(sc, sc);
+  text('LAYER 2', 3, 3, 30, 'rgba(0,0,0,.7)', 'center', 700); text('LAYER 2', 0, 0, 30, '#ffd23f', 'center', 700);
+  text('BARE STEEL', 0, 26, 12, '#ffffff', 'center', 700);
+  ctx.restore();
+}
+
+// ---------- death: it over-revs until the wheel lets go ----------
+function startTireDeath(t) {
+  const T = t.tire; T.loose = []; T.dents = []; T.blades = 0; T.mode = 'slow'; T.over = T.dir * 4;
+  fx = { type: 'tiredeath', t: 0, lt: 0, freeze: 0.22, x: CX, y: CY, lines: impactLinesFor(30, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.2); sfx.tireRev(); sfx.subDrop();
+}
+function updateTireDeath(t) {
+  const tg = fx.tg, T = tg.tire, dt = t - fx.lt; fx.lt = t;
+  tscale = t < 1.5 ? 0.5 : 0.6;
+  if (t < 1.5) {
+    const u = clamp((t - 0.22) / 1.28, 0, 1);
+    T.over = T.dir * (4 + u * u * 36); T.heat = u; shake = Math.max(shake, 4 + u * 14); T.ox = rand(-4, 4) * u; T.oy = rand(-3, 3) * u;
+    while (T.nuts > 0 && u > (5 - T.nuts) * 0.2 + 0.1) { T.nuts--; const a = rand(TAU); debris.push({ kind: 'nut', x: CX, y: CY, vx: Math.cos(a) * rand(300, 600), vy: Math.sin(a) * rand(300, 600) - 200, rot: 0, vr: rand(-20, 20) }); sfx.rivet(); }
+    fx.acc = (fx.acc || 0) + dt * (30 + u * 80);
+    while (fx.acc >= 1) { fx.acc -= 1; const a = rand(TAU), x = CX + Math.cos(a) * R, y = CY + Math.sin(a) * R; parts.push({ x, y, vx: -Math.sin(a) * T.dir * rand(200, 600), vy: Math.cos(a) * T.dir * rand(200, 600), life: rand(0.2, 0.5), max: 0.5, c: Math.random() < 0.5 ? '#ffd23f' : '#ff7a1a', s: 2.5, rot: 0, vr: 0 }); }
+    if (Math.floor(t * 4) !== fx.sq) { fx.sq = Math.floor(t * 4); sfx.screech(); }
+  }
+  if (t >= 1.5 && !fx.boom) {
+    fx.boom = true; T.ox = T.oy = 0;
+    breakTarget(tg, 2.6); tgt = null;
+    for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + rand(-0.2, 0.2), sp = rand(350, 1000); debris.push({ kind: 'rimshard', r: rand(16, 30), x: CX + Math.cos(a) * 50, y: CY + Math.sin(a) * 50, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 300, rot: a + HALF, vr: rand(-14, 14) }); }
+    for (let i = 0; i < 12; i++) { const a = rand(TAU), sp = rand(300, 900); debris.push({ kind: i % 3 ? 'coil' : 'nut', r: rand(6, 12), x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 300, rot: rand(TAU), vr: rand(-16, 16) }); }
+    debris.push({ kind: 'wheelcap', x: CX, y: CY, vx: rand(-140, 140), vy: -620, rot: 0, vr: 9 });
+    embers(CX, CY, 70, 900); scheduleScreenHits(10, ['#c3c3ca', '#8d8d97', '#ffd23f', '#16161b'], 0.7);
+    shocks(CX, CY, 4, 320); kick(0.7, 0.14, 2.2, 2); shake = 48;
+    floater('TIRE DOWN', CX, CY - R - 30, '#ffd23f'); setMusic('main');
+    sfx.logExplode(); sfx.gearClank(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 1.65 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 2.9) endFx('clearing');
+}
+
+// ======================= MONSTER TIRE cinematic =======================
+const TSHOT = { tread: 1.4, roll: 2.8, burn: 4.4, launch: 6.0, reveal: 6.8 };
+const TI_END = TSHOT.reveal + 1.8;
+function startTireIntro(t) {
+  fx = { type: 'tireintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
+  t.tire.hide = true; cinema(true, 0.9);
+  setMusic('boss'); sfx.heartbeat(); sfx.groanFar();
+}
+// shock rings and sparks keep moving in real time while an intro has game time frozen
+function introTick(d) {
+  d = clamp(d, 0, 0.05);
+  for (const r of rings) r.t += d; rings = rings.filter(r => r.t < r.max);
+  for (const q of parts) { q.x += q.vx * d; q.y += q.vy * d; q.vy += 900 * d; q.rot += q.vr * d; q.life -= d; } parts = parts.filter(q => q.life > 0);
+}
+function skipTireIntro() { if (fx && fx.type === 'tireintro' && fx.t < TSHOT.reveal) { fx.t = TSHOT.reveal - 0.01; fx.skipped = true; } }
+function updateTireIntro(t) {
+  tscale = 0; const tg = fx.tg, T = tg.tire;
+  introTick(t - (fx.clt || 0));
+  fx.cutFlash = Math.max(0, (fx.cutFlash || 0) - (t - (fx.clt || 0)) * 7); fx.clt = t;
+  const at = (k, tt) => { if (t >= tt && !fx[k]) { fx[k] = true; return true; } return false; };
+  if (t < TSHOT.tread && Math.floor(t * 2.5) !== fx.hb) { fx.hb = Math.floor(t * 2.5); sfx.rumble(); }
+  if (cutAt('tread', TSHOT.tread)) { sfx.servo(); sfx.whoosh(); }
+  if (t > TSHOT.tread && t < TSHOT.roll && Math.floor(t * 14) !== fx.tk) { fx.tk = Math.floor(t * 14); sfx.tick(); }
+  if (at('lock', TSHOT.tread + 0.7)) sfx.markerOn();
+  if (cutAt('roll', TSHOT.roll)) { sfx.rumble(); sfx.groanFar(); }
+  if (at('b1', TSHOT.roll + 0.62)) { sfx.rubberThud(); sfx.land(); shake = 12; }
+  if (at('b2', TSHOT.roll + 1.12)) { sfx.rubberThud(); shake = 8; }
+  if (at('skid', TSHOT.roll + 1.25)) sfx.tireBrake();
+  if (cutAt('burn', TSHOT.burn)) { sfx.tireRev(); sfx.riser(); }
+  if (t > TSHOT.burn + 0.3 && t < TSHOT.launch) { shake = Math.max(shake, 4 + 5 * (t - TSHOT.burn)); if (Math.floor(t * 2.2) !== fx.sc) { fx.sc = Math.floor(t * 2.2); sfx.screech(); } }
+  if (cutAt('launch', TSHOT.launch)) { sfx.whoosh(); sfx.subDrop(); shake = 16; }
+  if (t >= TSHOT.reveal && !fx.revealed) { fx.revealed = true; T.hide = false; fx.cutFlash = 0; T.oy = -520; sfx.whoosh(); }
+  if (fx.revealed) {
+    // it drops in and bounces like the rubber it is
+    const u = clamp((t - TSHOT.reveal) / 0.9, 0, 1), e = easeOutBounce(u); T.oy = -520 * (1 - e);
+    for (const [k, tt, sh] of [['d1', 0.33, 26], ['d2', 0.66, 14], ['d3', 0.83, 7]]) if (at(k, TSHOT.reveal + tt)) {
+      shake = sh; kick(0.3 * sh / 26, 0.05, 1.4 * sh / 26, 0.8 * sh / 26); shocks(CX, CY + R, k === 'd1' ? 3 : 1, 220); sfx.rubberThud(); sfx.land(); if (k === 'd1') { sfx.stamp(); sfx.subDrop(); buzz([60, 30, 90]); }
+      for (let i = 0; i < 16; i++) { const sd = i % 2 ? 1 : -1; parts.push({ x: CX + sd * rand(10, R), y: CY + R + 8, vx: sd * rand(80, 320), vy: rand(-220, -40), life: rand(0.3, 0.6), max: 0.6, c: i % 3 ? '#4a4a53' : '#8d8d97', s: 3, rot: 0, vr: 0 }); }
+    }
+    const sq = Math.max(0, 1 - Math.abs(u - 0.36) * 14) * 0.12 + Math.max(0, 1 - Math.abs(u - 0.7) * 16) * 0.06; T.s = 1 - sq;
+  }
+  fxFilter = null;
+  if (t > TI_END) { T.oy = 0; T.s = 1; T.cyc = 2; endFx('play'); floater('BOUNCE, THEN SAME SPOT', CX, CY + R + 80, '#ffd23f'); }
+}
+// dark, slow smoke for the cinematic: every puff is a pure function of time, nothing accumulates
+let smokeSprs = null;
+function introSmoke(x0, y0, t, n, spread, rise, seed, alpha = 0.5) {
+  if (!smokeSprs) smokeSprs = [30, 46, 64, 84].map(g => { const c = document.createElement('canvas'); c.width = c.height = 64; const q = c.getContext('2d'), gr = q.createRadialGradient(32, 32, 2, 32, 32, 32); gr.addColorStop(0, `rgba(${g},${g},${g + 6},1)`); gr.addColorStop(0.55, `rgba(${g},${g},${g + 6},.7)`); gr.addColorStop(1, `rgba(${g},${g},${g + 6},0)`); q.fillStyle = gr; q.fillRect(0, 0, 64, 64); return c; });
+  for (let i = 0; i < n; i++) {
+    const per = 1.1 + hash(i, seed, 1) * 0.9, ph = (t / per + hash(i, seed, 2)) % 1, sd = hash(i, seed, 3) * 2 - 1;
+    const x = x0 + sd * spread * (0.25 + ph), y = y0 - ph * rise * (0.5 + hash(i, seed, 4)), r = 16 + ph * (44 + hash(i, seed, 5) * 46);
+    ctx.globalAlpha = alpha * 1.5 * Math.sin(ph * Math.PI); ctx.drawImage(smokeSprs[Math.floor(hash(i, seed, 6) * 4)], x - r, y - r, r * 2, r * 2);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawTireIntro(t) {
+  if (t < TSHOT.reveal) {
+    ctx.save();
+    ctx.fillStyle = '#030305'; ctx.fillRect(-W, -H, W * 3, H * 3);
+    if (t < TSHOT.tread) {
+      // SHOT 1: a night road. Something far off is rolling this way.
+      const vx = CX, vy = 300, u = t / TSHOT.tread;
+      const sky = ctx.createLinearGradient(0, 0, 0, vy); sky.addColorStop(0, '#030305'); sky.addColorStop(1, '#16161b'); ctx.fillStyle = sky; ctx.fillRect(-W, 0, W * 3, vy);
+      ctx.fillStyle = '#0d0d10'; ctx.beginPath(); ctx.moveTo(vx - 4, vy); ctx.lineTo(vx + 4, vy); ctx.lineTo(W + 180, H); ctx.lineTo(-180, H); ctx.fill();
+      ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(vx - 4, vy); ctx.lineTo(-150, H); ctx.moveTo(vx + 4, vy); ctx.lineTo(W + 150, H); ctx.stroke();
+      for (let i = 0; i < 9; i++) {      // centre dashes rushing under the camera
+        const z = ((i / 9 + t * 0.9) % 1), z2 = z * z, y = vy + z2 * (H - vy), h = 4 + z2 * 70, w = 1 + z2 * 9;
+        ctx.fillStyle = `rgba(200,154,26,${0.25 + 0.75 * z})`; ctx.fillRect(vx - w / 2, y, w, h);
+      }
+      for (let i = 0; i < 14; i++) {     // marker posts
+        const z = ((i / 7 + t * 0.9) % 1), z2 = z * z, y = vy + z2 * (H - vy), sd = i % 2 ? 1 : -1, x = vx + sd * (6 + z2 * 300);
+        ctx.fillStyle = '#16161b'; ctx.fillRect(x - 1 - z2 * 2, y - 8 - z2 * 50, 2 + z2 * 4, 8 + z2 * 50); ctx.fillStyle = '#ff2e45'; ctx.fillRect(x - 1 - z2 * 2, y - 8 - z2 * 50, 2 + z2 * 4, 2 + z2 * 5);
+      }
+      const r = 3 + u * u * 22;          // the tyre, a dot on the horizon, growing
+      drawTireArt(vx + Math.sin(t * 5) * 2 * u, vy - r + 2, r, t * 9, 0.6);
+      ctx.fillStyle = `rgba(255,160,74,${0.5 + 0.3 * Math.sin(t * 11)})`; ctx.fillRect(vx - 1.5, vy - r, 3, 3);
+      text(typed('SOMETHING IS ROLLING IN.', 0.2, t, 26), CX, 150, 12, '#c3c3ca', 'center', 700);
+    } else if (t < TSHOT.roll) {
+      // SHOT 2: macro. The tread hammers past the lens while the scanner reads it.
+      const u = (t - TSHOT.tread) / (TSHOT.roll - TSHOT.tread), sc = (t - TSHOT.tread) * (500 + u * 1400);
+      ctx.fillStyle = '#0d0d10'; ctx.fillRect(-W, -H, W * 3, H * 3);
+      for (let row = -2; row < 12; row++) {
+        const y = ((row * 80 + sc) % 1120) - 160;
+        for (let c = 0; c < 4; c++) {
+          const x = 14 + c * 100, sk = (c < 2 ? 1 : -1) * 26;
+          ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.moveTo(x + 3, y + 5); ctx.lineTo(x + 91, y + 5 + sk); ctx.lineTo(x + 91, y + 69 + sk); ctx.lineTo(x + 3, y + 69); ctx.fill();
+          ctx.fillStyle = (row + c) % 2 ? '#1e1e24' : '#2a2a31'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 86, y + sk); ctx.lineTo(x + 86, y + 60 + sk); ctx.lineTo(x, y + 60); ctx.fill();
+          ctx.fillStyle = 'rgba(141,141,151,.35)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 86, y + sk); ctx.lineTo(x + 86, y + 4 + sk); ctx.lineTo(x, y + 4); ctx.fill();
+          ctx.fillStyle = '#08080a'; ctx.fillRect(x + 30, y + 20 + sk * 0.35, 26, 3); ctx.fillRect(x + 30, y + 34 + sk * 0.35, 26, 3);
+        }
+      }
+      ctx.fillStyle = `rgba(3,3,5,${0.25 + 0.3 * u})`; for (let i = 0; i < 22; i++) ctx.fillRect(hash(i, 3, 61) * W, 0, 2 + hash(i, 3, 62) * 6, H);   // motion streaks
+      const lk = clamp((t - TSHOT.tread - 0.45) / 0.25, 0, 1);
+      ctx.save(); ctx.translate(CX, 360); const bs = 190 - 70 * lk; brackets(0, 0, bs, bs, HOLO, 14);
+      if (lk >= 1) { text('TREAD  12.0 MM', 0, -bs / 2 - 14, 10, HOLO, 'center', 700); text('420/76 R92  //  COMPOUND: ANGRY', 0, bs / 2 + 16, 8, '#2f9a1f', 'center', 700); }
+      ctx.restore();
+      text('KM/H ' + String(Math.round(40 + u * u * 260)).padStart(3, '0'), W - 66, 130, 14, HOLO, 'center', 700);
+      text(typed('IT DOES NOT STOP.', TSHOT.tread + 0.3, t, 30), CX, 620, 12, '#c3c3ca', 'center', 700);
+    } else if (t < TSHOT.burn) {
+      // SHOT 3: side on. It bounds into frame, lands hard and locks up.
+      const s0 = t - TSHOT.roll, gy = 540, r = 118, u = clamp(s0 / 1.25, 0, 1), e = 1 - Math.pow(1 - u, 2.2);
+      const wall = ctx.createLinearGradient(0, 120, 0, gy); wall.addColorStop(0, '#030305'); wall.addColorStop(1, '#16161b'); ctx.fillStyle = wall; ctx.fillRect(-W, 0, W * 3, gy);
+      const px = -e * 520;
+      for (let i = 0; i < 12; i++) { const x = ((i * 110 + px * 0.5) % 1320 + 1320) % 1320 - 300; ctx.fillStyle = '#0d0d10'; ctx.fillRect(x, 150, 16, gy - 150); ctx.fillStyle = '#1e1e24'; ctx.fillRect(x, 150, 3, gy - 150); }
+      ctx.fillStyle = '#08080a'; ctx.fillRect(-W, gy, W * 3, H);
+      ctx.fillStyle = '#4a4a53'; ctx.fillRect(-W, gy, W * 3, 2);
+      for (let i = 0; i < 12; i++) { const x = ((i * 90 + px) % 1080 + 1080) % 1080 - 300; ctx.fillStyle = '#c89a1a'; ctx.fillRect(x, gy + 46, 44, 5); }
+      const x = -170 + e * (CX + 170 + 16), hop = s0 < 0.62 ? Math.sin(s0 / 0.62 * Math.PI) * 170 : s0 < 1.12 ? Math.sin((s0 - 0.62) / 0.5 * Math.PI) * 60 : 0;
+      const land = Math.max(0, 1 - Math.abs(s0 - 0.62) * 9) + Math.max(0, 1 - Math.abs(s0 - 1.12) * 11) * 0.6, lock = clamp((s0 - 1.25) / 0.3, 0, 1);
+      const rot = e * (CX + 190) / r;
+      if (lock > 0) {   // skid marks and brake smoke
+        ctx.fillStyle = '#030305'; ctx.fillRect(x - 150 * lock - 40, gy + 3, 150 * lock + 40, 7);
+        introSmoke(x - 60, gy, t, 14, 110, 120, 71, 0.5 * lock);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.beginPath(); ctx.ellipse(x, gy + 6, r * (0.9 - hop / 400), 9, 0, 0, TAU); ctx.fill();
+      drawTireArt(x, gy - r * (1 - 0.13 * land) - hop, r, rot, lock > 0 ? 0 : 0.5 * (1 - u), 1 + 0.1 * land, 1 - 0.13 * land);
+      if (land > 0.2) for (let i = 0; i < 10; i++) { const sd = i % 2 ? 1 : -1; ctx.fillStyle = '#4a4a53'; ctx.fillRect(x + sd * (40 + (1 - land) * (120 + i * 16)), gy - 4 - (1 - land) * (30 + i * 5), 4, 4); }
+      text(typed('NO DRIVER. NO BRAKES. ONE WHEEL.', TSHOT.roll + 0.2, t, 34), CX, 140, 11, '#c3c3ca', 'center', 700);
+    } else {
+      // SHOTS 4-5: the burnout. It sits and spins until the room is smoke, then launches.
+      const s0 = t - TSHOT.burn, u = clamp(s0 / (TSHOT.launch - TSHOT.burn), 0, 1), gy = 560, r = 132, lu = clamp((t - TSHOT.launch) / (TSHOT.reveal - TSHOT.launch), 0, 1);
+      const wall = ctx.createLinearGradient(0, 100, 0, gy); wall.addColorStop(0, '#030305'); wall.addColorStop(1, '#16161b'); ctx.fillStyle = wall; ctx.fillRect(-W, 0, W * 3, gy);
+      ctx.fillStyle = '#08080a'; ctx.fillRect(-W, gy, W * 3, H);
+      // skid marks fanning toward the lens, and the patch under the tyre starting to glow
+      ctx.fillStyle = '#030305'; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(CX + sd * 20, gy); ctx.lineTo(CX + sd * 52, gy); ctx.lineTo(CX + sd * (150 + 60 * u), H); ctx.lineTo(CX + sd * (50 + 20 * u), H); ctx.fill(); }
+      const hot = ctx.createRadialGradient(CX, gy + 4, 4, CX, gy + 4, 120); hot.addColorStop(0, `rgba(255,122,26,${0.55 * u * (1 - lu)})`); hot.addColorStop(1, 'rgba(255,122,26,0)');
+      ctx.fillStyle = hot; ctx.fillRect(CX - 130, gy - 40, 260, 90);
+      introSmoke(CX, gy, t, Math.round(10 + u * 26), 150 + u * 120, 260 + u * 220, 81, 0.55);      // behind
+      const ty = gy - r * 0.94 - Math.pow(lu, 2.2) * 900, spin = s0 * (8 + s0 * 16), sq = lu > 0 ? 1 + 0.25 * Math.min(1, lu * 3) : 1 - 0.05 - 0.02 * Math.sin(t * 60);
+      if (lu > 0) { ctx.fillStyle = 'rgba(141,141,151,.25)'; for (let i = 0; i < 9; i++) ctx.fillRect(CX - 100 + i * 25, ty + r, 5, Math.min(600, lu * 1400)); }
+      ctx.save(); ctx.translate(lu > 0 ? 0 : rand(-1.5, 1.5) * u * 3, 0);
+      drawTireArt(CX, ty, r, spin, 0.4 + u * 1.4, lu > 0 ? 1 - 0.1 * Math.min(1, lu * 3) : 1.03, sq);
+      ctx.restore();
+      if (lu <= 0) for (let i = 0; i < 26; i++) {    // embers spat backwards off the contact patch
+        const ph = (t * (1.4 + hash(i, 5, 91)) + hash(i, 5, 92)) % 1, sd = hash(i, 5, 93) * 2 - 1;
+        ctx.fillStyle = i % 2 ? '#ffd23f' : '#ff7a1a'; ctx.globalAlpha = (1 - ph) * u; ctx.fillRect(CX + sd * (30 + ph * 190), gy - 4 - Math.sin(ph * Math.PI) * (40 + hash(i, 5, 94) * 90), 3, 3);
+      }
+      ctx.globalAlpha = 1;
+      introSmoke(CX, gy + 30, t, Math.round(6 + u * 16), 190 + u * 80, 200 + u * 160, 82, 0.5);        // in front
+      // tachometer climbing into the red
+      const rp = clamp(0.15 + u * 0.95, 0, 1.05), gx = W - 74, g0 = 150;
+      ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(gx, g0, 40, Math.PI * 0.75, Math.PI * 2.25); ctx.stroke();
+      ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(gx, g0, 40, Math.PI * 1.9, Math.PI * 2.25); ctx.stroke();
+      const na = Math.PI * (0.75 + 1.5 * rp) + Math.sin(t * 40) * 0.05; ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(gx, g0); ctx.lineTo(gx + Math.cos(na) * 34, g0 + Math.sin(na) * 34); ctx.stroke();
+      text(String(Math.round(rp * 9000 / 100) * 100).padStart(4, '0'), gx, g0 + 26, 10, rp > 0.8 ? '#ff2e45' : '#c3c3ca', 'center', 700);
+      text(typed(lu > 0 ? 'GONE.' : 'BURNOUT.', lu > 0 ? TSHOT.launch + 0.05 : TSHOT.burn + 0.3, t, 30), 96, 150, 16, lu > 0 ? '#c3c3ca' : '#ff7a1a', 'center', 700);
+      if (lu > 0.75) { ctx.fillStyle = `rgba(3,3,5,${clamp((lu - 0.75) / 0.25, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); }
+    }
+    const vg = ctx.createRadialGradient(CX, CY + 60, 200, CX, CY + 60, 620); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.5)');
+    ctx.fillStyle = vg; ctx.fillRect(-W, -H, W * 3, H * 3);
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; for (let i = 0; i < 90; i++) ctx.fillRect(rand(-60, W + 60), rand(0, H), 1.2, 1.2);
+    ctx.restore();
+    text('TAP TO SKIP', W - 50, H - 14, 8, 'rgba(255,255,255,.45)', 'center', 700);
+  } else {
+    ctx.save(); ctx.fillStyle = `rgba(3,3,5,${clamp(1 - (t - TSHOT.reveal) / 0.4, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore();
+  }
+  // title slams in on the first bounce, over two skid marks
+  if (t > TSHOT.reveal + 0.33 && t < TSHOT.reveal + 2.4) {
+    const s0 = t - TSHOT.reveal - 0.33, a = clamp(s0 / 0.06, 0, 1) * clamp((2.07 - s0) / 0.35, 0, 1), sl = clamp(s0 / 0.22, 0, 1), sc = 1 + 1.8 * Math.pow(1 - sl, 3);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(CX, CY + R + 124);
+    const sk = clamp(s0 / 0.3, 0, 1); ctx.fillStyle = '#030305'; ctx.fillRect(-170, -14, 340 * sk, 9); ctx.fillRect(170 - 340 * sk, 8, 340 * sk, 9);
+    ctx.fillStyle = '#c89a1a'; for (let i = 0; i < 12; i++) if (i / 12 < sk) ctx.fillRect(-168 + i * 28, -3, 16, 3);
+    ctx.scale(sc, sc); ctx.rotate(-0.05 * (1 - sl));
+    for (let d = 10; d >= 1; d--) text('MONSTER TIRE', d * 0.7, d * 0.9, 34, d > 6 ? '#08080a' : '#38383f', 'center', 700);
+    text('MONSTER TIRE', -2, 0, 34, '#ff7a1a', 'center', 700); text('MONSTER TIRE', 2, 0, 34, '#ff2e45', 'center', 700); text('MONSTER TIRE', 0, 0, 34, '#ffffff', 'center', 700);
+    text(typed('RUBBER ' + TIRE_RUBBER + '  /  STEEL ' + TIRE_STEEL + '  /  BURNOUT EVERY ' + TIRE.slow + 'S', 0.15, s0, 50), 0, 32, 9, '#ffffff', 'center', 700);
     ctx.restore();
   }
   if (fx.cutFlash > 0) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${fx.cutFlash})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
@@ -4498,6 +5138,7 @@ function drawFeatureDebris(d) {
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-3, -10); ctx.lineTo(1, -2); ctx.lineTo(-2, 6); ctx.stroke(); return true;
     case 'link': ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(0, 0, 3.6, 2.2, 0, 0, TAU); ctx.stroke(); return true;
     case 'cog': case 'coil': return drawGearDebris(d);
+    case 'nut': case 'rubber': case 'rimshard': case 'wheelcap': return drawTireDebris(d);
     case 'tooth': ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(0, -5); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill(); return true;
     case 'hub': ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); return true;
     case 'woodhalf': ctx.save(); ctx.beginPath(); ctx.rect(d.side < 0 ? -12 : 0, -2, 12, KL + 4); ctx.clip(); ctx.translate(0, -KL / 2); drawWoodKnife(); ctx.restore(); ctx.fillStyle = '#fff0cc'; ctx.fillRect(d.side < 0 ? -1 : 0, -KL / 2, 1, KL); return true;
@@ -4638,6 +5279,7 @@ function update(dt) {
     updateChain(t, dt);
     if (t.tank) updateTank(t, dt);
     if (t.gear) updateGear(t, dt);
+    if (t.tire) updateTire(t, dt);
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
   updateSmoke(dt);
@@ -4678,7 +5320,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   updatePieces(dt);
 }
@@ -4782,7 +5424,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide)) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide)) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -4791,6 +5433,7 @@ function drawTarget() {
   const sw = t.tank ? t.tank.swell : 0, swS = 1 + 0.35 * sw * sw + Math.sin(time * 45) * 0.025 * sw;
   ctx.translate(CX + (sw ? rand(-3, 3) * sw : 0), CY - 7 * t.hit + drop + (t.tank ? t.tank.introY : 0));
   if (t.gear) { ctx.translate(t.gear.ox, t.gear.oy); ctx.scale(t.gear.s, t.gear.s); }
+  if (t.tire) { ctx.translate(t.tire.ox, t.tire.oy); ctx.scale(t.tire.s, t.tire.s); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
   drawLogSide(t);
@@ -4891,12 +5534,12 @@ function drawHUD() {
     else ctx.arc(x, y, s === stage ? 7 : 5.5, 0, TAU);
     ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 56, 14, bossName ? '#ff8a95' : 'rgba(255,255,255,.7)', 'center', 700);
   drawTypeMeter();
-  drawTankHUD(); drawGearHUD();
+  drawTankHUD(); drawGearHUD(); drawTireHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear))) for (let i = 0; i < knivesTotal; i++) {
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire))) for (let i = 0; i < knivesTotal; i++) {
     ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
     ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
     drawKnife(); ctx.restore();
@@ -5338,9 +5981,11 @@ function drawScene() {
   ctx.save(); applyCam();
   drawBackdrop();
   if (tgt && tgt.gear && !tgt.gear.hide) { drawGearBackdrop(tgt); drawDriveGears(tgt); }
+  if (tgt && tgt.tire && !tgt.tire.hide) drawTireBackdrop(tgt);
 
   if (tgt) drawTarget();
   if (tgt && tgt.gear) { drawGearRig(tgt); drawSprockets(tgt); }
+  if (tgt && tgt.tire) drawTireLoose(tgt);
   drawSawmill(tgt);
   if (tgt) drawLeakStreams(tgt);
   drawSmoke();
@@ -5368,6 +6013,8 @@ function drawScene() {
   if (fx && fx.type === 'gearphase') drawGearPhase(fx.t);
   if (fx && fx.type === 'tankintro') drawTankIntro(fx.t);
   if (fx && fx.type === 'gearintro') drawGearIntro(fx.t);
+  if (fx && fx.type === 'tireintro') drawTireIntro(fx.t);
+  if (fx && fx.type === 'tiredeflate') drawTireDeflate(fx.t);
   if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0, ky = KNIFE_Y + Math.min(off, 60);
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
@@ -5388,7 +6035,7 @@ function drawScene() {
 
   ctx.restore();
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal)))) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal)))) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -5762,8 +6409,9 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (or the Gearbox, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (or the Water Tanker, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of three bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of three bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of three bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -5788,6 +6436,7 @@ function demoFor(e) {
   if (e.apple) t.apples = [{ a: 0, cut: false }, { a: 2.1, cut: false }, { a: 4.2, cut: false }];
   if (e.graze) t.stuck = [{ a: HALF, tilt: 0.3 }];
   if (e.gear) setupGear(t);
+  if (e.tire) { setupTire(t); t.tire.dents = [{ a: 1.2, life: 6, born: 0 }, { a: 3.0, life: 8, born: 0 }]; t.stuck = [{ a: 0.3 }, { a: 2.1 }, { a: 5.2 }]; }
   if (e.tanker) { setupTanker(t); t.tank.leaks = [{ a: 1, age: 9 }, { a: 3.6, age: 2 }]; t.tank.flood = 40; }
   return t;
 }
@@ -6180,7 +6829,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 35', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 36', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -6372,6 +7021,7 @@ view.addEventListener('pointerdown', e => {
   if (state === 'over' && overT <= 0 && y > 600 && y < 650 && Math.abs(x - CX) < 90) { startToMenu(x, y); return; }
   if (fx && fx.type === 'tankintro') { skipTankIntro(); return; }
   if (fx && fx.type === 'gearintro') { skipGearIntro(); return; }
+  if (fx && fx.type === 'tireintro') { skipTireIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -6379,7 +7029,7 @@ view.addEventListener('pointerdown', e => {
 view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (state === 'menu') menuMove(x, y); });
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
-  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
