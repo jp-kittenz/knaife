@@ -38,10 +38,11 @@ const FONT = '"Silkscreen", "Courier New", monospace', DISPLAY = '"Bungee", "Sil
 try { document.fonts.load('400 30px Bungee'); } catch (e) {}                         // virtual units per art pixel
 const MAX_PIXELS = 480000, Q_SCALE = [1, 0.78, 0.6, 0.45];
 let qLevel = 0, fEma = 16.7, qTimer = 0;
+let HDX = 1;
 function resize() {
   const cw = view.clientWidth || window.innerWidth, ch = view.clientHeight || window.innerHeight;
   scale = Math.min(cw / W, ch / H);
-  let p = PIX; const count = (cw / (p * scale)) * (ch / (p * scale)), budget = MAX_PIXELS * Q_SCALE[qLevel];
+  let p = PIX; const count = (cw / (p * scale)) * (ch / (p * scale)), budget = MAX_PIXELS * Q_SCALE[qLevel] * HDX;
   if (count > budget) p *= Math.sqrt(count / budget);
   dpr = 1 / (p * scale);
   cv.width = Math.max(1, Math.round(cw * dpr)); cv.height = Math.max(1, Math.round(ch * dpr));
@@ -904,6 +905,7 @@ function newStage() {
   const stuck = placeAngles(pre, 0.6, []);
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
+  if (!(boss && isTankStage(stage))) setHD(false);
   const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
@@ -7822,7 +7824,8 @@ function updateTankPipes(t, dt) {
     if (P.grow >= 1) continue;
     const g0 = P.grow; P.grow = Math.min(1, P.grow + dt / 3.4);
     const cross = v => g0 < v && P.grow >= v, [x, y] = worldAt(t, P.a, R * 0.42);
-    if (cross(0.12)) { burst(x, y, 30, ['#ffffff', '#c3c3ca', '#ffd23f'], 520, 40, 3, 0.5); shocks(x, y, 2, 70); shake = Math.max(shake, 14); sfx.clank(); sfx.pipeBurst(); kick(0.12, 0.04, 0.8); }
+    if (cross(0.12)) { burst(x, y, 36, ['#ffffff', '#c3c3ca', '#ffd23f'], 560, 40, 3, 0.5); shocks(x, y, 2, 80); shake = Math.max(shake, 16); sfx.punch(); sfx.pipeBurst(); kick(0.14, 0.04, 0.9); }
+    if (cross(0.13) || cross(0.6) || cross(0.68) || cross(0.92)) sfx.servoWhirr();
     if (cross(0.45) || cross(0.76)) sfx.pipeBolt();
     if (cross(0.5) || cross(0.8)) sfx.zap(0.4);
     if (cross(1)) { sfx.clank(); floater('PIPE!', x, y - 24, '#ff7a1a'); }
@@ -7838,110 +7841,142 @@ const TI = { star: 1.027, gauge: 4.695, vib: 6.0, shatter: 8.329, pan: 9.0, ligh
 const SHOT = { reveal: TI.fight, end: TI.fight + 0.05 };
 const tankArrive = { on: false, t: 9 }; let knifeRiseT = 0;
 function startTankIntro(t) {
-  fx = { type: 'tankintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
-  t.tank.hide = true; t.tank.pipes.forEach(p => p.grow = 0); cinema(true, 0.9);
-  music.cur = ''; setMusic('boss');
+  fx = { type: 'tankintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0 }; state = 'fx';
+  t.tank.hide = true; t.tank.pipes.forEach(p => p.grow = 0); cinema(true, 1); setHD(true);
+  slamMusic('boss');   // the track starts on the black frame, from its first sample
 }
 function skipTankIntro() { if (fx && fx.type === 'tankintro' && fx.t < TI.fight - 0.35) { fx.t = TI.fight - 0.35; fx.skipped = true; } }
 function tankMusicClock() { const tr = music.tracks.boss; if (!tr || !music.unlocked || music.cur !== 'boss') return null; const p = tr.el && !tr.node ? tr.el.currentTime : tr.pos; return p > 0.05 ? p : null; }
 function updateTankIntro(t) {
   tscale = 0; const tg = fx.tg, T = tg.tank, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
-  const mp = tankMusicClock(); if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) fx.t += (mp - fx.t) * 0.25;
-  if (cineCue('star', TI.star)) { sfx.ready(); bloomBoost = 1; }
-  if (cineCue('gauge', TI.gauge)) { sfx.clank(); sfx.tankGroan(); shake = 6; }
-  if (cineCue('vib', TI.vib)) sfx.heatWarn();
-  if (t > TI.vib && t < TI.shatter && Math.floor(t * 10) !== fx.rv) { fx.rv = Math.floor(t * 10); sfx.rivet(); }
-  if (cineCue('shatter', TI.shatter)) { sfx.screenHit(); sfx.pipeBurst(); sfx.glass && sfx.glass(); shake = 22; kick(0.3, 0.06, 1.4, 0.8); bloomBoost = 1; }
-  if (cineCue('pan', TI.pan)) sfx.groanFar();
-  if (cineCue('light', TI.light)) { sfx.breaker(); bloomBoost = 0.6; }
-  if (cineCue('orbit', TI.orbit)) { sfx.servo(); sfx.chain(); }
+  const mp = tankMusicClock();
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.9) { fx.wait += d; fx.t = 0; fx.lt = 0; }   // hold on black until the track is actually sounding
+  else if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) fx.t += (mp - fx.t) * 0.25;
+  if (cineCue('star', TI.star)) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.4, 0.5); shocks(CX, CY + 50, 2, 300); }
+  if (cineCue('gauge', TI.gauge)) { sfx.gaugeSlam(); shake = 16; kick(0.2, 0.04, 1.2, 0.6); bloomBoost = 0.8; }
+  if (cineCue('steam1', TI.gauge + 1.0)) sfx.steamJet();
+  if (cineCue('vib', TI.vib)) { sfx.needleRattle(); sfx.heatWarn(); }
+  if (t > TI.vib && t < TI.shatter) shake = Math.max(shake, 3 + 6 * (t - TI.vib) / (TI.shatter - TI.vib));
+  if (cineCue('shatter', TI.shatter)) { sfx.glassShatter(); sfx.pipeImplode(); shake = 30; kick(0.35, 0.08, 2, 1); bloomBoost = 1; }
+  if (cineCue('pan', TI.pan)) { sfx.groanFar(); }
+  if (cineCue('drip', TI.pan + 0.8)) sfx.plunk();
+  if (cineCue('light', TI.light)) { sfx.breaker(); sfx.hum(); bloomBoost = 0.7; shake = 8; }
+  if (cineCue('orbit', TI.orbit)) { sfx.servo(); sfx.riser(); }
   if (cineCue('top', TI.top)) sfx.whoosh();
   if (t >= TI.fight && !fx.revealed) {
-    fx.revealed = true; T.hide = false; T.introY = 0; tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 1;
-    shake = 16; kick(0.25, 0.05, 1.2, 0.6); sfx.breaker(); sfx.stamp(); sfx.subDrop(); buzz([60, 30, 90]);
+    fx.revealed = true; T.hide = false; T.introY = 0; tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.45;
+    shake = 22; kick(0.3, 0.06, 0.9, 0.5); shocks(CX, CY, 3, 300); sfx.spotOn(); sfx.stamp(); sfx.subDrop(); sfx.knifeRise(); buzz([60, 30, 90]);
+    for (let i = 0; i < 40; i++) { const a = rand(TAU), sp = rand(200, 600); parts.push({ x: CX + Math.cos(a) * R, y: CY + Math.sin(a) * R, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.3, 0.7), max: 0.7, c: ['#ffffff', '#ffd23f', '#2ad8ff'][i % 3], s: 3, rot: 0, vr: 0 }); }
     T.cycle = 0; endFx('play'); floater('FINISH IT BEFORE THE MILL FLOODS', CX, CY + R + 80, '#2ad8ff');
   }
   fxFilter = null;
 }
 function drawIntroStar(t) {
-  const s = t - TI.star, B = beatInfo('boss'), a = clamp(1 - (t - 1.75) / 1.25, 0, 1), pop = 1 + 0.7 * Math.exp(-s * 9) + 0.22 * B.pulse;
+  const s = t - TI.star, B = beatInfo('boss'), a = clamp(1 - (t - 1.75) / 1.25, 0, 1), pop = 1 + 0.9 * Math.exp(-s * 8) + 0.25 * B.pulse;
   if (a <= 0) return;
-  ctx.save(); ctx.globalAlpha = a; ctx.translate(CX, CY + 50);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, 0, 4, 0, 0, 170 * pop); gl.addColorStop(0, 'rgba(255,210,63,.55)'); gl.addColorStop(1, 'rgba(255,160,40,0)'); ctx.fillStyle = gl; ctx.fillRect(-180 * pop, -180 * pop, 360 * pop, 360 * pop); ctx.restore();
-  ctx.rotate(s * 1.7 + B.pulse * 0.2); ctx.scale(pop, pop);
-  const st = (r1, r2, c) => { ctx.fillStyle = c; ctx.beginPath(); for (let i = 0; i < 8; i++) { const q = i / 8 * TAU, r = i % 2 ? r2 : r1; ctx.lineTo(Math.cos(q) * r, Math.sin(q) * r); } ctx.closePath(); ctx.fill(); };
-  st(78, 16, '#c89a1a'); st(70, 13, '#ffd23f'); st(34, 7, '#fff3c4');
-  ctx.fillStyle = 'rgba(255,243,196,.5)'; ctx.fillRect(-160, -1, 320, 2); ctx.fillRect(-1, -160, 2, 320);
+  const x = CX, y = CY + 40;
+  ctx.save(); ctx.globalAlpha = a; ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 14; i++) beam(x, y, i / 14 * TAU + s * 0.25, 520, 1, 22 + 14 * (i % 2), `rgba(255,190,70,${0.06 + 0.05 * B.pulse})`);
+  const gl = ctx.createRadialGradient(x, y, 4, x, y, 230 * pop); gl.addColorStop(0, 'rgba(255,220,120,.75)'); gl.addColorStop(0.35, 'rgba(255,150,40,.3)'); gl.addColorStop(1, 'rgba(255,100,20,0)'); ctx.fillStyle = gl; ctx.fillRect(x - 240 * pop, y - 240 * pop, 480 * pop, 480 * pop);
+  ctx.fillStyle = 'rgba(255,230,170,.55)'; ctx.fillRect(x - 380, y - 1.5, 760, 3); ctx.fillStyle = 'rgba(160,200,255,.25)'; ctx.fillRect(x - 260, y - 5, 520, 10);
+  const ring = s % 0.458; ctx.strokeStyle = `rgba(255,210,63,${0.6 * (1 - ring / 0.458)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 60 + ring * 520, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(255,240,200,${0.8 * Math.exp(-s * 3)})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x, y, 40 + s * 700, 0, TAU); ctx.stroke();
+  for (let i = 0; i < 30; i++) { const ang = hash(i, 6, 1) * TAU + s * (0.5 + hash(i, 6, 2)), rr = 70 + hash(i, 6, 3) * 160 + s * 40; ctx.fillStyle = `rgba(255,236,170,${0.5 + 0.5 * Math.sin(time * 9 + i)})`; ctx.fillRect(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr, 2, 2); }
+  ctx.restore();
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.rotate(s * 1.8 + B.pulse * 0.25); ctx.scale(pop, pop);
+  const st = (r1, r2, c) => { ctx.fillStyle = c; ctx.beginPath(); for (let i = 0; i < 8; i++) { const q = i / 8 * TAU, rr = i % 2 ? r2 : r1; ctx.lineTo(Math.cos(q) * rr, Math.sin(q) * rr); } ctx.closePath(); ctx.fill(); };
+  st(92, 19, '#874419'); st(84, 16, '#c89a1a'); st(76, 13, '#ffd23f'); st(40, 8, '#ffe680'); st(18, 5, '#ffffff');
   ctx.restore();
 }
 const IG_PIPES = Array.from({ length: 16 }, (_, i) => ({ d: [0.35, 0.6, 1.5][i % 3], x: hash(i, 3, 1) * 900 - 200, y: hash(i, 3, 2) * 700 + 20, w: 10 + hash(i, 3, 3) * 26, vert: hash(i, 3, 4) < 0.4, len: 160 + hash(i, 3, 5) * 260 }));
 function drawIntroGauge(t) {
-  const s = t - TI.gauge, broke = t >= TI.shatter, sb = t - TI.shatter;
+  const s = t - TI.gauge, broke = t >= TI.shatter, sb = t - TI.shatter, B = beatInfo('boss');
   const pan = t > TI.pan ? easeIO(clamp((t - TI.pan) / (TI.light - 0.35 - TI.pan), 0, 1)) : 0, camX = pan * 560;
-  const punch = 1 + 0.12 * Math.exp(-s * 7);
+  const punch = 1 + 0.16 * Math.exp(-s * 6), vibK = t > TI.vib && !broke ? clamp((t - TI.vib) / (TI.shatter - TI.vib), 0, 1) : 0;
+  // a red warning light turning far behind everything
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const wa = time * 3; for (const o of [0, Math.PI]) beam(W - 30 - camX * 0.2, 90, wa + o, 600, 3, 90, `rgba(255,46,69,${0.05 + 0.08 * vibK + (broke ? 0.05 : 0)})`); ctx.restore();
   ctx.save(); ctx.translate(CX, 330); ctx.scale(punch, punch); ctx.translate(-CX, -330);
-  // shadowed pipes scattered at three depths, drifting with parallax, fading into the dark (and imploding at the shatter)
-  const bgA = clamp(1 - (s - 0.5) / 1.8, 0, 1) * 0.9 + (t > TI.shatter - 0.6 && !broke ? 0.15 : 0);
-  if (bgA > 0.01 || (broke && sb < 0.5)) for (const P of IG_PIPES) {
-    const imp = broke ? clamp(sb / 0.35, 0, 1) : 0, a = broke ? (1 - imp) * 0.6 : bgA; if (a <= 0.01) continue;
-    const x = P.x - camX * P.d + s * 6 * P.d, y = P.y, cx = x + (P.vert ? 0 : P.len / 2), cy = y + (P.vert ? P.len / 2 : 0);
-    ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(1 - imp * 0.85, 1 - imp * (P.vert ? 0.2 : 0.85)); ctx.translate(-cx, -cy);
-    const wd = P.w * P.d * 1.4; ctx.fillStyle = P.d > 1 ? '#030305' : P.d > 0.5 ? '#0d0d10' : '#16161b';
-    if (P.vert) ctx.fillRect(x - wd / 2, y, wd, P.len); else ctx.fillRect(x, y - wd / 2, P.len, wd);
-    ctx.fillStyle = P.d > 1 ? '#0d0d10' : '#2a2a31'; if (P.vert) ctx.fillRect(x - wd / 2, y, 2, P.len); else ctx.fillRect(x, y - wd / 2, P.len, 2);
+  const bgA = clamp(1 - (s - 0.6) / 1.8, 0, 1) * 0.95;
+  for (const P of IG2) {
+    const imp = broke ? clamp(sb / 0.4, 0, 1) : 0, a = broke ? (1 - imp) * 0.7 : Math.max(bgA, 0.18 * vibK); if (a <= 0.01) continue;
+    const x = P.x - camX * P.d + s * 7 * P.d, y = P.y, cx = x + (P.vert ? 0 : P.len / 2), cy = y + (P.vert ? P.len / 2 : 0), wd = P.w * P.d * 1.3;
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(1 - imp * 0.9, 1 - imp * 0.9); ctx.rotate(imp * (P.fl - 0.5) * 1.5); ctx.translate(-cx, -cy);
+    const body = P.d > 1 ? '#030305' : P.d > 0.7 ? '#0a0a0d' : P.d > 0.45 ? '#121216' : '#1a1a20';
+    ctx.fillStyle = body; if (P.vert) ctx.fillRect(x - wd / 2, y, wd, P.len); else ctx.fillRect(x, y - wd / 2, P.len, wd);
+    ctx.fillStyle = P.d > 1 ? '#121216' : '#38383f'; if (P.vert) ctx.fillRect(x - wd / 2, y, 2, P.len); else ctx.fillRect(x, y - wd / 2, P.len, 2);
+    ctx.fillStyle = body; for (let k = 40; k < P.len; k += 110) { if (P.vert) ctx.fillRect(x - wd / 2 - 4, y + k, wd + 8, 8); else ctx.fillRect(x + k, y - wd / 2 - 4, 8, wd + 8); }
     ctx.restore();
   }
-  // the main pipe: across the frame, then elbowing down to the ground
+  // the main pipe and its elbow down to the ground, with flanges, bolts, a flow label and condensation
   const py0 = 470, ex = CX + 470 - camX;
-  ctx.fillStyle = '#0d0d10'; ctx.beginPath(); ctx.moveTo(-W, py0 - 22); ctx.lineTo(ex, py0 - 22); ctx.arcTo(ex + 44, py0 - 22, ex + 44, py0 + 22, 44); ctx.lineTo(ex + 44, H + 80); ctx.lineTo(ex, H + 80); ctx.lineTo(ex, py0 + 22); ctx.lineTo(-W, py0 + 22); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-W, py0 - 19); ctx.lineTo(ex, py0 - 19); ctx.arcTo(ex + 41, py0 - 19, ex + 41, py0 + 22, 41); ctx.lineTo(ex + 41, H + 80); ctx.stroke();
-  for (let x = -40; x < ex; x += 110) { ctx.fillStyle = '#2a2a31'; ctx.fillRect(x - camX % 110, py0 - 28, 12, 56); }
-  // the gauge on its stem
-  const gx = CX - camX, gy = 300, gr = 104;
-  ctx.fillStyle = '#16161b'; ctx.fillRect(gx - 9, gy + gr - 6, 18, py0 - gy - gr + 6);
-  ctx.save(); ctx.translate(gx, gy);
-  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, gr + 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, gr + 4, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#d8d4c8'; ctx.beginPath(); ctx.arc(0, 0, gr - 4, 0, TAU); ctx.fill();
+  const pg = ctx.createLinearGradient(0, py0 - 24, 0, py0 + 24); pg.addColorStop(0, '#5c5c66'); pg.addColorStop(0.25, '#2a2a31'); pg.addColorStop(0.7, '#121216'); pg.addColorStop(1, '#030305');
+  ctx.fillStyle = pg; ctx.beginPath(); ctx.moveTo(-W, py0 - 24); ctx.lineTo(ex, py0 - 24); ctx.arcTo(ex + 48, py0 - 24, ex + 48, py0 + 24, 48); ctx.lineTo(ex + 48, H + 80); ctx.lineTo(ex, H + 80); ctx.lineTo(ex, py0 + 24); ctx.lineTo(-W, py0 + 24); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,210,230,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-W, py0 - 20); ctx.lineTo(ex, py0 - 20); ctx.arcTo(ex + 44, py0 - 20, ex + 44, py0 + 24, 44); ctx.lineTo(ex + 44, H + 80); ctx.stroke();
+  for (let x = -60 - camX % 130; x < ex - 10; x += 130) { ctx.fillStyle = '#16161b'; ctx.fillRect(x, py0 - 30, 14, 60); ctx.fillStyle = '#4a4a53'; ctx.fillRect(x, py0 - 30, 14, 3); ctx.fillStyle = '#8d8d97'; for (const yy of [-24, -8, 8, 24]) ctx.fillRect(x + 5, py0 + yy - 1.5, 3, 3); }
+  ctx.fillStyle = '#1f5fd1'; ctx.fillRect(CX - 200 - camX, py0 - 12, 70, 24); ctx.fillStyle = '#ffffff'; text('H2O  >>', CX - 165 - camX, py0, 9, '#ffffff', 'center', 700);
+  for (let i = 0; i < 9; i++) { const x = hash(i, 8, 1) * 600 - 100 - camX, y = py0 + 22 + ((s * 40 + hash(i, 8, 2) * 60) % 60); ctx.fillStyle = 'rgba(160,210,255,.6)'; ctx.fillRect(x, y, 2, 3); }
+  // the gauge
+  const gx = CX - camX, gy = 300, gr = 108;
+  ctx.fillStyle = '#16161b'; ctx.fillRect(gx - 10, gy + gr - 6, 20, py0 - gy - gr + 6); ctx.fillStyle = '#4a4a53'; ctx.fillRect(gx - 10, gy + gr - 6, 3, py0 - gy - gr + 6);
+  ctx.fillStyle = '#c89a1a'; ctx.fillRect(gx - 16, py0 - 38, 32, 14);
+  ctx.save(); ctx.translate(gx + (vibK ? Math.sin(time * 70) * 2 * vibK : 0), gy);
+  const bz = ctx.createLinearGradient(-gr, -gr, gr, gr); bz.addColorStop(0, '#dcdce2'); bz.addColorStop(0.5, '#727280'); bz.addColorStop(1, '#2a2a31');
+  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, gr + 12, 0, TAU); ctx.fill(); ctx.fillStyle = bz; ctx.beginPath(); ctx.arc(0, 0, gr + 8, 0, TAU); ctx.fill();
+  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + 0.2; ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(Math.cos(a) * (gr + 3), Math.sin(a) * (gr + 3), 3.5, 0, TAU); ctx.fill(); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(Math.cos(a) * (gr + 3) - 2.5, Math.sin(a) * (gr + 3) - 0.6, 5, 1.2); }
+  const face = ctx.createRadialGradient(-20, -30, 10, 0, 0, gr); face.addColorStop(0, '#f4f0e4'); face.addColorStop(1, '#bdb8aa'); ctx.fillStyle = face; ctx.beginPath(); ctx.arc(0, 0, gr - 4, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#2f9a1f'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, gr - 22, Math.PI * 0.75, Math.PI * 0.75 + Math.PI * 1.5 * 0.55); ctx.stroke();
+  ctx.strokeStyle = '#c89a1a'; ctx.beginPath(); ctx.arc(0, 0, gr - 22, Math.PI * 0.75 + Math.PI * 1.5 * 0.55, Math.PI * 0.75 + Math.PI * 1.5 * 0.78); ctx.stroke();
   ctx.strokeStyle = '#c4122a'; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(0, 0, gr - 22, Math.PI * 0.75 + Math.PI * 1.5 * 0.78, Math.PI * 2.25); ctx.stroke();
-  for (let i = 0; i <= 40; i++) { const a = Math.PI * 0.75 + i / 40 * Math.PI * 1.5, l = i % 5 ? 7 : 14; ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 5 ? 1 : 2.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (gr - 8), Math.sin(a) * (gr - 8)); ctx.lineTo(Math.cos(a) * (gr - 8 - l), Math.sin(a) * (gr - 8 - l)); ctx.stroke(); }
-  for (let i = 0; i <= 8; i++) { const a = Math.PI * 0.75 + i / 8 * Math.PI * 1.5; text(String(i * 5), Math.cos(a) * (gr - 36), Math.sin(a) * (gr - 36), 11, '#16161b', 'center', 700); }
-  text('BAR', 0, 42, 11, '#16161b', 'center', 700);
-  let v = 0.08 + 0.9 * ease3(clamp(s / 1.2, 0, 1)); const shakeN = t > TI.vib && !broke ? clamp((t - TI.vib) / (TI.shatter - TI.vib), 0, 1) : 0;
-  v += Math.sin(time * 80) * 0.02 * shakeN + Math.sin(time * 53) * 0.015 * shakeN; if (broke) v = 0.98 + Math.min(0.5, sb * 3);
+  for (let i = 0; i <= 80; i++) { const a = Math.PI * 0.75 + i / 80 * Math.PI * 1.5, l = i % 10 ? (i % 2 ? 4 : 7) : 15; ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 10 ? 0.8 : 2.6; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (gr - 8), Math.sin(a) * (gr - 8)); ctx.lineTo(Math.cos(a) * (gr - 8 - l), Math.sin(a) * (gr - 8 - l)); ctx.stroke(); }
+  for (let i = 0; i <= 8; i++) { const a = Math.PI * 0.75 + i / 8 * Math.PI * 1.5; text(String(i * 5), Math.cos(a) * (gr - 38), Math.sin(a) * (gr - 38), 12, '#16161b', 'center', 700); }
+  text('BAR', 0, 40, 11, '#16161b', 'center', 700); text('KNAIFE INDUSTRIAL', 0, 58, 6, '#5c5c66', 'center', 700); text('MAX 40', 0, -30, 7, '#a3122a', 'center', 700);
+  let v = 0.06 + 0.92 * ease3(clamp(s / 1.15, 0, 1));
+  v += (Math.sin(time * 83) * 0.025 + Math.sin(time * 57) * 0.018) * vibK; if (broke) v = 0.98 + Math.min(0.55, sb * 3.5);
   const na = Math.PI * 0.75 + v * Math.PI * 1.5;
-  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-Math.cos(na) * 16, -Math.sin(na) * 16); ctx.lineTo(Math.cos(na) * (gr - 14), Math.sin(na) * (gr - 14)); ctx.stroke();
-  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
-  if (!broke) { ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.beginPath(); ctx.ellipse(-34, -44, 44, 16, -0.6, 0, TAU); ctx.fill(); }
-  else { ctx.strokeStyle = 'rgba(20,20,26,.9)'; ctx.lineWidth = 2; ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + 0.2; ctx.moveTo(20, -24); ctx.lineTo(20 + Math.cos(a) * 50, -24 + Math.sin(a) * 50); ctx.lineTo(20 + Math.cos(a + 0.25) * 110, -24 + Math.sin(a + 0.25) * 110); } ctx.stroke(); }
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.save(); ctx.translate(3, 4); ctx.rotate(na); ctx.fillRect(-16, -2.5, gr - 2, 5); ctx.restore();
+  ctx.save(); ctx.rotate(na); ctx.fillStyle = '#a3122a'; ctx.beginPath(); ctx.moveTo(-18, -4); ctx.lineTo(gr - 14, -1); ctx.lineTo(gr - 14, 1); ctx.lineTo(-18, 4); ctx.closePath(); ctx.fill(); ctx.restore();
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(-2, -2, 3, 0, TAU); ctx.fill();
+  if (!broke) { ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.ellipse(-36, -46, 48, 17, -0.6, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.ellipse(40, 50, 26, 8, -0.6, 0, TAU); ctx.fill(); }
+  else { ctx.strokeStyle = 'rgba(20,20,26,.9)'; ctx.lineWidth = 2; ctx.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + 0.2; ctx.moveTo(20, -24); ctx.lineTo(20 + Math.cos(a) * 50, -24 + Math.sin(a) * 50); ctx.lineTo(20 + Math.cos(a + 0.25) * 115, -24 + Math.sin(a + 0.25) * 115); } ctx.stroke(); }
   ctx.restore();
-  // shards of glass and a jet of water out of the burst gauge
-  if (broke && sb < 1.6) {
-    for (let i = 0; i < 26; i++) { const a = hash(i, 4, 1) * TAU, sp = 220 + hash(i, 4, 2) * 520, x = gx + Math.cos(a) * sp * sb, y = gy + Math.sin(a) * sp * sb + 600 * sb * sb, r = 4 + hash(i, 4, 3) * 9; ctx.save(); ctx.translate(x, y); ctx.rotate(sb * (6 + i)); ctx.fillStyle = `rgba(220,240,255,${0.8 * (1 - sb / 1.6)})`; ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 0.7, r * 0.6); ctx.lineTo(-r * 0.6, r * 0.4); ctx.closePath(); ctx.fill(); ctx.restore(); }
-    for (let i = 0; i < 40; i++) { const k = (sb * 2 + hash(i, 5, 1)) % 1, a = -HALF + (hash(i, 5, 2) - 0.5) * 0.9; ctx.fillStyle = 'rgba(160,220,255,.75)'; ctx.fillRect(gx + 20 + Math.cos(a) * k * 300, gy - 30 + Math.sin(a) * k * 300 + k * k * 220, 3, 5); }
+  // steam hissing out of the fittings as the pressure peaks
+  if (s > 1.0 && !broke) { ctx.save(); const k = clamp((s - 1.0) / 0.5, 0, 1) * (0.5 + 0.5 * vibK); introSmoke(gx + 14, gy + gr + 10, s, 7, 20 + 40 * vibK, 120 + 140 * vibK, 2, 0.55 * k); introSmoke(gx - 230, py0 - 26, s, 5, 18, 90, 4, 0.35 * k); ctx.restore(); }
+  // the burst: glass shards with glints, a jet of water, sparks and chunks from the imploding pipes
+  if (broke && sb < 1.8) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; const fl = Math.exp(-sb * 6); ctx.fillStyle = `rgba(120,200,255,${0.35 * fl})`; fillView(); ctx.restore();
+    for (let i = 0; i < 44; i++) { const a = hash(i, 4, 1) * TAU, sp = 220 + hash(i, 4, 2) * 620, x = gx + Math.cos(a) * sp * sb, y = gy + Math.sin(a) * sp * sb + 650 * sb * sb, r = 3 + hash(i, 4, 3) * 11; ctx.save(); ctx.translate(x, y); ctx.rotate(sb * (6 + i)); ctx.fillStyle = `rgba(220,240,255,${0.85 * (1 - sb / 1.8)})`; ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 0.7, r * 0.6); ctx.lineTo(-r * 0.6, r * 0.4); ctx.closePath(); ctx.fill(); if (Math.sin(time * 20 + i) > 0.7) star(0, 0, r * 0.8, 'rgba(255,255,255,.9)'); ctx.restore(); }
+    for (let i = 0; i < 60; i++) { const k = (sb * 2 + hash(i, 5, 1)) % 1, a = -HALF + (hash(i, 5, 2) - 0.5) * 1.1; ctx.fillStyle = 'rgba(160,220,255,.8)'; ctx.fillRect(gx + 20 + Math.cos(a) * k * 340, gy - 30 + Math.sin(a) * k * 340 + k * k * 260, 3, 6); }
+    if (sb < 0.6) for (let i = 0; i < 24; i++) { const k = sb / 0.6, a = hash(i, 9, 1) * TAU, x = hash(i, 9, 2) * W, y = hash(i, 9, 3) * H; ctx.fillStyle = i % 2 ? '#ffd23f' : '#ffffff'; ctx.fillRect(x + Math.cos(a) * k * 80, y + Math.sin(a) * k * 80 + k * k * 60, 2.5, 2.5); }
+    ctx.strokeStyle = `rgba(160,220,255,${0.7 * Math.exp(-sb * 3)})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(gx, gy, 60 + sb * 600, 0, TAU); ctx.stroke();
   }
   ctx.restore();
-  // after the burst it is dark: only a cold rim light on the pipe as we travel along it
-  if (broke) { ctx.fillStyle = `rgba(0,0,0,${clamp((sb - 0.35) / 0.4, 0, 0.72)})`; fillView(); ctx.fillStyle = 'rgba(120,160,200,.18)'; ctx.fillRect(-W, py0 - 22, ex + W, 3); }
+  if (broke) { ctx.fillStyle = `rgba(0,0,0,${clamp((sb - 0.4) / 0.5, 0, 0.74)})`; fillView(); ctx.fillStyle = 'rgba(140,180,220,.22)'; ctx.fillRect(-W, py0 - 23, ex + W, 2); ctx.fillRect(ex + 44, py0 - 20, 2, H); }
+  if (broke && t > TI.pan) for (let i = 0; i < 6; i++) { const x = CX - camX + 20 + hash(i, 10, 1) * 30, y = 330 + ((t * 300 + hash(i, 10, 2) * 400) % 400); ctx.fillStyle = 'rgba(120,180,230,.5)'; ctx.fillRect(x, y, 2, 7); }
 }
 function drawIntroTanker(t) {
   const tg = fx.tg, s = t - TI.light;
-  const wallA = 1 - clamp((t - TI.top + 0.1) / 0.7, 0, 1);
+  const wallA = 1 - clamp((t - TI.top + 0.05) / 0.75, 0, 1);
+  let yaw, pitch, D, G, sil, roll = 0;
+  const Gs = [0, -UT_H * 0.5, 0];
+  if (t < TI.orbit) { yaw = 0; pitch = 0.1; D = 820; G = Gs; sil = 1; }
+  else if (t < TI.top) { const u = easeIO(clamp((t - TI.orbit) / (TI.top - TI.orbit), 0, 1)); yaw = u * TAU; pitch = 0.1 + 0.32 * u; D = 820 - 120 * u; G = Gs; sil = clamp(1 - (t - TI.orbit) / 0.55, 0, 1); roll = Math.sin(u * Math.PI) * 0.08; }
+  else { const u = clamp((t - TI.top) / (TI.fight - 0.12 - TI.top), 0, 1), e = easeIO(u); yaw = 0; pitch = 0.42 + (HALF - 0.42) * e; D = 700 + (CAM_F - 700) * e; G = [0, Gs[1] * (1 - e), 0]; sil = 0; if (u >= 1) { pitch = HALF; D = CAM_F; G = [0, 0, 0]; } }
   if (wallA > 0) {
     ctx.save(); ctx.globalAlpha = wallA;
-    const flick = s < 0.22 ? (Math.sin(s * 90) > 0 ? 1 : 0.25) : 1;
-    ctx.fillStyle = '#08080a'; fillView();
-    for (let y = 40; y < H; y += 80) for (let x = -40; x < W + 40; x += 120) { ctx.fillStyle = (x + y) % 3 ? '#121216' : '#16161b'; ctx.fillRect(x + 2, y + 2, 116, 76); }
-    const lg = ctx.createRadialGradient(CX, 120, 20, CX, 260, 420); lg.addColorStop(0, `rgba(255,214,150,${0.26 * flick})`); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = lg; fillView();
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(CX, -40, HALF, 620, 10, 180, `rgba(255,190,120,${0.06 * flick})`); ctx.restore();
+    const flick = s < 0.3 ? ([1, 0, 1, 0.2, 1, 1][Math.floor(s / 0.05)] ?? 1) : 1;
+    ctx.fillStyle = '#060608'; fillView();
+    for (let y = 30; y < 560; y += 64) for (let x = -60 + ((y / 64) % 2) * 50; x < W + 60; x += 100) { ctx.fillStyle = hash(x, y, 3) > 0.5 ? '#121216' : '#16161b'; ctx.fillRect(x + 2, y + 2, 96, 60); ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(x + 2, y + 2, 96, 2); }
+    ctx.fillStyle = '#0d0d10'; ctx.fillRect(-W, 560, W * 3, H); ctx.fillStyle = 'rgba(255,214,150,.12)'; ctx.fillRect(-W, 560, W * 3, 2);
+    for (const x of [40, W - 40]) { ctx.fillStyle = '#08080a'; ctx.fillRect(x - 8, 0, 16, 560); }
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(30, 420, 70, 26); text('NO', 65, 428, 7, '#16161b', 'center', 700); text('ENTRY', 65, 439, 7, '#16161b', 'center', 700);
+    const lg = ctx.createRadialGradient(CX, 90, 20, CX, 300, 460); lg.addColorStop(0, `rgba(255,214,150,${0.32 * flick})`); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = lg; fillView();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(CX, -40, HALF, 640, 12, 200, `rgba(255,190,120,${0.08 * flick})`); ctx.restore();
+    cineDust(s, 'rgba(255,226,170,.9)', 30, CX - 200, 0, 400, 560);
+    ctx.fillStyle = '#16161b'; ctx.fillRect(CX - 40, 0, 80, 14); ctx.fillStyle = `rgba(255,236,190,${flick})`; ctx.fillRect(CX - 30, 14, 60, 4);
     ctx.restore();
   }
-  let yaw, C, sil;
-  if (t < TI.orbit) { yaw = 0.0001; C = [0, 60, 430]; sil = 1; }
-  else if (t < TI.top) { const u = easeIO(clamp((t - TI.orbit) / (TI.top - TI.orbit), 0, 1)); yaw = u * TAU + 0.0001; C = [0, 60 - 20 * u, 430 - 30 * u]; sil = clamp(1 - (t - TI.orbit) / 0.5, 0, 1); }
-  else { const u = clamp((t - TI.top) / (TI.fight - 0.12 - TI.top), 0, 1), e = easeIO(u); yaw = TAU + HALF * e; C = [0, 40 * (1 - e), 400 + (170 - 400) * e]; sil = 0; if (u >= 1) { yaw = TAU + HALF; C = [0, 0, 170]; } }
-  if (sil > 0 && CANVAS_FILTER) ctx.filter = `brightness(${(1 - 0.94 * sil).toFixed(3)})`;
-  drawTanker3D(tg, C, yaw, 340, R, CX, CY, 0);
-  if (CANVAS_FILTER) ctx.filter = 'none';
+  drawUprightTank(tg, utCam(yaw, pitch, D, G, roll), sil, 1 - clamp((t - TI.top) / 0.6, 0, 1));
+  if (t > TI.orbit && t < TI.top) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const u = (t - TI.orbit) / (TI.top - TI.orbit), fx2 = CX + Math.sin(u * TAU * 1) * 220; drawFlare(fx2, 40, 0.9, 0.5 * Math.sin(u * Math.PI)); ctx.restore(); }
 }
 function drawTankIntro(t) {
   ctx.save();
@@ -7949,18 +7984,148 @@ function drawTankIntro(t) {
   if (t >= TI.star && t < 3.05) drawIntroStar(t);
   else if (t >= TI.gauge && t < TI.light) drawIntroGauge(t);
   else if (t >= TI.light) drawIntroTanker(t);
+  // heavy cinematic vignette and grain over the whole sequence
+  blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); }));
+  drawGrain(0.1);
   ctx.restore();
   if (t < TI.fight - 0.4) cineSkipHint();
 }
 // after the drop: spotlights snap onto the tanker and fade; the HUD assembles from flying shards; the knife rises into the lane
 function drawTankArrival() {
-  if (!tankArrive.on || tankArrive.t > 2) return;
-  const a = clamp(1 - tankArrive.t / 2, 0, 1);
+  if (!tankArrive.on || tankArrive.t > 2.2) return;
+  const T = tankArrive.t, a = clamp(1 - T / 2.2, 0, 1);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (const [x, y] of [[CX - 200, -60], [CX, -90], [CX + 200, -60]]) { const ang = Math.atan2(CY - y, CX - x), len = Math.hypot(CX - x, CY - y) + R; beam(x, y, ang, len, 8, R + 26, `rgba(255,240,200,${0.16 * a})`); }
-  ctx.strokeStyle = `rgba(255,240,200,${0.6 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CX, CY, R + 8 + (1 - a) * 30, 0, TAU); ctx.stroke();
+  for (const [x, y, d] of [[CX - 220, -60, 0], [CX, -100, 0.06], [CX + 220, -60, 0.12]]) { const on = T > d ? 1 : 0, ang = Math.atan2(CY - y, CX - x), len = Math.hypot(CX - x, CY - y) + R; beam(x, y, ang, len, 8, R + 30, `rgba(255,220,160,${0.09 * a * on})`); beam(x, y, ang, len, 4, R * 0.6, `rgba(255,230,190,${0.05 * a * on})`); }
+  for (let i = 0; i < 40; i++) { const h = hash(i, 12, 1), x = CX - 200 + h * 400, y = ((hash(i, 12, 2) * 400 + T * 60 * (0.5 + h)) % 420) - 40; ctx.fillStyle = `rgba(255,240,210,${0.5 * a})`; ctx.fillRect(x, y, 1.6, 1.6); }
+  ctx.strokeStyle = `rgba(255,214,150,${0.45 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CX, CY, R + 8 + (1 - a) * 40, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(42,216,255,${0.6 * Math.exp(-T * 2.5)})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(CX, CY, R + 20 + T * 500, 0, TAU); ctx.stroke();
   ctx.restore();
 }
+// ======================= build 50: HD mode, sound variety, upright tanker, heavier intro =======================
+// HD: a finer pixel size and a bigger pixel budget while a boss that wants it is on screen
+function setHD(on) { const p = on ? 0.6 : PIX_GAME, x = on ? 1.6 : 1; if (PIX !== p || HDX !== x) { PIX = p; HDX = x; resize(); } }
+
+// ---- sound variety: several recipes per core sound, never the same one twice in a row ----
+const sfxLast = {};
+function pickVar(name, n) { let i = Math.floor(Math.random() * n); if (i === sfxLast[name]) i = (i + 1) % n; sfxLast[name] = i; return i; }
+const THUNKS = [
+  () => { const d = rand(0.93, 1.07); noise(0.018, 4200, 0.8, 0.42, 'highpass'); noise(0.07, 720 * d, 5, 0.95, 'bandpass', { curve: 2.5 }); tone('triangle', 320 * d, 150, 0.09, 0.28); tone('sine', 150 * d, 46, 0.18, 0.72, { drive: true }); tone('triangle', 1880 * d, 1840 * d, 0.34, 0.035, { wet: 0.5, delay: 0.012 }); },
+  () => { const d = rand(0.9, 1.05); noise(0.012, 5200, 1, 0.5, 'highpass'); noise(0.11, 520 * d, 4, 0.9, 'bandpass', { curve: 2 }); tone('sine', 120 * d, 40, 0.24, 0.8, { drive: true }); tone('triangle', 2350 * d, 2300 * d, 0.4, 0.03, { wet: 0.6, delay: 0.01 }); tone('sine', 3400 * d, 3380 * d, 0.2, 0.014, { delay: 0.01 }); },
+  () => { const d = rand(0.95, 1.1); noise(0.025, 3000, 1.4, 0.7, 'bandpass', { drive: true }); noise(0.05, 980 * d, 6, 0.7, 'bandpass', { curve: 3 }); tone('sine', 175 * d, 60, 0.12, 0.6, { drive: true }); tone('square', 2600 * d, 2400 * d, 0.06, 0.02); },
+  () => { const d = rand(0.9, 1.02); noise(0.02, 2400, 0.9, 0.35, 'highpass'); noise(0.14, 420 * d, 3, 1, 'lowpass', { curve: 2 }); tone('triangle', 240 * d, 120, 0.12, 0.35); tone('sine', 98 * d, 38, 0.26, 0.75, { drive: true }); tone('triangle', 1600 * d, 1580 * d, 0.5, 0.025, { wet: 0.7, delay: 0.015 }); },
+];
+const TANKHITS = [
+  () => { const f = rand(140, 175); tone('sine', f, f * 0.7, 0.6, 0.6, { drive: true, wet: 0.5 }); tone('triangle', f * 2.7, f * 2.6, 0.5, 0.12, { wet: 0.7 }); tone('triangle', f * 5.1, f * 5, 0.3, 0.05, { wet: 0.7 }); noise(0.03, 4800, 1, 0.5, 'highpass'); noise(0.5, 500, 1.2, 0.25, 'lowpass', { delay: 0.05, curve: 1.5, wet: 0.5 }); },
+  () => { const f = rand(110, 135); tone('sine', f, f * 0.8, 0.8, 0.65, { drive: true, wet: 0.6 }); tone('sine', f * 3.9, f * 3.85, 0.45, 0.08, { wet: 0.8 }); noise(0.02, 6000, 1, 0.45, 'highpass'); noise(0.35, 700, 2, 0.3, 'bandpass', { delay: 0.08, sweepTo: 300, wet: 0.6 }); for (let i = 0; i < 5; i++) tone('sine', rand(500, 1200), rand(250, 500), 0.07, 0.03, { delay: 0.1 + i * 0.05, wet: 0.6 }); },
+  () => { const f = rand(180, 210); tone('triangle', f, f * 0.75, 0.45, 0.5, { drive: true, wet: 0.4 }); tone('triangle', f * 2.1, f * 2.08, 0.6, 0.1, { wet: 0.8 }); noise(0.04, 3500, 1.5, 0.6, 'bandpass', { drive: true }); noise(0.6, 380, 0.8, 0.22, 'lowpass', { delay: 0.04, wet: 0.6 }); },
+];
+const WHOOSHES = [
+  () => { noise(0.13, 2600, 1.2, 0.24, 'bandpass', { sweepTo: 700, curve: 1.6 }); noise(0.09, 600, 0.7, 0.14, 'lowpass', { curve: 2 }); tone('sine', 2600, 3700, 0.05, 0.022, { attack: 0.002 }); },
+  () => { noise(0.16, 3800, 1.8, 0.22, 'bandpass', { sweepTo: 1100, curve: 1.3 }); tone('sine', 1500, 600, 0.1, 0.03); },
+  () => { noise(0.1, 1900, 1, 0.26, 'bandpass', { sweepTo: 520, curve: 2 }); noise(0.05, 7000, 1, 0.08, 'highpass'); tone('triangle', 3100, 4200, 0.04, 0.018, { attack: 0.002 }); },
+];
+const CLANGS = [
+  () => { const f = rand(590, 650); [[1, 0.13, 0.9], [2.76, 0.09, 0.6], [5.4, 0.05, 0.42], [8.93, 0.03, 0.3]].forEach(([r, g, d], i) => tone(i ? 'sine' : 'triangle', f * r, f * r * 0.995, d, g, { wet: 0.55, attack: 0.001 })); noise(0.05, 6200, 1.2, 0.5, 'highpass', { curve: 2 }); tone('sine', 150, 60, 0.14, 0.5, { drive: true }); },
+  () => { const f = rand(820, 900); [[1, 0.12, 0.7], [2.32, 0.08, 0.5], [4.25, 0.05, 0.36], [6.8, 0.025, 0.25]].forEach(([r, g, d]) => tone('sine', f * r, f * r, d, g, { wet: 0.6, attack: 0.001 })); noise(0.04, 7500, 1, 0.45, 'highpass'); },
+  () => { const f = rand(430, 480); [[1, 0.14, 1.1], [2.9, 0.08, 0.7], [5.7, 0.04, 0.5]].forEach(([r, g, d], i) => tone(i ? 'sine' : 'square', f * r, f * r * 0.99, d, i ? g : g * 0.4, { wet: 0.6, attack: 0.001 })); noise(0.06, 5200, 1.4, 0.55, 'bandpass', { drive: true }); tone('sine', 130, 55, 0.18, 0.55, { drive: true }); },
+];
+Object.assign(sfx, {
+  thunk() { if (tgt && tgt.tank && !tgt.tank.hide) return TANKHITS[pickVar('tankhit', TANKHITS.length)](); THUNKS[pickVar('thunk', THUNKS.length)](); },
+  whoosh() { WHOOSHES[pickVar('whoosh', WHOOSHES.length)](); },
+  clang() { CLANGS[pickVar('clang', CLANGS.length)](); },
+  starHit() { for (const [f, d] of [[1046, 0], [1568, 0.02], [2093, 0.04], [3136, 0.07]]) tone('sine', f, f, 1.4, 0.05, { delay: d, wet: 1, exact: true }); tone('sine', 65, 40, 0.8, 0.5, { drive: true, wet: 0.5 }); noise(1.2, 9000, 0.6, 0.06, 'highpass', { delay: 0.05, wet: 1 }); },
+  gaugeSlam() { tone('sine', 70, 34, 0.5, 0.8, { drive: true, wet: 0.6 }); noise(0.08, 1200, 1, 0.9, 'bandpass', { drive: true, wet: 0.5 }); tone('triangle', 900, 860, 0.9, 0.05, { wet: 0.9 }); noise(0.6, 300, 0.7, 0.3, 'lowpass', { delay: 0.05, wet: 0.7 }); },
+  needleRattle() { for (let i = 0; i < 14; i++) { tone('square', rand(1800, 2600), rand(1500, 2000), 0.02, 0.025, { delay: i * 0.05 }); noise(0.015, 4000, 3, 0.12, 'bandpass', { delay: i * 0.05 }); } noise(1.4, 3000, 0.8, 0.12, 'highpass', { rise: true, wet: 0.5 }); },
+  glassShatter() { noise(0.05, 5000, 0.8, 1, 'highpass', { drive: true }); for (let i = 0; i < 26; i++) tone('sine', rand(2500, 7000), rand(2000, 5000), rand(0.04, 0.16), rand(0.02, 0.06), { delay: rand(0, 0.5), wet: 0.8 }); noise(0.7, 7000, 1, 0.25, 'highpass', { delay: 0.04, curve: 2, wet: 0.6 }); tone('sine', 90, 30, 0.6, 0.8, { drive: true, wet: 0.6 }); },
+  pipeImplode() { tone('sawtooth', 220, 40, 0.5, 0.35, { drive: true, wet: 0.6 }); noise(0.4, 900, 1.2, 0.8, 'bandpass', { sweepTo: 200, drive: true, wet: 0.6 }); for (let i = 0; i < 8; i++) noise(0.04, rand(1500, 4000), 3, 0.3, 'bandpass', { delay: rand(0, 0.35) }); },
+  steamJet() { noise(0.9, 4500, 0.7, 0.35, 'highpass', { curve: 0.8, wet: 0.4 }); noise(0.9, 1800, 1, 0.18, 'bandpass', { curve: 0.8 }); },
+  hum() { tone('sawtooth', 60, 60, 2.2, 0.035, { attack: 0.05, wet: 0.5 }); tone('square', 120, 120, 2, 0.015, { wet: 0.5 }); noise(2, 2400, 8, 0.03, 'bandpass'); },
+  spotOn() { noise(0.06, 900, 2, 1, 'bandpass', { drive: true, wet: 1 }); tone('sine', 55, 30, 1.2, 0.9, { drive: true, wet: 1 }); tone('sawtooth', 110, 110, 1.4, 0.04, { delay: 0.05, wet: 0.8 }); noise(1.2, 3200, 4, 0.05, 'bandpass', { delay: 0.05 }); },
+  shardsIn() { for (let i = 0; i < 18; i++) tone('sine', rand(2200, 6000), rand(3000, 7000), 0.06, 0.035, { delay: i * 0.03, wet: 0.7 }); tone('sine', 400, 1600, 0.6, 0.05, { wet: 0.8 }); },
+  knifeRise() { noise(1.1, 2000, 2, 0.12, 'bandpass', { rise: true, sweepTo: 7000, wet: 0.5 }); tone('sine', 300, 1200, 1.1, 0.05, { wet: 0.6 }); tone('triangle', 2600, 3600, 0.4, 0.03, { delay: 0.9, wet: 0.8 }); },
+  servoWhirr() { tone('sawtooth', 160 + rand(0, 60), 420 + rand(0, 120), 0.4, 0.04, { wet: 0.3 }); noise(0.4, 1400, 3, 0.06, 'bandpass', { sweepTo: 2600 }); },
+  punch() { noise(0.06, 2400, 1, 1, 'bandpass', { drive: true }); tone('sine', 120, 40, 0.3, 0.8, { drive: true, wet: 0.4 }); tone('triangle', 700, 640, 0.6, 0.06, { wet: 0.8 }); },
+});
+
+// ---- the upright tanker: a vertical cylinder, an orbit camera that pitches up to overhead ----
+const UT_H = 330, UT_N = 40;
+function utCam(yaw, pitch, D, G, roll = 0) { return { yaw, pitch, D, G, roll, cy_: Math.cos(yaw), sy_: Math.sin(yaw), cp: Math.cos(pitch), sp: Math.sin(pitch), cr: Math.cos(roll), sr: Math.sin(roll) }; }
+function utP(c, x, y, z) {
+  x -= c.G[0]; y -= c.G[1]; z -= c.G[2];
+  const x1 = x * c.cy_ - z * c.sy_, z1 = x * c.sy_ + z * c.cy_, up = y * c.cp - z1 * c.sp, dep = c.D - y * c.sp - z1 * c.cp, k = CAM_F / Math.max(30, dep);
+  const sx = x1 * k, sy = -up * k;
+  return [CX + sx * c.cr - sy * c.sr, CY + sx * c.sr + sy * c.cr, k, dep];
+}
+function utFacing(c, th) { const nx = Math.cos(th), nz = Math.sin(th), nz1 = nx * c.sy_ + nz * c.cy_; return nz1 * c.cp; }   // > 0 when that side of the drum faces the camera
+const UT_L = (() => { const v = [-0.55, 0.7, 0.55], l = Math.hypot(...v); return v.map(q => q / l); })();
+function utShade(c, th) { const nx = Math.cos(th), nz = Math.sin(th), nx1 = nx * c.cy_ - nz * c.sy_, nz1 = nx * c.sy_ + nz * c.cy_; return Math.max(0, nx1 * UT_L[0] + (-nz1 * c.sp) * UT_L[1] + nz1 * c.cp * UT_L[2]); }
+function drawUprightTank(t, c, sil = 0, rail = 1) {
+  const r = R, shade = (rgb, b) => shadeRGB(rgb, b * (1 - 0.94 * sil));
+  // floor shadow
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); for (let i = 0; i <= 24; i++) { const a = i / 24 * TAU, p = utP(c, Math.cos(a) * r * 1.25 + 20, -UT_H, Math.sin(a) * r * 1.25 + 14); ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1]); } ctx.fill();
+  const bands = [[-UT_H, -UT_H + 26, 'haz'], [-UT_H + 26, -UT_H * 0.52, 'body'], [-UT_H * 0.52, -UT_H * 0.48, 'seam'], [-UT_H * 0.48, -28, 'body'], [-28, 0, 'haz']], quads = [];
+  for (let i = 0; i < UT_N; i++) {
+    const a0 = i / UT_N * TAU, a1 = (i + 1) / UT_N * TAU, am = (a0 + a1) / 2, f = utFacing(c, am);
+    if (f < -0.02 && c.pitch < 1.2) continue;
+    const b = 0.32 + 0.95 * utShade(c, am) + 0.35 * Math.pow(utShade(c, am), 14);
+    for (const [y0, y1, kind] of bands) {
+      const P = [[a0, y1], [a1, y1], [a1, y0], [a0, y0]].map(([a, y]) => utP(c, Math.cos(a) * r, y, Math.sin(a) * r));
+      const base = kind === 'haz' ? (i % 2 ? [255, 210, 63] : [22, 22, 27]) : kind === 'seam' ? [74, 74, 83] : (i % 5 === 0 ? [104, 104, 116] : [128, 128, 142]);
+      quads.push({ d: (P[0][3] + P[2][3]) / 2, P, col: shade(base, b) });
+    }
+  }
+  quads.sort((p, q) => q.d - p.d);
+  for (const q of quads) { ctx.fillStyle = q.col; ctx.beginPath(); q.P.forEach((p, j) => ctx[j ? 'lineTo' : 'moveTo'](p[0], p[1])); ctx.closePath(); ctx.fill(); }
+  // details on the drum: rivet rows, ladder, sight glass, stencil plate, valve and outflow pipe
+  const vis = th => utFacing(c, th) > 0.05 || c.pitch > 1.2;
+  ctx.fillStyle = shade([220, 220, 226], 1);
+  for (const y of [-UT_H + 30, -32, -UT_H * 0.5]) for (let i = 0; i < 48; i++) { const a = i / 48 * TAU; if (!vis(a)) continue; const p = utP(c, Math.cos(a) * r * 1.002, y, Math.sin(a) * r * 1.002); ctx.fillRect(p[0] - p[2], p[1] - p[2], 2 * p[2], 2 * p[2]); }
+  const thL = -0.5;
+  if (vis(thL)) {
+    for (const da of [-0.07, 0.07]) { ctx.strokeStyle = shade([60, 60, 70], 1); ctx.lineWidth = 3; ctx.beginPath(); for (let y = -UT_H; y <= 24; y += 22) { const a = thL + da, p = utP(c, Math.cos(a) * (r + 6), y, Math.sin(a) * (r + 6)); ctx[y === -UT_H ? 'moveTo' : 'lineTo'](p[0], p[1]); } ctx.stroke(); }
+    ctx.lineWidth = 2; ctx.strokeStyle = shade([150, 150, 160], 1); ctx.beginPath(); for (let y = -UT_H + 14; y < 0; y += 20) { const p0 = utP(c, Math.cos(thL - 0.07) * (r + 6), y, Math.sin(thL - 0.07) * (r + 6)), p1 = utP(c, Math.cos(thL + 0.07) * (r + 6), y, Math.sin(thL + 0.07) * (r + 6)); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); } ctx.stroke();
+  }
+  const thG = -1.25;
+  if (vis(thG)) { const p0 = utP(c, Math.cos(thG) * (r + 5), -UT_H + 50, Math.sin(thG) * (r + 5)), p1 = utP(c, Math.cos(thG) * (r + 5), -60, Math.sin(thG) * (r + 5)), lv = 0.35 + 0.5 * (0.5 + 0.5 * Math.sin(time * 0.7)); ctx.lineCap = 'round'; ctx.strokeStyle = shade([16, 16, 20], 1); ctx.lineWidth = 9 * p0[2]; ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke(); ctx.strokeStyle = shade([42, 216, 255], 1); ctx.lineWidth = 5 * p0[2]; ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p0[0] + (p1[0] - p0[0]) * lv, p0[1] + (p1[1] - p0[1]) * lv); ctx.stroke(); ctx.lineCap = 'butt'; }
+  const thS = 0.35;
+  if (vis(thS)) {
+    const yc = -UT_H * 0.7, pc = utP(c, Math.cos(thS) * r * 1.01, yc, Math.sin(thS) * r * 1.01), pr = utP(c, Math.cos(thS + 0.05) * r * 1.01, yc, Math.sin(thS + 0.05) * r * 1.01), pu = utP(c, Math.cos(thS) * r * 1.01, yc + 10, Math.sin(thS) * r * 1.01);
+    ctx.save(); ctx.transform((pr[0] - pc[0]) / 10 * 2.2, (pr[1] - pc[1]) / 10 * 2.2, -(pu[0] - pc[0]) / 10, -(pu[1] - pc[1]) / 10, pc[0], pc[1]);
+    ctx.fillStyle = shade([22, 22, 27], 1); ctx.fillRect(-28, -15, 56, 30); ctx.fillStyle = shade([255, 210, 63], 1); ctx.fillRect(-28, -15, 56, 3); ctx.fillRect(-28, 12, 56, 3);
+    ctx.font = `700 8px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = shade([240, 240, 244], 1); ctx.fillText('KNAIFE', 0, -4); ctx.fillStyle = shade([42, 216, 255], 1); ctx.fillText('WATER', 0, 6);
+    ctx.restore();
+  }
+  const thV = 0.95;
+  if (vis(thV)) { const p0 = utP(c, Math.cos(thV) * r, -UT_H + 70, Math.sin(thV) * r), p1 = utP(c, Math.cos(thV) * (r + 70), -UT_H + 70, Math.sin(thV) * (r + 70)), p2 = utP(c, Math.cos(thV) * (r + 70), -UT_H, Math.sin(thV) * (r + 70)); ctx.strokeStyle = shade([22, 22, 27], 1); ctx.lineWidth = 16 * p0[2]; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke(); ctx.strokeStyle = shade([114, 114, 128], 1); ctx.lineWidth = 11 * p0[2]; ctx.stroke(); const pv = utP(c, Math.cos(thV) * (r + 40), -UT_H + 86, Math.sin(thV) * (r + 40)); ctx.strokeStyle = shade([255, 46, 69], 1); ctx.lineWidth = 3 * pv[2]; ctx.beginPath(); ctx.arc(pv[0], pv[1], 9 * pv[2], 0, TAU); ctx.stroke(); }
+  // the top: the gameplay lid itself, fitted as an ellipse
+  if (c.pitch > 0.02) {
+    const o = utP(c, 0, 0, 0), ax = utP(c, r, 0, 0), az = utP(c, 0, 0, r);
+    ctx.save(); ctx.transform((ax[0] - o[0]) / r, (ax[1] - o[1]) / r, (az[0] - o[0]) / r, (az[1] - o[1]) / r, o[0], o[1]);
+    if (sil > 0.02 && CANVAS_FILTER) ctx.filter = `brightness(${(1 - 0.94 * sil).toFixed(3)})`;
+    ctx.save(); ctx.rotate(t.rot); drawFace(t); ctx.restore(); ctx.filter = 'none';
+    ctx.restore();
+  }
+  // catwalk rail round the top (it lifts away as the camera goes overhead)
+  if (rail > 0.01) {
+    ctx.save(); ctx.globalAlpha = rail; ctx.strokeStyle = shade([255, 210, 63], 1); ctx.lineWidth = 2;
+    ctx.beginPath(); for (let i = 0; i <= 48; i++) { const a = i / 48 * TAU, p = utP(c, Math.cos(a) * (r + 8), 22, Math.sin(a) * (r + 8)); ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1]); } ctx.stroke();
+    ctx.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; if (!vis(a) && c.pitch < 1.2) continue; const p0 = utP(c, Math.cos(a) * (r + 8), 0, Math.sin(a) * (r + 8)), p1 = utP(c, Math.cos(a) * (r + 8), 22, Math.sin(a) * (r + 8)); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); } ctx.stroke(); ctx.restore();
+  }
+  // backlit rim while it is a silhouette
+  if (sil > 0.02) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,214,150,${0.75 * sil})`; ctx.lineWidth = 2.2;
+    for (const a of [Math.PI - 0.0001, 0.0001]) { let best = null; for (let i = 0; i < 72; i++) { const th = i / 72 * TAU, p = utP(c, Math.cos(th) * r, -UT_H / 2, Math.sin(th) * r); if (!best || (a < 1 ? p[0] > best[0] : p[0] < best[0])) best = [p[0], th]; } const p0 = utP(c, Math.cos(best[1]) * r, -UT_H, Math.sin(best[1]) * r), p1 = utP(c, Math.cos(best[1]) * r, 0, Math.sin(best[1]) * r); ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke(); }
+    ctx.beginPath(); for (let i = 0; i <= 36; i++) { const a = Math.PI + i / 36 * Math.PI, p = utP(c, Math.cos(a) * r, 0, Math.sin(a) * r); ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1]); } ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ---- intro, heavier ----
+
+
+
+const IG2 = Array.from({ length: 22 }, (_, i) => ({ d: [0.3, 0.55, 0.85, 1.6][i % 4], x: hash(i, 7, 1) * 1000 - 260, y: hash(i, 7, 2) * 760, w: 12 + hash(i, 7, 3) * 26, vert: hash(i, 7, 4) < 0.45, len: 180 + hash(i, 7, 5) * 300, fl: hash(i, 7, 6) }));
+
 let hudBuf = null, hudShards = null;
 function drawHudShards(fn) {
   hudBuf = canvasLike(hudBuf); const g = hudBuf.getContext('2d');
@@ -9806,7 +9971,7 @@ function pixelateCPU() {
 // everything else. Impact frames (formerly CSS invert = a white screen) are graded in-shader to red and black.
 const GL_VS = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
 const GL_MAIN = `precision highp float;
-  uniform sampler2D tex, lut, bloom; uniform vec2 res, foc; uniform float ab, zb, dith, bs, vig, fm, gy, gc, tint; varying vec2 uv;
+  uniform sampler2D tex, lut, bloom; uniform vec2 res, foc; uniform float ab, zb, dith, bs, vig, fm, gy, gc, tint, pq; varying vec2 uv;
   float b2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
   float b4(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
   vec3 S(vec2 q){ return texture2D(tex, q).rgb; }
@@ -9821,9 +9986,10 @@ const GL_MAIN = `precision highp float;
     if (gy > 0.001) { float v = clamp((l - 0.5) * gc + 0.5, 0.0, 1.0); vec3 g = tint > 0.5 ? mix(INK, BLOOD, v) : vec3(v); c = mix(c, g, gy); }
     if (fm > 0.5) { float v = step(0.42, l); if (fm > 1.5) v = 1.0 - v; c = mix(INK, BLOOD, v); }
     vec2 vq = (q - 0.5) * vec2(res.x / res.y, 1.0); c *= 1.0 - vig * smoothstep(0.35, 0.95, length(vq));
+    vec3 c0 = clamp(c, 0.0, 1.0);
     c = clamp(c + (b4(px) - 0.5) * dith, 0.0, 1.0);
     vec3 k = floor(c * 31.999);
-    gl_FragColor = vec4(texture2D(lut, vec2((k.r * 32.0 + k.g + 0.5) / 1024.0, (k.b + 0.5) / 32.0)).rgb, 1.0);
+    gl_FragColor = vec4(mix(c0, texture2D(lut, vec2((k.r * 32.0 + k.g + 0.5) / 1024.0, (k.b + 0.5) / 32.0)).rgb, pq), 1.0);
   }`;
 const GL_BRIGHT = `precision mediump float; uniform sampler2D tex; uniform vec2 tx; uniform float thr; varying vec2 uv;
   void main(){
@@ -9915,9 +10081,9 @@ function pixelate() {
     gl.uniform1f(main.u('ab'), inGame ? Math.min(aberr, 2) * 9 * dpr * (aberr > 0.03 ? 1 : 0) : 0);
     gl.uniform1f(main.u('zb'), inGame && zblur > 0.03 ? zblur : 0);
     gl.uniform2f(main.u('foc'), (ox + cam.fx * scale) / (cv.width / dpr), 1 - (oy + cam.fy * scale) / (cv.height / dpr));
-    gl.uniform1f(main.u('dith'), 18 / 255);
+    gl.uniform1f(main.u('dith'), (HDX > 1 ? 9 : 18) / 255); gl.uniform1f(main.u('pq'), HDX > 1 ? 0.65 : 1);
     gl.uniform1f(main.u('bs'), (inGame ? 1.1 : 0.9) + 0.7 * Math.min(1, bloomBoost));
-    gl.uniform1f(main.u('vig'), inGame ? 0.42 : 0.3);
+    gl.uniform1f(main.u('vig'), fx && fx.type === 'tankintro' ? 0.85 : inGame ? 0.42 : 0.3);
     gl.uniform1f(main.u('fm'), glMode.fm); gl.uniform1f(main.u('gy'), glMode.gy); gl.uniform1f(main.u('gc'), glMode.gc); gl.uniform1f(main.u('tint'), glMode.tint);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     return;
@@ -10044,7 +10210,7 @@ function drawForeground() {
 
 // ======================= MAIN MENU / STORE / ENCYCLOPEDIA =======================
 const PIX_GAME = 0.8, PIX_MENU = 0.72;
-function setPix(p) { if (PIX !== p) { PIX = p; resize(); } }
+function setPix(p) { if (PIX !== p || HDX !== 1) { PIX = p; HDX = 1; resize(); } }
 function withCtx(g, fn) { const old = ctx; ctx = g; try { fn(); } finally { ctx = old; } }
 
 const ui = { screen: 'main', mx: CX, my: 420, hover: null, trans: null, enter: 0, idx: 0, flip: 0, flipped: true, spin: 0, spinV: 1.1, drag: null,
@@ -10659,7 +10825,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 49', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 50', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

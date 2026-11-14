@@ -2,6 +2,24 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 50
+- **Water Tanker intro, round two.**
+  - **Music:** the boss track now starts on the very first black frame, from its first note. The intro holds on black until the track is actually playing, then stays locked to it.
+  - **Upright tanker:** it now stands upright in front of the lit wall, as a backlit silhouette with a rim light. The camera orbits it 360° in 3D, then rises over the top and lands exactly on the gameplay lid.
+  - **Tank detail:** hazard bands, rivet rows, a ladder, a sight glass, a KNAIFE WATER plate, an outflow pipe with a valve, and a catwalk rail.
+  - **Heavier effects:**
+    - The star has god rays, beat rings, a shockwave and sparkles.
+    - The gauge slams in, with a turning warning light, steam from the fittings and a shaking needle.
+    - The shatter sends out glinting shards, a water jet, sparks and a shockwave, and the pipes crumple.
+    - The light flickers on with a hum and dust in the beam.
+    - Spotlights land in sequence at the drop.
+  - **Cinematic look:** a heavy vignette and film grain.
+- **HD mode for this boss:** finer resolution, half the dither, and a smoother palette blend. It drops back to normal resolution outside the boss.
+- **More sound variety:**
+  - Core sounds now have several takes each, and the same one never plays twice in a row: 4 knife-into-wood impacts, 3 metal impacts on the tanker, 3 throws and 3 knife-on-knife clangs.
+  - New intro sounds: star hit, gauge slam, needle rattle, steam jet, glass shatter, pipe implosion, lamp hum, spotlights, HUD shards assembling, and the knife rising.
+  - New robot-arm sounds: servo whirr, punch and welding.
+
 ## Build 49
 - **Water Tanker rebuilt.**
   - **Intro, cut to the track:** every beat lands on a hit measured from the music file, and the picture follows the song's real playback position.
