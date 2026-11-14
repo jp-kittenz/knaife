@@ -2,6 +2,30 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 53
+- **Monster Tire redrawn.** This is a visual retouch only: every rule, timer and hit test is unchanged.
+- **New intro, cut to the boss track.** The music starts on the black screen:
+  - 0:01.3: the Water Tanker's spinning star opens it.
+  - 0:03: the arena sits in the dark under phone lights. 0:04.9: the floodlights bang on.
+  - 0:06.5: a macro shot of the tread. 0:07.9: the hub, with a lug nut spinning in on each beat and the eye lighting up.
+  - 0:08.9: the tachometer revs to the redline.
+  - 0:10.9: the burnout on the start line, with the light tree counting down on the drum hits.
+  - 0:15.4: green. It charges the camera, races for the ramp and flies across the striped sun.
+  - 0:18.5: it falls into the live arena and lands on the drop at 0:20.5, with no cut. The HUD assembles from shards and the knife rises.
+- **Boss art:**
+  - Rubber: a moulded sidewall with white raised letters, chunky paddle lugs lit from the room, mud, pink and cyan arena rim light, and a red eye in the hub.
+  - Steel: a chrome lip, a bolted beadlock ring, a drilled and slotted rotor and split spokes.
+- **Arena background follows the song's sections:**
+  - Quiet parts drop to a purple wash, with phone lights in the crowd.
+  - Loud parts strobe the floods, fire pyro columns on the downbeat, launch a firework each bar and set off camera flashes in the stands.
+  - Drops bring a firework barrage and confetti.
+  - Also: a striped sun over a lit skyline, a scrolling LED ribbon and a neon grid floor.
+- **Abilities reanimated:**
+  - Burnout: rev, launch and brake each get rings, sparks and smoke, and the spin blurs.
+  - Rubber slaps leave a tread print in the splat.
+  - The deflate shows a PSI readout bleeding to zero, then a new "Layer 2" card.
+  - Also redrawn: the sickle blades with motion arcs, the loose nuts with trails, the dent and valve markers, the light tree, the tach, the tyre walls, the red-and-white kerb and all the death debris.
+
 ## Build 52
 - **Gearbox redesigned.**
 - **New intro, cut to the boss track.** The music starts on the black screen and the picture follows it:
