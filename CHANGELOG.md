@@ -1,0 +1,55 @@
+# Knaife changelog
+
+Build numbers are shown in the bottom-right corner of the main menu.
+
+## Build 45
+- New log types: **Spiralwood** (three spiral tracks shift every 3 hits, carrying their knives), **Resinwood** (resin holds a knife for 0 damage, a second hit cracks the patch), **Petrified Log** (stone ricochets harmlessly, only wooden seams take knives, stone crumbles after 3 hits), **Embercore** (drifting cracks flare when hit and the glare hides nearby knives), **Ringwood** (three coloured rings, one rises every 3 hits and its knives slide outward).
+- Every knife now has 37 ability interactions.
+
+## Build 44
+- Every log feature redrawn and reanimated: shaded branches with flipping leaves, flames that rise upward, steel coil spring, swinging beehive with honey, sparking frayed cable, padlocked swinging chain, layered bushes, scalloped moss with strands and dew, tunnel weak spots with beating cores and a beetle, a hollow with brow, eyes, jaw, tongue and breath, bevelled armour with a moving sheen, motion-blurred saw.
+- New log types: **Lodestone** (magnetic pulses bunch knives, poles repel), **Bramble** (orbiting thorn vines snag and stun), **Fungal Log** (mushrooms deal x2 but fill the screen with spores), **Runestone** (hit the lit rune for x2 and ability charge).
+
+## Build 43
+- Kitchen Knife gains a second passive, **Bird's Heart**: bird perches turn up on about half of all stages (up from ~3%).
+
+## Build 42
+- Regular, Carving and Conductive knives all fly as cinematic power throws and never cost a heart.
+- Each has its own outcome for: clean hit, final blow, hitting a knife, grazing a knife, final blow + knife, final blow + graze, cutting through a branch, slicing an apple.
+- New lightning everywhere: branching, flickering bolts with glow, forks and travelling pulses.
+- Title beats for the Dagger (Target Marked, Bullseye) and Kitchen Knife (Bon Appetit).
+- Fix: a final-blow Strong Throw on the Hornet's Nest skipped the queen.
+
+## Build 41
+- Every ability interaction plays its own animated set piece at the spot it affects, with a slow-motion beat, camera punch, sound and title.
+
+## Build 40
+- Fix: boss music could go silent on phones after playing a few bosses (decoded tracks are now freed once they fade out).
+
+## Build 39
+- Hornet's Nest gets its own music: a nest theme and a queen theme, both looping seamlessly, with tape-stop and slam transitions.
+- 28 ability interactions per knife, shown in an on-screen feed and the encyclopedia.
+
+## Build 38
+- Major redesign: parallax mill hall, 3D log, display font with slamming titles, faster pace, richer sound.
+- New log types: **Blackout**, **Powder Keg**, **Frostbite**. New birds: crow, woodpecker, owl.
+- Rapid combos, close calls, a slow-motion final hit, flawless bonus; saws slide in and spin down.
+- Every ability reacts to every log type. Encyclopedia expanded.
+
+## Build 37
+- New stage-5 boss: **Hornet's Nest** (disguised as a branched log, orbiting wasps, infestation, breaches, queen phase with five moves).
+- Monster Tire gets its own music.
+
+## Build 36
+- New stage-5 boss: **Monster Tire** (rubber and steel layers, burnouts, deflate cutscene, cinematic intro).
+
+## Builds 34-35
+- Fix: the white wash over boss intros (the between-stages light flash never faded while an intro froze game time).
+- Build number shown on the menu.
+
+## Earlier
+- Gearbox boss with gear swaps, breakable drive chain, phase 2 and its own music; the stage-5 boss is picked at random.
+- Water Tanker boss with leaks, flood clock, heat cycles, phases and a shot-by-shot cinematic intro.
+- 3D main menu, store and encyclopedia; five knives with active and passive abilities.
+- Log types with branches, hazards and per-ability interactions; procedural wood textures.
+- Pixel-art look with a WebGL palette shader; three lives with impact, shatter and retry sequences.
