@@ -2,6 +2,9 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 51.1
+- Hits no longer pause the log: the spin hitch and the per-hit freeze are gone, so it keeps spinning through every stick. The jolt, the knife spring-back and the impact ring stay.
+
 ## Build 51
 - **PixiJS GPU effects layer** (PixiJS 8.6.6, vendored in `assets/`):
   - A full-resolution overlay that shares the game camera draws all hot effects crisp, over the pixel-art world.

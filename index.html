@@ -2092,7 +2092,7 @@ function stickNormal(k, t) {
 // what a clean hit earns: rapid-fire combos, close calls, and a beat of slow motion on the killing blow
 let microStop = 0;
 function hitJuice(t, s, a) {
-  microStop = Math.max(microStop, combo >= 2 ? 0.07 : 0.045); t.jv = (t.jv || 0) - 320; t.hitch = 1;
+  t.jv = (t.jv || 0) - 320;
   pfxRing(CX, CY + R - 2, combo >= 2 ? '#ffd23f' : '#fff3c4', 70 + combo * 8, 0.24);
   flare(CX, CY + R - 2, 1, '#ffd23f');
   combo = time - comboAt < 1.15 ? combo + 1 : 1; comboAt = time;
@@ -9072,7 +9072,6 @@ function update(dt) {
   updateAbility(dt);
   lightIn = Math.max(0, lightIn - dt);                    // real time: boss intros freeze game time
   if (updateFx(dt)) return;                               // ability hit-stop freeze
-  if (microStop > 0) { microStop -= dt; dt *= 0.06; }
   dt *= tscale * ixSlow();
   if (state === 'impact') {
     impactT = Math.max(0, impactT - dt);
@@ -9107,7 +9106,7 @@ function update(dt) {
       for (let i = 0; i < 14; i++) splinter(CX + rand(-R, R), CY + R, t, 300);
       sfx.land();
     }
-    t.rot += t.pat(t.t) * dt * (1 - 0.75 * (t.hitch || 0)); t.hitch = Math.max(0, (t.hitch || 0) - dt * 6);
+    t.rot += t.pat(t.t) * dt;
     t.jv = ((t.jv || 0) + (-520 * (t.jy || 0) - 18 * (t.jv || 0)) * dt); t.jy = (t.jy || 0) + t.jv * dt;
     for (const k of t.stuck) if (k.pen) { k.penV = (k.penV || 0) + (-1100 * k.pen - 24 * (k.penV || 0)) * dt; k.pen += k.penV * dt; if (Math.abs(k.pen) < 0.05 && Math.abs(k.penV) < 2) k.pen = 0; }
     t.hit = Math.max(0, t.hit - dt * 7);
