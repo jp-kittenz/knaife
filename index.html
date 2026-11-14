@@ -3206,7 +3206,7 @@ function updateTankIntro(t) {
     shake = 22; kick(0.35, 0.06, 1.6, 1); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.land(); buzz([60, 30, 90]);
   }
   if (fx.slam) fx.slam += 1 / 60;
-  fxFilter = t >= SHOT.reveal && t < SHOT.reveal + 0.1 ? (Math.floor(t * 40) % 2 ? TWO_TONE : INVERT) : null;
+  fxFilter = null;
   if (t > SHOT.reveal + 0.15 && t < SHOT.reveal + 1 && Math.floor(t * 25) !== fx.tick) { fx.tick = Math.floor(t * 25); sfx.rivet(); }
   if (t > SHOT.pipes) for (const P of T.pipes) { const before = P.grow; P.grow = clamp((t - SHOT.pipes) / 0.7, 0, 1); if (Math.floor(before * 3) !== Math.floor(P.grow * 3)) { sfx.pipeBolt(); const [x, y] = worldAt(fx.tg, P.a, R + 30); for (let i = 0; i < 8; i++) smoke.push({ x, y, vx: rand(-40, 40), vy: rand(-60, -20), r: rand(3, 6), life: 0.8, max: 0.8, g: 220, c: 'rgba(240,240,244,.5)' }); } }
   if (t > SHOT.test && !fx.test) { fx.test = true; sfx.gush(); sfx.floodRush(); }
@@ -3964,7 +3964,7 @@ function updateGearIntro(t) {
     fx.revealed = true; T.hide = false; fx.cutFlash = 0;
     shake = 22; kick(0.35, 0.06, 1.6, 1); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.land(); sfx.gearClank(); buzz([60, 30, 90]);
   }
-  fxFilter = t >= GSHOT.reveal && t < GSHOT.reveal + 0.1 ? (Math.floor(t * 40) % 2 ? TWO_TONE : INVERT) : null;
+  fxFilter = null;
   if (t > GI_END) { T.next = 4; endFx('play'); floater('SNAP THE CHAIN WHEN IT SWAPS', CX, CY + R + 80, '#ffd23f'); }
 }
 function drawStudio() {
