@@ -22,3 +22,10 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Boss (stage 5, alternative): GEARBOX — 20 hits, ratcheting spin, pinion gears on the rim cost a heart; machinery set (drive gears, beacons, vents, RPM holo); phase 2 blows its plates off and bowls sprocket shots down the lane; summons two gears and swaps itself for a decoy while a drive chain blocks the lane. Crack 3 links or hit the red master link to snap it (jams the boss, -2 HP); yellow sleeves stun; too slow and it repairs. Blueprint-to-machinery intro with paint splashes and its own track.
 - Boss (stage 5, alternative): MONSTER TIRE — rubber layer (first hit bounces and leaves a chalk mark, second hit on the mark punctures; 10 punctures, then knock a stuck knife out to deflate it), then 20 hits on bare steel. 4s burnout every 7s, fold-out blades, knives thrown off, loose lug nuts in the lane; night-road/burnout intro.
 - Boss (stage 5, alternative): HORNET'S NEST — starts disguised as a branched log; breaking its beehive triggers the boss. Orbiting wasps sting (4s stun, spin flips), infested spots/knives jam the ability 40s, a breach every 8 hits (x2 spot, more wasps, wasps on the screen), then the queen rebuilds it to 10 HP and defends it with five moves.
+
+## Redesign (build 38)
+- Parallax mill hall (far windows, idle blades, chains, foreground rigging and sawdust) driven by idle sway, mouse / device tilt and impacts; the log has real depth that follows it.
+- New log types: BLACKOUT, POWDER KEG, FROSTBITE. New perches: crow, woodpecker, owl. Every type has its own face art and ambience.
+- Display font with per-letter banner slams; rapid combos, close calls, slow-motion finisher, flawless bonus; saws slide in and spin down / retract.
+- Marker, Carve, Chain and Cook each react to every log type (see the encyclopedia, which follows the equipped knife).
+- Faster pacing and richer sound.
