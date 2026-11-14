@@ -14,5 +14,8 @@ Copied verbatim from these sources on 2026-11-14 (only change: `threejs-animatio
 | 24 threejs-* graphics skills (bloom, shadow-systems, procedural-vfx, camera-direction, skill-router, ...) | github.com/scottstts/Threejs-Awesome-Graphics-Agent-Skills, via threejsresources.com | 53eb5a2 |
 | webgpu-threejs-tsl | github.com/dgreenheck/webgpu-claude-skill, via threejsresources.com | af2319b |
 | nixie-fx-authoring, nixie-fx-runtime | github.com/azakhary/nixie-fx, via threejsresources.com | 339c1ec |
+| audio-visualization | github.com/eachlabs/skills (skills/audio-visualization), via skillselion.com | 7f1f4ff |
+| threejs-impl-audio | github.com/Impertio-Studio/Three.js-Claude-Skill-Package (skills/source/threejs-impl/), via skillsdirectory.com | 6c190f0 |
+| threejs-webaudio-generative-soundtrack | github.com/nicksonthc/ghibli-threejs (skills/), via skillsdirectory.com | cb708ef |
 
 Not installed: ai-dev-kit (threejsresources.com). It is a whole toolkit (hooks, git hooks, MCP servers, always-on coding standards) installed by its own script, not a drop-in skill.
