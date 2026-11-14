@@ -454,7 +454,7 @@ function playTrack(tr, fromStart) {
       .then(b => new Promise((res, rej) => a.decodeAudioData(b, res, rej)))
       .then(buf => {
         tr.buf = buf; tr.filt = a.createBiquadFilter(); tr.filt.type = 'lowpass'; tr.filt.frequency.value = 20000; tr.filt.Q.value = 0.8;
-        tr.gain = a.createGain(); tr.gain.gain.value = 0; tr.filt.connect(tr.gain).connect(a.destination);
+        tr.gain = a.createGain(); tr.gain.gain.value = 0; tr.filt.connect(tr.gain).connect(a.destination); tr.gain.connect(musicAnalyser(a));
         const src = a.createBufferSource(); src.buffer = buf; src.loop = true; loopSrc(src, tr.name);
         const L = LOOPS[tr.name]; let at = tr.el ? (tr.el.currentTime || 0) : 0; if (L && at > L[1]) at = L[0] + (at - L[0]) % (L[1] - L[0]);
         src.connect(tr.filt); src.start(0, at % buf.duration); tr.node = src;
@@ -500,7 +500,7 @@ function updateMusic(rdt) {
   else if (state === 'impact') { rate = finale ? 0.55 : 0.8; cut = 700; }
   else if (state === 'over') { rate = 0.75; cut = 900; vol = 0.35; }
   else if (state === 'rewind') { rate = rewindT < REW_SWITCH ? 0.7 : 1; cut = rewindT < REW_SWITCH ? 500 : 20000; }
-  else if (fx && fx.type === 'tankintro') { rate = 1; cut = fx.t < SHOT.reveal ? 900 + 2600 * clamp(fx.t / SHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'tankintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'nestintro' && fx.t < NSHOT.macro) { const u = clamp(fx.t / (NSHOT.macro - 0.08), 0, 1); rate = 1 - 0.7 * Math.pow(u, 1.6); cut = 20000 * Math.pow(0.012, u); vol = 0.5 * (1 - Math.pow(u, 3)); }
   else if (fx && fx.type === 'nestintro') { rate = 1; cut = fx.t < NSHOT.reveal ? 900 + 3500 * clamp((fx.t - NSHOT.macro) / (NSHOT.reveal - NSHOT.macro), 0, 1) : 20000; vol = 0.62; }
   else if (fx && fx.type === 'queenrise' && fx.t < 1.4) { const u = clamp((fx.t - 0.2) / 1.12, 0, 1); rate = 1 - 0.68 * Math.pow(u, 1.5); cut = 20000 * Math.pow(0.013, u); vol = fx.t > 1.3 ? 0 : 0.55; }
@@ -516,6 +516,7 @@ function updateMusic(rdt) {
   if (music.cur === 'tire') vol *= 0.95;
   if (music.cur === 'nest' || music.cur === 'queen') vol *= 0.9;
   musicDuck += (1 - musicDuck) * Math.min(1, rdt * 2.6);
+  updateAnalyser();
   music.rate += (rate - music.rate) * Math.min(1, rdt * 6); music.cut += (cut - music.cut) * Math.min(1, rdt * 8);
   music.t -= rdt; const tick = music.t <= 0; if (tick) music.t = 0.1;
   for (const name in music.tracks) {
@@ -946,7 +947,7 @@ function startGame() {
 
 // ---------- actions ----------
 function throwKnife() {
-  if (state !== 'play' || knivesLeft <= 0 || readyT > 0.04 || abil.state === 'arming') return;
+  if (state !== 'play' || knivesLeft <= 0 || readyT > 0.04 || abil.state === 'arming' || knifeRiseT > 0.05) return;
   if (stunT > 0) { sfx.denied(); return; }
   if (abil.state === 'armed' && !gearLaneBlocked()) {
     if (ABILITY.mode === 'arm') { abilityThrowAs(ABILITY.id); return; }
@@ -3148,73 +3149,7 @@ const isFirstBossSlot = n => n % 25 === 5;
 let firstBoss = 'tank', forceBoss = null;
 const isTankStage = n => isFirstBossSlot(n) && firstBoss === 'tank';
 
-function makeTankTexture(t) {
-  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
-  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
-  // steel end-cap with a brushed radial gradient
-  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 4, 0, 0, R);
-  gr.addColorStop(0, '#a8a8b2'); gr.addColorStop(0.5, '#727280'); gr.addColorStop(1, '#38383f');
-  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
-  g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 0.6; for (let r = 6; r < R; r += 2.2) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
-  // hazard band and rolled rim
-  g.save(); g.beginPath(); g.arc(0, 0, R - 1, 0, TAU); g.arc(0, 0, R - 10, 0, TAU, true); g.clip();
-  for (let i = 0; i < 40; i++) { g.fillStyle = i % 2 ? '#16161b' : '#ffd23f'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, i / 40 * TAU, (i + 1) / 40 * TAU); g.closePath(); g.fill(); }
-  g.restore();
-  g.strokeStyle = '#16161b'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R - 10, 0, TAU); g.stroke();
-  g.strokeStyle = '#c3c3ca'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R - 0.6, Math.PI * 1.05, Math.PI * 1.7); g.stroke();
-  // rivet rings
-  for (const [rr2, n] of [[R - 14, 36], [R * 0.52, 20]]) for (let i = 0; i < n; i++) { const a = i / n * TAU; g.fillStyle = '#2a2a31'; g.beginPath(); g.arc(Math.cos(a) * rr2 + 0.4, Math.sin(a) * rr2 + 0.4, 1.6, 0, TAU); g.fill(); g.fillStyle = '#dcdce2'; g.beginPath(); g.arc(Math.cos(a) * rr2, Math.sin(a) * rr2, 1.2, 0, TAU); g.fill(); }
-  // welded cross seams
-  g.strokeStyle = '#4a4a53'; g.lineWidth = 2.2; for (const a of [0.4, 0.4 + HALF]) { g.beginPath(); g.moveTo(Math.cos(a) * (R - 14), Math.sin(a) * (R - 14)); g.lineTo(-Math.cos(a) * (R - 14), -Math.sin(a) * (R - 14)); g.stroke(); }
-  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 0.6; for (const a of [0.4, 0.4 + HALF]) { g.beginPath(); g.moveTo(Math.cos(a) * (R - 14) + 1, Math.sin(a) * (R - 14)); g.lineTo(-Math.cos(a) * (R - 14) + 1, -Math.sin(a) * (R - 14)); g.stroke(); }
-  // stencilled marking
-  g.save(); g.rotate(-0.4); g.font = `700 14px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(42,216,255,.75)'; g.fillText('H2O', 0, -R * 0.68); g.font = `700 6px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText('MAX 40 BAR', 0, -R * 0.56); g.restore();
-  // rust streaks
-  const rnd = mulberry(t.seed);
-  for (let i = 0; i < 9; i++) { const a = rnd() * TAU, r0 = (0.3 + rnd() * 0.5) * R; const x = Math.cos(a) * r0, y = Math.sin(a) * r0; const rg = g.createLinearGradient(x, y, x, y + 18); rg.addColorStop(0, 'rgba(168,94,40,.55)'); rg.addColorStop(1, 'rgba(168,94,40,0)'); g.fillStyle = rg; g.fillRect(x - 1.5, y, 3 + rnd() * 2, 16 + rnd() * 10); }
-  return c;
-}
 // live parts drawn in the tank's rotating frame: valve, gauge, leak holes, heat glow
-function drawTankLive(t) {
-  const T = t.tank;
-  // leak holes
-  for (const l of T.leaks) {
-    ctx.save(); ctx.rotate(l.a); ctx.translate(R - 13, 0);
-    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 5.5, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = '#a8a8b2'; ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 5); ctx.lineTo(Math.cos(a + 0.2) * 7.5, Math.sin(a + 0.2) * 8.5); } ctx.stroke();
-    ctx.fillStyle = 'rgba(42,216,255,.5)'; ctx.fillRect(-12, -1, 9, 2);
-    if (l.age >= 7) { ctx.strokeStyle = `rgba(42,216,255,${0.5 + 0.5 * Math.sin(time * 8)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.stroke(); }
-    ctx.restore();
-  }
-  // pressure gauge
-  ctx.save(); ctx.translate(-R * 0.3, R * 0.25);
-  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#f0f0f4'; ctx.beginPath(); ctx.arc(0, 0, 10.5, 0, TAU); ctx.fill();
-  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(0, 0, 8, -0.2, 0.9); ctx.stroke();
-  for (let i = 0; i <= 8; i++) { const a = Math.PI * 0.75 + i / 8 * Math.PI * 1.5; ctx.strokeStyle = '#16161b'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 9.5, Math.sin(a) * 9.5); ctx.lineTo(Math.cos(a) * 7.5, Math.sin(a) * 7.5); ctx.stroke(); }
-  const na = Math.PI * 0.75 + clamp(T.gauge, 0, 1.1) * Math.PI * 1.5 + Math.sin(time * 30) * 0.03 * T.heat;
-  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(na) * 8.5, Math.sin(na) * 8.5); ctx.stroke();
-  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 1.6, 0, TAU); ctx.fill();
-  ctx.restore();
-  // red valve wheel
-  ctx.save(); ctx.translate(R * 0.28, R * 0.18); ctx.rotate(T.valve);
-  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 1.6; ctx.stroke();
-  for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.fillStyle = '#a3122a'; ctx.fillRect(-1.2, 0, 2.4, 12); }
-  ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, TAU); ctx.fill();
-  ctx.restore();
-  // dents from hits
-  for (const d of T.dents) { ctx.save(); ctx.rotate(d); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(R - 22, 0, 6, 3, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(R - 26, -3.5, 7, 1); ctx.restore(); }
-  // heat: the steel glows from the rim inward
-  if (T.heat > 0.01) {
-    const hg = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R);
-    hg.addColorStop(0, `rgba(255,122,26,${0.15 * T.heat})`); hg.addColorStop(0.7, `rgba(255,46,69,${0.45 * T.heat})`); hg.addColorStop(1, `rgba(255,230,128,${0.6 * T.heat})`);
-    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
-  }
-  if (T.warn && Math.floor(time * 12) % 2) { ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 1, 0, TAU); ctx.stroke(); }
-  // swelling before the blast: glowing seams
-  if (T.swell > 0) { ctx.strokeStyle = `rgba(255,230,128,${T.swell})`; ctx.lineWidth = 1 + T.swell * 2; for (const a of [0.4, 0.4 + HALF]) { ctx.beginPath(); ctx.moveTo(Math.cos(a) * (R - 14), Math.sin(a) * (R - 14)); ctx.lineTo(-Math.cos(a) * (R - 14), -Math.sin(a) * (R - 14)); ctx.stroke(); } }
-}
 // the pipe: bolted to the rim, elbows out, rides the spin
 // knives get spat back out after 2s and leave a gushing leak behind
 function detachTankKnife(t, s) {
@@ -3319,29 +3254,12 @@ function setupTanker(t) {
 function drawPipe(t) {
   for (const p of t.tank.pipes) drawOnePipe(t, p);
 }
-function drawOnePipe(t, P) {
-  const T = t.tank, gw = clamp(P.grow, 0, 1); if (gw <= 0) return;
-  ctx.save(); ctx.rotate(P.a);
-  const jit = T.heat > 0.5 ? rand(-0.6, 0.6) : 0;
-  const segs = [[R - 4, 0, R + 30, 0], [R + 30, 0, R + 30, 22], [R + 30, 22, R + 52, 22]];
-  ctx.lineCap = 'butt';
-  segs.forEach(([x1, y1, x2, y2], i) => {
-    const u = clamp(gw * 3 - i, 0, 1); if (u <= 0) return;
-    const ex = x1 + (x2 - x1) * u, ey = y1 + (y2 - y1) * u;
-    ctx.strokeStyle = '#16161b'; ctx.lineWidth = 13; ctx.beginPath(); ctx.moveTo(x1 + jit, y1); ctx.lineTo(ex + jit, ey); ctx.stroke();
-    ctx.strokeStyle = T.heat > 0.5 ? '#a85e28' : '#727280'; ctx.lineWidth = 10; ctx.stroke();
-    ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x1 + jit + (y2 !== y1 ? -2.5 : 0), y1 - (y2 === y1 ? 2.5 : 0)); ctx.lineTo(ex + jit + (y2 !== y1 ? -2.5 : 0), ey - (y2 === y1 ? 2.5 : 0)); ctx.stroke();
-    if (u >= 1) { ctx.fillStyle = '#4a4a53'; ctx.fillRect(x2 - 7 + jit, y2 - 7, 14, 14); ctx.fillStyle = '#c3c3ca'; for (const [bx, by] of [[-5, -5], [5, -5], [-5, 5], [5, 5]]) ctx.fillRect(x2 + bx - 1 + jit, y2 + by - 1, 2, 2); }
-  });
-  if (gw >= 1) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(R + 53, 22, 3, 6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(42,216,255,.6)'; ctx.fillRect(R + 52, 26 + (time * 40) % 10, 2, 4); }
-  ctx.restore();
-}
 function tankPipeHit(k, t) {
   const a = normA(HALF - t.rot);
   for (const P of t.tank.pipes) {
-    if (P.grow < 1) continue;
-    if (inArc(a, normA(P.a + 0.12), 0.2) && k.y <= CY + R + 56) {
-      const [x, y] = worldAt(t, P.a + 0.12, R + 30);
+    if (P.grow < 0.45) continue;
+    if (inArc(a, P.a, 0.17) && k.y <= CY + R + 62) {
+      const [x, y] = worldAt(t, P.a, R + 30);
       burst(x, y, 30, ['#ffffff', '#ffd23f', '#c3c3ca'], 500, 40, 3, 0.5); floater('PIPE!', x, y - 24, '#ff2e45'); sfx.clank();
       fail(k); return true;
     }
@@ -3365,7 +3283,6 @@ function startTankPhase(t, ph) {
 function updateTankPhase(t) {
   const T = fx.tg.tank;
   tscale = t < 1.4 ? 0.15 : 1;
-  for (const P of T.pipes) if (P.grow < 1 && t > 0.4) { const before = P.grow; P.grow = Math.min(1, P.grow + 0.035); if (Math.floor(before * 3) !== Math.floor(P.grow * 3)) sfx.pipeBolt(); }
   waterTarget = Math.max(waterTarget, 0.25 + 0.15 * Math.sin(Math.min(1, t / 1.2) * Math.PI));
   if (t < 1.2) shake = Math.max(shake, 10);
   if (t > 1.6) { T.cycle = 0; endFx('play'); }
@@ -3392,6 +3309,7 @@ function drawLaneFog() {
 function updateTank(t, dt) {
   const T = t.tank;
   if (fx && (fx.type === 'tankintro' || fx.type === 'tankphase' || fx.type === 'tankdeath')) return;
+  updateTankPipes(t, dt);
   const P = PHASE[T.phase];
   T.valve += dt * (0.5 + T.heat * 6);
   const ph2 = tankPhase(); if (ph2 > T.phase && state === 'play') { startTankPhase(t, ph2); return; }
@@ -6869,6 +6787,7 @@ function beatInfo(name) {
   return { b, k, u, pulse: Math.exp(-u * 5.5), half: Math.exp(-((b * 2) % 1) * 6), down: (((k % 4) + 4) % 4) === 0 ? Math.exp(-u * 4) : 0, bar: Math.floor(b / 4), barU: (((b % 4) + 4) % 4) / 4, phrase: Math.floor(b / 16) };
 }
 function bossBgKey(t) {
+  if (t && t.tank && fx && fx.type === 'tankintro' && fx.t > TI.top - 0.3) return 'boss';
   if (!t || introCovering()) return null;
   if (t.tank && !t.tank.hide) return 'boss'; if (t.gear && !t.gear.hide) return 'gear'; if (t.tire && !t.tire.hide) return 'tire';
   if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire';
@@ -6894,59 +6813,6 @@ const stepEase = u => { const k = Math.min(1, u / 0.22); return 1 - Math.pow(1 -
 function beam(x, y, ang, len, w0, w1, col) { const c = Math.cos(ang), s = Math.sin(ang), nx = -s, ny = c; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x + nx * w0, y + ny * w0); ctx.lineTo(x + c * len + nx * w1, y + s * len + ny * w1); ctx.lineTo(x + c * len - nx * w1, y + s * len - ny * w1); ctx.lineTo(x - nx * w0, y - ny * w0); ctx.closePath(); ctx.fill(); }
 
 // ======== WATER TANKER: a flooded pumping station, pressure pounding with the track ========
-BG.boss = (B, px, py) => {
-  bgFill('tank', [[0, '#020a1c'], [0.45, '#06305a'], [0.8, '#0a5f8c'], [1, '#0c7fa8']]);
-  // shafts of light swaying down through the water
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 5; i++) { const a = HALF + (i - 2) * 0.26 + Math.sin(time * 0.4 + i * 1.7) * 0.06; beam(CX + (i - 2) * 50 + px * 0.15, -80, a, 900, 6, 44 + (i % 3) * 22, `rgba(80,200,255,${0.035 + 0.05 * B.pulse})`); }
-  ctx.restore();
-  // far: three storage tanks, their sight-glasses sloshing up a notch every beat
-  ctx.save(); ctx.translate(px * 0.25, py * 0.25);
-  for (let i = 0; i < 3; i++) {
-    const x = [20, 210, 400][i], y = [360, 330, 360][i], w = 130, h = 330, lvl = 0.35 + 0.3 * ((B.bar + i) % 3) / 2 + 0.12 * B.pulse;
-    ctx.fillStyle = '#041a32'; ctx.fillRect(x - w / 2, y, w, h); ctx.beginPath(); ctx.ellipse(x, y, w / 2, 18, 0, Math.PI, 0); ctx.fill();
-    ctx.fillStyle = '#0a3a63'; ctx.fillRect(x - w / 2, y, 6, h); ctx.fillStyle = '#021022'; ctx.fillRect(x + w / 2 - 10, y, 10, h);
-    for (let r = 0; r < 6; r++) { ctx.fillStyle = '#0a3a63'; ctx.fillRect(x - w / 2, y + 30 + r * 50, w, 3); }
-    const gx = x - 12, gh = h - 60, gy = y + 30; ctx.fillStyle = '#020a14'; ctx.fillRect(gx, gy, 24, gh);
-    ctx.fillStyle = '#2ad8ff'; ctx.fillRect(gx + 3, gy + gh * (1 - lvl), 18, gh * lvl); ctx.fillStyle = '#ffffff'; ctx.fillRect(gx + 3, gy + gh * (1 - lvl), 18, 2);
-    for (let r = 0; r < 8; r++) { ctx.fillStyle = '#5c5c66'; ctx.fillRect(gx + 24, gy + r * gh / 8, 6, 2); }
-  }
-  ctx.restore();
-  // mid: the main pipes, flow chevrons racing along at one chevron per beat, valve wheels clicking round
-  ctx.save(); ctx.translate(px * 0.5, py * 0.5);
-  const flow = (B.b % 1 + 1) % 1;
-  for (const [y, dir] of [[150, 1], [612, -1]]) {
-    ctx.fillStyle = '#031426'; ctx.fillRect(-W, y - 22, W * 3, 44); ctx.fillStyle = '#0d4a78'; ctx.fillRect(-W, y - 22, W * 3, 6); ctx.fillStyle = '#020a14'; ctx.fillRect(-W, y + 16, W * 3, 6);
-    for (let x = -40; x < W + 80; x += 120) { ctx.fillStyle = '#0a3a63'; ctx.fillRect(x - 6, y - 28, 12, 56); }
-    ctx.fillStyle = `rgba(42,216,255,${0.45 + 0.5 * B.pulse})`;
-    for (let x = -60; x < W + 60; x += 40) { const xx = x + dir * flow * 40; ctx.beginPath(); ctx.moveTo(xx, y - 8); ctx.lineTo(xx + dir * 10, y); ctx.lineTo(xx, y + 8); ctx.lineTo(xx + dir * 4, y); ctx.closePath(); ctx.fill(); }
-  }
-  for (const [x, y] of [[60, 150], [360, 150], [100, 612], [320, 612]]) {
-    const a = (Math.floor(B.b) + stepEase(B.u)) * TAU / 8;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 20, 0, TAU); ctx.stroke(); ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i < 4; i++) { ctx.moveTo(0, 0); ctx.lineTo(Math.cos(i * HALF) * 20, Math.sin(i * HALF) * 20); } ctx.stroke(); ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill(); ctx.restore();
-  }
-  ctx.restore();
-  // sonar: a big ring per bar, a small one per beat
-  ctx.strokeStyle = `rgba(42,216,255,${0.55 * (1 - B.barU)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CX, CY, R + 30 + B.barU * 520, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = `rgba(160,236,255,${0.5 * B.pulse})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, CY, R + 20 + (1 - B.pulse) * 90, 0, TAU); ctx.stroke();
-  // bubbles streaming up, bursting thicker on the downbeat
-  ctx.strokeStyle = 'rgba(180,240,255,.55)'; ctx.lineWidth = 1.2; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath();
-  for (let i = 0; i < 40; i++) {
-    const sp = 70 + hash(i, 1, 11) * 160, x = hash(i, 1, 12) * (W + 60) - 30 + Math.sin(time * 2 + i) * 8 + px * 0.6, y = H + 30 - ((time * sp + hash(i, 1, 13) * 900) % (H + 80)), r = 2 + hash(i, 1, 14) * 5 + B.down * 2;
-    ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, TAU); ctx.fillRect(x - r * 0.4, y - r * 0.5, 1.5, 1.5);
-  }
-  ctx.stroke();
-  // the flood line: three layers of swell pumping on the beat
-  for (let l = 0; l < 3; l++) {
-    const base = H - 110 + l * 26 + py * (0.3 + l * 0.2), amp = 8 + 14 * B.pulse * (1 - l * 0.25), sp = 1.2 + l * 0.6;
-    ctx.fillStyle = ['rgba(14,127,176,.55)', 'rgba(10,90,140,.75)', 'rgba(4,40,80,.95)'][l]; ctx.beginPath(); ctx.moveTo(-W, H + 60);
-    for (let x = -40; x <= W + 40; x += 12) ctx.lineTo(x, base + Math.sin(x * 0.03 + time * sp + l) * amp + Math.sin(x * 0.011 - time) * 6);
-    ctx.lineTo(W * 2, H + 60); ctx.closePath(); ctx.fill();
-    if (l === 0) { ctx.strokeStyle = 'rgba(200,250,255,.7)'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = -40; x <= W + 40; x += 12) ctx[x > -40 ? 'lineTo' : 'moveTo'](x, base + Math.sin(x * 0.03 + time * sp) * amp + Math.sin(x * 0.011 - time) * 6); ctx.stroke(); }
-  }
-  bgFlash('#2ad8ff', 0.12 * B.down);
-  bgStage();
-};
 
 // ======== GEARBOX: the engine room, gears ticking a tooth a beat, pistons hammering, molten light below ========
 const GBG = [[40, 120, 150, 30, 1], [400, 300, 170, 34, -1], [-10, 560, 120, 24, -1], [430, 650, 110, 22, 1], [210, -40, 120, 24, 1]];
@@ -7241,112 +7107,6 @@ function cineSkipHint() { text('TAP TO SKIP', W - 50, H - 14, 8, 'rgba(255,255,2
 function cineEnd(q) { cineVignette(); drawGrain(0.13); cineBlack(cineDip(q.s, q.d)); }
 
 // ======================= WATER TANKER =======================
-const TANK_SHOTS = [2.8, 2.6, 2.8, 2.4];
-const SHOT = { reveal: 10.6, pipes: 12.4, test: 13.0, end: 14.6 };
-function startTankIntro(t) {
-  fx = { type: 'tankintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
-  t.tank.hide = true; t.tank.pipes.forEach(p => p.grow = 0); cinema(true, 0.9);
-  setMusic('boss'); sfx.groanFar();
-}
-function skipTankIntro() { if (fx && fx.type === 'tankintro' && fx.t < SHOT.reveal) { fx.t = SHOT.reveal - 0.01; fx.skipped = true; } }
-function updateTankIntro(t) {
-  tscale = 0; const tg = fx.tg, T = tg.tank, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
-  const S0 = cineStarts(TANK_SHOTS);
-  if (cineCue('d0', 0.8)) sfx.plunk(); if (cineCue('d1', 1.9)) sfx.plunk(); if (cineCue('cr', 1.3)) sfx.tankGroan();
-  if (cineCue('s1', S0[1])) sfx.siren(); if (cineCue('burst', S0[1] + 1.1)) { sfx.pipeBurst(); shake = 8; }
-  if (t > S0[2] && t < S0[3] && Math.floor(t * 1.4) !== fx.rb) { fx.rb = Math.floor(t * 1.4); sfx.rumble(); shake = Math.max(shake, 3); }
-  if (cineCue('th', S0[2] + 0.55)) sfx.thunder(); if (cineCue('head', S0[2] + 1.6)) sfx.clank();
-  if (cineCue('s3', S0[3])) { sfx.chain(); sfx.groanFar(); } if (cineCue('c2', S0[3] + 1.2)) sfx.chain();
-  if (t >= SHOT.reveal && !fx.revealed) { fx.revealed = true; T.hide = false; T.introY = -340; sfx.chain(); }
-  if (fx.revealed) {
-    const s = t - SHOT.reveal, u = clamp(s / 1.5, 0, 1); T.introY = -340 * (1 - easeIO(u));
-    if (s < 1.5 && Math.floor(s * 5) !== fx.rv) { fx.rv = Math.floor(s * 5); sfx.rivet(); }
-    if (cineCue('land', SHOT.reveal + 1.5)) { T.introY = 0; shake = 20; kick(0.3, 0.06, 1.4, 0.9); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.land(); buzz([60, 30, 90]); for (let i = 0; i < 24; i++) waterDrop(CX + rand(-R, R), CY + R, rand(-180, 180), rand(-320, -80)); }
-  }
-  fxFilter = null;
-  if (t > SHOT.pipes) for (const P of T.pipes) { const before = P.grow; P.grow = clamp((t - SHOT.pipes) / 0.7, 0, 1); if (Math.floor(before * 3) !== Math.floor(P.grow * 3)) { sfx.pipeBolt(); const [x, y] = worldAt(tg, P.a, R + 30); for (let i = 0; i < 8; i++) smoke.push({ x, y, vx: rand(-40, 40), vy: rand(-60, -20), r: rand(3, 6), life: 0.6, max: 0.6, g: 0 }); } }
-  if (cineCue('test', SHOT.test)) { sfx.gush(); sfx.floodRush(); }
-  if (t > SHOT.test && t < SHOT.test + 1.2) { T.valve += 0.3; waterTarget = 0.24 * Math.sin(clamp((t - SHOT.test) / 1.2, 0, 1) * Math.PI); if (Math.random() < 0.8) { const P = T.pipes[0], [x, y] = worldAt(tg, P.a + 0.4, R + 52); waterDrop(x, y, rand(-60, 60), rand(-80, 40)); } }
-  if (t > SHOT.end) { waterTarget = 0; T.cycle = 0; T.introY = 0; endFx('play'); floater('FINISH IT BEFORE THE MILL FLOODS', CX, CY + R + 80, '#2ad8ff'); }
-}
-function drawTankIntro(t) {
-  const tg = fx.tg, T = tg.tank;
-  if (t < SHOT.reveal) {
-    const q = cineSeq(TANK_SHOTS, t), s = q.s, u = q.u;
-    ctx.save(); ctx.fillStyle = '#020306'; fillView();
-    if (q.i === 0) {
-      // SHOT 1: a pressure gauge in the dark. A work lamp swings past; the needle creeps into the red; drips fall through the light.
-      const sw = Math.sin(s * 1.15 - 0.6), lx = CX + sw * 170, lit = 0.25 + 0.75 * Math.max(0, 1 - Math.abs(sw) * 0.9);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(lx, -20, HALF - sw * 0.25, 760, 6, 170, `rgba(255,214,150,${0.05 + 0.06 * lit})`); ctx.restore();
-      ctx.save(); ctx.translate(CX, 330); const z = 1 + 0.14 * easeIO(u); ctx.scale(z, z); ctx.rotate(-0.05 + 0.06 * u);
-      ctx.fillStyle = '#0d0d10'; ctx.beginPath(); ctx.arc(0, 0, 132, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, 122, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 116, Math.PI, Math.PI * 1.7); ctx.arc(0, 0, 108, Math.PI * 1.7, Math.PI, true); ctx.fill();
-      ctx.fillStyle = '#d8d4c8'; ctx.beginPath(); ctx.arc(0, 0, 106, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#c4122a'; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(0, 0, 88, -0.3, 0.8); ctx.stroke();
-      for (let i = 0; i <= 40; i++) { const a = Math.PI * 0.75 + i / 40 * Math.PI * 1.5, l = i % 5 ? 6 : 13; ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 5 ? 1 : 2.4; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 99, Math.sin(a) * 99); ctx.lineTo(Math.cos(a) * (99 - l), Math.sin(a) * (99 - l)); ctx.stroke(); }
-      for (let i = 0; i <= 8; i++) { const a = Math.PI * 0.75 + i / 8 * Math.PI * 1.5; text(String(i * 5), Math.cos(a) * 70, Math.sin(a) * 70, 11, '#16161b', 'center', 700); }
-      text('BAR', 0, 44, 11, '#16161b', 'center', 700); text('MAIN', 0, -38, 9, '#5c5c66', 'center', 700);
-      const na = Math.PI * 0.75 + (0.3 + 0.62 * Math.pow(u, 1.5)) * Math.PI * 1.5 + Math.sin(time * 60) * 0.025 * u;
-      ctx.strokeStyle = '#08080a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-Math.cos(na) * 16, -Math.sin(na) * 16); ctx.lineTo(Math.cos(na) * 90, Math.sin(na) * 90); ctx.stroke();
-      ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
-      // the lamp light slides over the glass
-      const gl = ctx.createRadialGradient(sw * 120, -60, 10, sw * 120, -60, 200); gl.addColorStop(0, `rgba(255,240,210,${0.35 * lit})`); gl.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, 106, 0, TAU); ctx.fill();
-      ctx.fillStyle = `rgba(0,0,0,${0.75 - 0.6 * lit})`; ctx.beginPath(); ctx.arc(0, 0, 132, 0, TAU); ctx.fill();
-      for (let i = 0; i < 9; i++) { ctx.fillStyle = 'rgba(200,230,255,.5)'; ctx.beginPath(); ctx.ellipse(-80 + hash(i, 1, 4) * 160, 70 + hash(i, 1, 5) * 30, 2, 3, 0, 0, TAU); ctx.fill(); }   // condensation
-      ctx.restore();
-      for (let i = 0; i < 7; i++) { const x = 40 + hash(i, 2, 1) * (W - 80), y = ((s * (90 + hash(i, 2, 2) * 60) + hash(i, 2, 3) * 760) % 820) - 30, near = Math.max(0, 1 - Math.abs(x - lx) / 160); ctx.fillStyle = `rgba(190,230,255,${0.25 + 0.6 * near})`; ctx.fillRect(x, y, 2, 14); }
-      cineCaption('PUMP STATION 4  .  03:12', s, 560, '#c3c3ca', 10, 0.5);
-      cineCaption('MAIN LINE: 40 BAR AND RISING', s, 590, '#ff5d6c', 9, 1.3);
-    } else if (q.i === 1) {
-      // SHOT 2: gliding down a flooded service tunnel, siren light sweeping the walls and the black water
-      const vx = CX + Math.sin(s * 0.5) * 10, vy = 290;
-      for (let i = 9; i >= 0; i--) {
-        const dz = i + 1 - (s * 0.9) % 1, k = 1 / (0.35 + dz * 0.32), w = 300 * k, h = 260 * k, a = Math.max(0, 1 - dz / 9);
-        ctx.strokeStyle = `rgba(${30 + 40 * a},${60 + 60 * a},${90 + 60 * a},${a})`; ctx.lineWidth = Math.max(1, 6 * k / 3); ctx.strokeRect(vx - w / 2, vy - h * 0.55, w, h);
-        ctx.fillStyle = `rgba(20,60,90,${a * 0.8})`; ctx.fillRect(vx - w / 2 + 6 * k / 3, vy - h * 0.4, 10 * k / 3, h * 0.5); ctx.fillRect(vx + w / 2 - 16 * k / 3, vy - h * 0.4, 10 * k / 3, h * 0.5);
-      }
-      const wg = ctx.createLinearGradient(0, vy + 40, 0, H); wg.addColorStop(0, '#031a2a'); wg.addColorStop(1, '#062f45'); ctx.fillStyle = wg; ctx.fillRect(-W, vy + 40, W * 3, H);
-      for (let i = 0; i < 14; i++) { const z = ((i + s * 1.2) % 14) / 14, y = vy + 40 + z * z * (H - vy), wv = 60 + z * 380; ctx.strokeStyle = `rgba(120,200,255,${0.1 + 0.3 * z})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(vx + Math.sin(i * 3) * 30 * z, y, wv, 2 + z * 6, 0, 0, TAU); ctx.stroke(); }
-      const sa = s * 3.2; ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      for (const o of [0, Math.PI]) beam(vx, vy - 120, sa + o, 520, 4, 90, 'rgba(255,46,69,.14)');
-      ctx.restore(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(vx, vy - 120, 7, Math.PI, 0); ctx.fill();
-      for (let i = 0; i < 10; i++) { const x = vx + Math.cos(sa + i) * 200, rf = Math.max(0, Math.cos(sa - i * 0.1)); ctx.fillStyle = `rgba(255,46,69,${0.25 * rf})`; ctx.fillRect(x, vy + 80 + i * 26, 40 + i * 6, 2); }
-      if (s > 1.1) { const v = s - 1.1; for (let i = 0; i < 40; i++) { const a = -HALF + (hash(i, 3, 1) - 0.5) * 1.4, sp = 40 + hash(i, 3, 2) * 120, x = vx + 80 + Math.cos(a) * sp * v, y = vy - 60 + Math.sin(a) * sp * v + 90 * v * v; ctx.fillStyle = 'rgba(190,235,255,.8)'; ctx.fillRect(x, y, 2.5, 4); } }
-      cineCaption('THE MAIN LINE IS FAILING', s, 600, '#c3c3ca', 10, 0.6);
-    } else if (q.i === 2) {
-      // SHOT 3: the rail cut in the rain: a shape in the fog, then the headlight
-      for (let i = 0; i < 14; i++) { const z = ((i * 120 - (s * 160) % 120) + 2000) % 1680, k = CAM_F / (CAM_F + z), y = 330 + 300 * k; ctx.strokeStyle = 'rgba(120,120,140,.16)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-W, y); ctx.lineTo(W * 2, y); ctx.stroke(); }
-      ctx.strokeStyle = 'rgba(195,195,202,.45)'; ctx.lineWidth = 2; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(CX + sd * 70 * CAM_F / (CAM_F + 1600), 330 + 300 * CAM_F / (CAM_F + 1600)); ctx.lineTo(CX + sd * 70 * 1.45, H + 40); ctx.stroke(); }
-      const e = easeIO(u), C = [0, 130, 2400 - 1550 * e], head = s > 1.6;
-      drawTanker3D(tg, C, 0.42, 340, R, CX, CY, 0);
-      const fl = Math.max(0, 1 - Math.abs(s - 0.6) * 10) + Math.max(0, 1 - Math.abs(s - 0.78) * 14) * 0.6;
-      ctx.fillStyle = `rgba(3,3,6,${head ? 0.35 : 0.88 - fl * 0.5})`; fillView();
-      if (fl > 0) { ctx.fillStyle = `rgba(80,110,170,${0.18 * fl})`; fillView(); }
-      const [hx, hy, hk] = proj3([0, 230, C[2] - 140], CX, CY); if (head) drawFlare(hx, hy, 0.5 + hk * 0.8, clamp((s - 1.6) / 0.3, 0, 1));
-      ctx.fillStyle = 'rgba(30,30,40,.25)'; for (let i = 0; i < 4; i++) ctx.fillRect(-W, 380 + i * 40 + Math.sin(time + i) * 6, W * 3, 18);
-      ctx.strokeStyle = 'rgba(150,170,200,.25)'; ctx.lineWidth = 1; ctx.beginPath(); for (let i = 0; i < 50; i++) { const x = hash(i, 4, 1) * W, y = ((hash(i, 4, 2) * H + s * 500) % H); ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 14); } ctx.stroke();
-      cineCaption('SOMETHING IS COMING DOWN THE LINE', s, 600, '#c3c3ca', 10, 0.5);
-    } else {
-      // SHOT 4: hoisted on chains, it turns to face you, water sheeting off its flanks
-      const e = easeIO(u), C = [0, 120 - 110 * e, 620 - 420 * e], yaw = 0.42 + (HALF * 0.97 - 0.42) * e;
-      const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#05101c'); bg.addColorStop(1, '#020306'); ctx.fillStyle = bg; fillView();
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(CX, -80, HALF, 720, 20, 200, 'rgba(120,200,255,.08)'); ctx.restore();
-      ctx.save(); ctx.translate(0, 30);
-      for (const ux of [-70, 70]) { const qv = rotY([ux, -92, 0], yaw), [px2, py2] = proj3([qv[0] + C[0], qv[1] + C[1], qv[2] + C[2]], CX, CY); cineChain(px2, -60, py2); }
-      drawTanker3D(tg, C, yaw, 340, R, CX, CY, 0);
-      const [bx, by, bk] = proj3([0, R, C[2]], CX, CY);
-      ctx.strokeStyle = 'rgba(160,220,255,.5)'; ctx.lineWidth = 1.5; ctx.beginPath(); for (let i = 0; i < 18; i++) { const x = bx + (hash(i, 5, 1) - 0.5) * 300 * bk, y0 = by + ((s * 300 + hash(i, 5, 2) * 400) % 400); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + 30); } ctx.stroke();
-      ctx.restore();
-    }
-    cineEnd(q); ctx.restore(); cineSkipHint();
-  } else {
-    const s = t - SHOT.reveal, ty = CY + T.introY;
-    if (s < 1.7) { cineChain(CX - 46, -60, ty - R + 6); cineChain(CX + 46, -60, ty - R + 6); }
-    cineRevealLight(s, CX, ty, 'rgba(80,200,255,.13)');
-    cineTitle('WATER TANKER', 'PRESSURE CRITICAL  /  3 PHASES  /  ' + TANK_HP + ' HITS', s - 1.0, '#2ad8ff', '#1f5fd1');
-  }
-}
-
 // ======================= GEARBOX =======================
 const GEAR_SHOTS = [2.6, 2.6, 2.6, 2.6];
 const GSHOT = { reveal: 10.4, hero: -99 };
@@ -7725,6 +7485,511 @@ function drawWireIntro(t) {
     cineTitle('THE WIRE CLUMP', WIRE_HP + ' HITS  /  BRAIDS ARE SAFE  /  MIND THE VOLTAGE', s - 1.0, '#2ad8ff', '#ff2e45');
   }
 }
+// ======================= MUSIC STRUCTURE (build 49) =======================
+// Per-beat energy / bass / highs measured from the track file (base-36, one char per beat), so the backgrounds know
+// what section they are in and what is coming 8 beats ahead; a live AnalyserNode on the music bus adds the transients.
+const MUSIC_MAP = { boss: {"e": "vkc50000wld60blnwhd40002wkff9gilrjqiqiqjqipiqiqhpiphrhqiqipizxzzuhpjpkqkqjpiqjqipjqjpjqiqhqirjjnrkrjrlrlrlrlqlqiqmqnrlqlqssszzqrtmsotnsntmsmsmsotntosntntnrozzzotpsotnsosmsntmsnsososnsosnrnspqosustststrsqssuttrssssstrrrstrrqqstttsusurtssttttstttrusuqusuzyzwpipiqholphpgpiqholojoipinhpkzzzrqhqiqhripipioipjpipjqiqhpprpuqnqsmsosnrosnsnsnsmtmrntmsntlsmzzzosmrosmrpsmrmslsmtnsotnsosmrmronossrurstrrstrrrsqtstsssrtqsqtqrqrsusurvttqussttttsutusvttstruzzzxqooronnooooqooopoooroooqoooruqurvsvuqqoroqosoqorqtqtoqotoqnsoqoquqtstturutstttstturustrtssststsssssrtuvvvvvvwuvwswvvustruwxuutuvwvxyxqwswsxxxrvtwqwywsvtwrxywrxtyzzzzsrrjpopsusvstttsssrstrsstttstsurtstssrrsttuststrursrtrsrtstsuutturtzyzwyqjfd85200000000000000000000000", "b": "zc730000zf720249za820000zc761122p7n5n6o8o5n5n6n4m6o5q5o6q5p5zyuuo5o8oan9n5o5o5m5n7o6n6p5o4o5rff4o8n5n4n7m6m4k7m3o8l8l6m7mmmmzzonq4m6n4m5n4m5n4m6m5n6l5m5n6m6zzz6l7m6o4m6m4n4o5l6m8m7l7m6n6m4m776momomonoopnrpqpqmnnnomnmmoqrnqopolnmmmmmpmomqmommmmlnmnmlpnnzztrn6n8o6mbm6n4o5q4mcl7n6o7n7nawzz9m3n4o4r6o5m4l6m3m5m9p5n5nnqmtqlmm4m7l6l7m6n5m6m5o4m4n4n6n5o4zzz6m5m9m5l9m5n4n5l5o4m6m6n6n6m4m586mnmpnmnmnpqooonnonnomnmonomroooonnmmmonllnolrnplnmmmnmnmpmkozzwtkkkskkkmkkkokkkokklqkkkokllrolppproojjknkjknkjkkmooqkjlpkjlnkjklpnlpnoqgoloopmmpomnponnnplqpqlnmnmolpqouovmrpnnvitnpkjjnltsojlkrjpmgq6lbnclyqagem9hxpcfanaowsaiafnpqzllf3344kmnnnlokolpkonmlnlmmmmlnpmpnqlqlmmmmolnllqnlmmmmnlnmnlomrnlnzzwrzleb863100000000000000000000000", "h": "11000000110000001100000011000000iidhbgbd69282828171817272828rrpq8c9c9c9dad9d8d8c7c9d9ebeae8cbfgm9fbeeihliiegdfbfbgdhjgeghgijth3rzxmsuxstzxktlqjszynsvzqsrzlvoshszymrqzoryuitkwhqtvnpyvlqzviuelpqodccbabbbaaaabbaabcb9bcb9aa9ca87ighfggggfdgggeggkfhfffiffdfeimjo795959394959584a495949585959acck6b7a6b6a7a7b7a7b5b7a6b6a7777ik3tqvhnpvlpythtlqipqzlpxvqpstgtirgqxujoxuqortgujofnpvkpwvmpruerfvpmnebbbccc9bb9abacbbbbbbcb9aa9d978jfihhdghgeeeheggifiihfihfdfekoinme9aab9aedbadcabdcabddbbcbacpjmjspltoecdgfddfdbddddcedddfdccdcbdkkmjkoltrjiejhiejhhekggekigdiiifighdw9zdxdyazbyczdwfzbzbxfv9xbzczguruzzwzzxxxzzwyzyyxyzvxzyxvyzvzyyyl6112aipoiihhegggegeefgggfjhgejhfdeflcabgfiigfhgfdgfhfieigjhifgfedgehijp5200000000000000000000000000000"} };
+const musicDec = {};
+function musicArr(name) {
+  let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
+  const d = s => Float32Array.from(s, c => parseInt(c, 36) / 35);
+  const e = d(M.e), b = d(M.b), h = d(M.h), n = e.length, I = new Float32Array(n), S = new Float32Array(n);
+  for (let i = 0; i < n; i++) I[i] = 0.55 * e[i] + 0.45 * b[i];
+  for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let j = i - 4; j < i + 4; j++) if (j >= 0 && j < n) { s += I[j]; c++; } S[i] = s / c; }
+  return (musicDec[name] = { e, b, h, I, S, n });
+}
+let musicAnN = null, anBuf = null; const anLive = { bass: 0, high: 0, ok: false };
+function musicAnalyser(a) { if (!musicAnN) { musicAnN = a.createAnalyser(); musicAnN.fftSize = 512; musicAnN.smoothingTimeConstant = 0.45; anBuf = new Uint8Array(musicAnN.frequencyBinCount); } return musicAnN; }
+function updateAnalyser() {
+  if (!musicAnN || !actx) return; musicAnN.getByteFrequencyData(anBuf);
+  const hz = actx.sampleRate / 512; let b = 0, nb = 0, h = 0, nh = 0;
+  for (let i = 1; i < anBuf.length; i++) { const f = i * hz; if (f < 260) { b += anBuf[i]; nb++; } else if (f > 4000 && f < 12000) { h += anBuf[i]; nh++; } }
+  b = nb ? b / nb / 255 : 0; h = nh ? h / nh / 255 : 0;
+  anLive.bass += (clamp(b * 1.7 - 0.6, 0, 1) - anLive.bass) * 0.6; anLive.high += (clamp(h * 2.2, 0, 1) - anLive.high) * 0.4; anLive.ok = b > 0.01;
+}
+// what the music is doing now and is about to do
+function musicFeel(name) {
+  const B = beatInfo(name), m = musicArr(name), o = { B, I: 0.5, sec: 0.5, ahead: 0, bass: B.pulse, high: 0.3, drop: 0 };
+  if (m) {
+    const k = clamp(B.k, 0, m.n - 1), k2 = clamp(B.k + 1, 0, m.n - 1);
+    o.I = m.I[k]; o.sec = m.S[k] + (m.S[k2] - m.S[k]) * B.u; o.ahead = m.S[clamp(B.k + 8, 0, m.n - 1)] - m.S[k];
+    o.bass = m.b[k] * B.pulse; o.high = m.h[k]; o.drop = clamp((m.S[k] - m.S[clamp(B.k - 6, 0, m.n - 1)] - 0.12) * 4, 0, 1);
+  }
+  if (anLive.ok && music.cur === name) { o.bass = Math.max(o.bass * 0.6, anLive.bass); o.high = 0.5 * o.high + 0.5 * anLive.high; }
+  return o;
+}
+
+// ======================= WATER TANKER, seen from overhead =======================
+// 5 depth layers, back to front: the floor (tanks, platforms, workers), RED pipes, YELLOW pipes, GREEN pipes, the
+// boss, then a blurred PURPLE foreground. Everything is generated per chunk from a seed and scrolls right with parallax;
+// floodlights bang on with beat 1 and off with beat 2; the whole plant runs harder as the song does.
+const TKL = [
+  { k: 'floor', sp: 9 },
+  { k: 'red', sp: 16, lanes: [66, 304, 520, 704], w: 9, c: ['#2a0409', '#6a0a18', '#a3122a', '#ff6070'] },
+  { k: 'yel', sp: 27, lanes: [150, 424, 642], w: 12, c: ['#2a1408', '#874419', '#c89a1a', '#ffe680'] },
+  { k: 'grn', sp: 42, lanes: [26, 236, 592, 748], w: 15, c: ['#0d1a06', '#1f3a10', '#3d6b1f', '#b6e05a'] },
+  { k: 'pur', sp: 88, lanes: [-8, 772], w: 34, c: ['#08080a', '#2a1240', '#5c3aa8', '#c4a8ff'] },
+];
+const TCW = 260;
+const tankBg = { s: [0, 0, 0, 0, 0], lt: null, chunks: new Map() };
+function tankChunk(li, c) {
+  const key = li * 100000 + c; let ch = tankBg.chunks.get(key); if (ch) return ch;
+  const L = TKL[li], rnd = mulberry(9001 + li * 7919 + c * 104729), con = [], obj = [];
+  if (L.lanes && li < 4) {
+    const n = 1 + (rnd() < 0.55 ? 1 : 0);
+    for (let i = 0; i < n; i++) { const j = Math.floor(rnd() * (L.lanes.length - 1)); con.push({ x: 20 + rnd() * (TCW - 90), y1: L.lanes[j], y2: L.lanes[j + 1], r: 16 + rnd() * 10 }); }
+    const types = li === 1 ? ['valve', 'alert', 'steam', 'valve'] : li === 2 ? ['valve', 'lamp', 'outflow', 'steam'] : ['steam', 'lamp', 'valve', 'outflow'];
+    for (let i = 0; i < 2; i++) obj.push({ t: types[Math.floor(rnd() * types.length)], x: 20 + rnd() * (TCW - 40), y: L.lanes[Math.floor(rnd() * L.lanes.length)], ph: rnd(), dir: rnd() < 0.5 ? -1 : 1 });
+  }
+  if (li === 0) {
+    for (let i = 0; i < 2; i++) obj.push({ t: 'tanker', x: 40 + i * 130 + rnd() * 40, y: 60 + rnd() * (H - 120), r: 34 + rnd() * 20, ph: rnd() });
+    if (rnd() < 0.6) obj.push({ t: 'platform', x: 30 + rnd() * 180, y: 80 + rnd() * (H - 160), ph: rnd() });
+    for (let i = 0; i < 3; i++) { const tk = obj[Math.floor(rnd() * 2)]; obj.push({ t: 'worker', tk, ph: rnd() * TAU, dir: rnd() < 0.5 ? -1 : 1, sp: 0.6 + rnd() * 0.6, rr: tk.r + 14 + rnd() * 14 }); }
+  }
+  ch = { con, obj }; tankBg.chunks.set(key, ch);
+  if (tankBg.chunks.size > 80) tankBg.chunks.delete(tankBg.chunks.keys().next().value);
+  return ch;
+}
+function viewX() { return [-ox / scale - 60, (cv.width / dpr - ox) / scale + 60]; }
+function tankPipes(li, ox2, oy2, F) {
+  const L = TKL[li], [vx0, vx1] = viewX(), s = tankBg.s[li], c0 = Math.floor((vx0 - ox2 - s) / TCW) - 1, c1 = Math.floor((vx1 - ox2 - s) / TCW) + 1;
+  const path = () => {
+    ctx.beginPath();
+    for (const y of L.lanes) { ctx.moveTo(vx0 - 40, y + oy2); ctx.lineTo(vx1 + 40, y + oy2); }
+    if (li < 4) for (let c = c0; c <= c1; c++) for (const q of tankChunk(li, c).con) {
+      const x = c * TCW + s + ox2 + q.x; ctx.moveTo(x - 30, q.y1 + oy2); ctx.arcTo(x, q.y1 + oy2, x, q.y1 + oy2 + q.r, q.r); ctx.arcTo(x, q.y2 + oy2, x + q.r, q.y2 + oy2, q.r); ctx.lineTo(x + 30, q.y2 + oy2);
+    }
+  };
+  const w = L.w, fore = li === 4;
+  ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+  if (!fore) { ctx.save(); ctx.translate(5, 8); path(); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = w + 2; ctx.stroke(); ctx.restore(); }
+  path();
+  if (fore) { ctx.globalAlpha = 0.35; ctx.strokeStyle = L.c[1]; ctx.lineWidth = w + 22; ctx.stroke(); ctx.lineWidth = w + 10; ctx.stroke(); ctx.globalAlpha = 0.9; }
+  ctx.strokeStyle = L.c[0]; ctx.lineWidth = w + 3; ctx.stroke();
+  ctx.strokeStyle = L.c[1]; ctx.lineWidth = w; ctx.stroke();
+  ctx.save(); ctx.translate(-w * 0.16, -w * 0.16); ctx.strokeStyle = L.c[2]; ctx.lineWidth = w * 0.45; ctx.stroke(); ctx.translate(-w * 0.08, -w * 0.08); ctx.strokeStyle = L.c[3]; ctx.globalAlpha *= 0.55 + 0.45 * F.light; ctx.lineWidth = Math.max(1, w * 0.12); ctx.stroke(); ctx.restore();
+  ctx.globalAlpha = 1;
+  // flanges every so often along the lanes
+  if (!fore) { ctx.fillStyle = L.c[0]; for (const y of L.lanes) for (let x = Math.floor((vx0 - s - ox2) / 96) * 96; x < vx1 - s - ox2 + 96; x += 96) { const X = x + s + ox2 + (y * 7) % 40; ctx.fillRect(X - 3, y + oy2 - w / 2 - 3, 6, w + 6); } }
+  return [c0, c1];
+}
+// overhead worker (per the reference): blue shoulders with orange hi-vis bands, a ribbed yellow hard hat, arms pumping
+function drawWorker(x, y, ang, ph) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  const sw = Math.sin(ph * 14) * 4;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(3, 4, 7, 11, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#1f5fd1'; ctx.beginPath(); ctx.ellipse(sw, -9, 3, 2.4, 0, 0, TAU); ctx.ellipse(-sw, 9, 3, 2.4, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#3a7bff'; ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 10.5, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#ff7a1a'; ctx.fillRect(-4.5, -7, 9, 2.4); ctx.fillRect(-4.5, 4.6, 9, 2.4);
+  ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(0.5, 0, 5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#c89a1a'; for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + 0.3; ctx.beginPath(); ctx.ellipse(0.5 + Math.cos(a) * 2.4, Math.sin(a) * 2.4, 1.6, 1, a, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(0.5, 0, 1.1, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function tankObjects(li, ox2, oy2, F, c0, c1, emissive) {
+  const s = tankBg.s[li], B = F.B, step = Math.floor(B.b) + stepEase(B.u);
+  for (let c = c0; c <= c1; c++) for (const o of tankChunk(li, c).obj) {
+    const X = (q) => c * TCW + s + ox2 + q, x = X(o.x || 0), y = (o.y || 0) + oy2;
+    if (o.t === 'tanker') {
+      if (emissive) { if (F.sec > 0.5 && Math.sin(time * 6 + o.ph * 9) > 0.2) { ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(x + o.r * 0.7, y - o.r * 0.7, 2.5, 0, TAU); ctx.fill(); } continue; }
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.arc(x + 8, y + 12, o.r + 2, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(x, y, o.r, 0, TAU); ctx.fill();
+      ctx.save(); ctx.beginPath(); ctx.arc(x, y, o.r, 0, TAU); ctx.arc(x, y, o.r - 6, 0, TAU, true); ctx.clip(); for (let i = 0; i < 20; i++) { ctx.fillStyle = i % 2 ? '#16161b' : '#c89a1a'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, o.r, i / 20 * TAU, (i + 1) / 20 * TAU); ctx.fill(); } ctx.restore();
+      ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); ctx.arc(x, y, o.r - 9, 0, TAU); ctx.fill(); ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(x - o.r * 0.2, y - o.r * 0.15, o.r * 0.28, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#8d8d97'; ctx.fillRect(x - 2, y - o.r, 4, o.r * 0.5);
+      continue;
+    }
+    if (o.t === 'platform') {
+      if (emissive) { for (let i = 0; i < 3; i++) { const on = ((B.k + i + Math.floor(o.ph * 5)) % 3) === 0; ctx.fillStyle = on ? '#7cff4f' : '#2ad8ff'; ctx.globalAlpha = on ? 1 : 0.45; ctx.fillRect(x - 28 + i * 20, y - 14, 14, 9); } ctx.globalAlpha = 1; continue; }
+      ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(x - 36, y - 22, 80, 52);
+      ctx.fillStyle = '#2a2a31'; ctx.fillRect(x - 40, y - 26, 80, 52); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2; ctx.strokeRect(x - 38, y - 24, 76, 48);
+      ctx.fillStyle = '#16161b'; ctx.fillRect(x - 32, y - 18, 64, 16); ctx.fillStyle = '#4a4a53'; for (let i = 0; i < 6; i++) ctx.fillRect(x - 34 + i * 12, y + 8, 8, 3);
+      continue;
+    }
+    if (o.t === 'worker') {
+      if (emissive) continue;
+      const tk = o.tk, cx = X(tk.x), cy = tk.y + oy2, a = o.ph + time * o.sp * o.dir * (0.6 + 1.6 * F.sec), r = o.rr;
+      drawWorker(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8, a + o.dir * HALF, time + o.ph);
+      continue;
+    }
+    if (o.t === 'valve') {
+      if (emissive) continue;
+      const a = (step + o.ph) * TAU / 6 * o.dir;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.strokeStyle = '#08080a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke(); ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 3.5; ctx.stroke();
+      ctx.lineWidth = 2.5; ctx.beginPath(); for (let i = 0; i < 3; i++) { const q = i / 3 * TAU; ctx.moveTo(Math.cos(q) * 12, Math.sin(q) * 12); ctx.lineTo(-Math.cos(q) * 12, -Math.sin(q) * 12); } ctx.stroke();
+      ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, TAU); ctx.fill(); ctx.restore();
+      continue;
+    }
+    if (o.t === 'steam') {
+      const every = F.sec > 0.6 ? 1 : 2, on = ((B.k + Math.floor(o.ph * 4)) % every) === 0, k = on ? Math.exp(-B.u * 3) : 0;
+      if (!emissive) { ctx.fillStyle = '#16161b'; ctx.fillRect(x - 6, y - 6, 12, 12); ctx.fillStyle = '#5c5c66'; ctx.fillRect(x - 4, y - 4, 8, 8); continue; }
+      if (k > 0.02) { ctx.save(); ctx.globalAlpha = 0.55 * k; introSmoke(x, y - 6, time + o.ph * 5, 4, 14, 30 + 70 * (1 - k), 3 + li, 0.5); ctx.restore(); }
+      continue;
+    }
+    if (o.t === 'outflow') {
+      const pump = 0.5 + 0.5 * F.bass + 0.3 * F.sec;
+      if (!emissive) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill(); ctx.fillStyle = '#0a3a63'; ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill(); continue; }
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) { const u = ((time * 1.4 + i / 3 + o.ph) % 1); ctx.strokeStyle = `rgba(120,210,255,${0.5 * (1 - u) * pump})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y + 14, 4 + u * 22 * pump, 0, TAU); ctx.stroke(); }
+      ctx.fillStyle = `rgba(160,230,255,${0.5 * pump})`; ctx.beginPath(); ctx.ellipse(x, y + 7, 3 + 2 * pump, 7 * pump, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+      continue;
+    }
+    if (o.t === 'lamp') {
+      if (!emissive) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU); ctx.fill(); continue; }
+      const k = 0.45 + 0.35 * F.sec + 0.4 * F.bass;
+      const g = ctx.createRadialGradient(x, y, 1, x, y, 44 * k + 10); g.addColorStop(0, `rgba(255,236,190,${0.55 * k})`); g.addColorStop(1, 'rgba(255,200,120,0)'); ctx.fillStyle = g; ctx.fillRect(x - 60, y - 60, 120, 120);
+      ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, TAU); ctx.fill();
+      continue;
+    }
+    if (o.t === 'alert') {
+      if (!emissive) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill(); continue; }
+      const live = F.sec > 0.55 || F.ahead > 0.06 || F.drop > 0; if (!live) { ctx.fillStyle = '#6a0a18'; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill(); continue; }
+      const a = time * (4 + 6 * F.sec) + o.ph * TAU;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (const q of [0, Math.PI]) beam(x, y, a + q, 120, 2, 26, 'rgba(255,46,69,.16)'); ctx.restore();
+      ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+    }
+  }
+}
+BG.boss = (B, px, py) => {
+  const F = musicFeel('boss'); F.B = B;
+  // the floodlight: on with beat 1, off with beat 2; strobes on the drops
+  const on = ((B.k % 2) + 2) % 2 === 0;
+  let light = on ? 1 - 0.3 * B.u : 0.08 + 0.18 * Math.exp(-B.u * 6);
+  if (F.drop > 0.2) light = Math.max(light, Math.sin(B.b * Math.PI * 4) > 0 ? 0.9 : 0.35);
+  F.light = light;
+  if (tankBg.lt === null) tankBg.lt = time; const dt = clamp(time - tankBg.lt, 0, 0.1); tankBg.lt = time;
+  for (let i = 0; i < 5; i++) tankBg.s[i] += dt * TKL[i].sp * (0.6 + 1.2 * F.sec + 0.8 * F.drop);
+  // floor: painted concrete tiles
+  bgFill('tankFloor', [[0, '#2a2a31'], [0.5, '#232329'], [1, '#1a1a20']]);
+  const s0 = tankBg.s[0], fx0 = px * 0.15, fy0 = py * 0.15, [vx0, vx1] = viewX();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.beginPath();
+  for (let x = Math.floor((vx0 - s0) / 60) * 60; x < vx1 - s0 + 60; x += 60) { ctx.moveTo(x + s0 + fx0, -60); ctx.lineTo(x + s0 + fx0, H + 60); }
+  for (let y = -60; y < H + 60; y += 60) { ctx.moveTo(vx0, y + fy0); ctx.lineTo(vx1, y + fy0); }
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,210,63,.12)'; for (let x = Math.floor((vx0 - s0) / 240) * 240; x < vx1 - s0 + 240; x += 240) { ctx.fillRect(x + s0 + fx0, 0, 6, H); }
+  const [a0, a1] = [Math.floor((vx0 - fx0 - s0) / TCW) - 1, Math.floor((vx1 - fx0 - s0) / TCW) + 1];
+  tankObjects(0, fx0, fy0, F, a0, a1, false);
+  const cs = [];
+  for (let li = 1; li <= 3; li++) { const p = TKL[li], o2 = [px * (0.2 + li * 0.15), py * (0.2 + li * 0.15)]; const cc = tankPipes(li, o2[0], o2[1], F); tankObjects(li, o2[0], o2[1], F, cc[0], cc[1], false); cs.push([li, o2, cc]); }
+  // darkness between the floodlight hits, then everything that glows on its own
+  const dark = 0.84 * (1 - light);
+  ctx.fillStyle = `rgba(2,5,12,${dark})`; fillView();
+  if (light > 0.5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,240,210,${0.05 * light})`; fillView(); ctx.restore(); }
+  tankObjects(0, fx0, fy0, F, a0, a1, true);
+  for (const [li, o2, cc] of cs) tankObjects(li, o2[0], o2[1], F, cc[0], cc[1], true);
+  // the pump pressure wave out of the tank on every bar, harder in loud sections
+  ctx.strokeStyle = `rgba(42,216,255,${(0.25 + 0.4 * F.sec) * (1 - B.barU)})`; ctx.lineWidth = 2 + 3 * F.sec; ctx.beginPath(); ctx.arc(CX, CY, R + 20 + B.barU * 420, 0, TAU); ctx.stroke();
+  if (on && B.u < 0.15) bloomBoost = Math.max(bloomBoost, 0.25 + 0.4 * F.sec);
+  bgStage();
+};
+// the blurred purple foreground, above the boss
+function drawTankFore() {
+  const F = musicFeel('boss'), B = F.B; F.light = ((B.k % 2) + 2) % 2 === 0 ? 1 : 0.2;
+  tankPipes(4, plx.x * 1.3, plx.y * 1.3, F);
+}
+
+// ---- the tanker itself, overhead: lid, caution band, gauge, portholes, stencil ----
+function makeTankTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 4, 0, 0, R); gr.addColorStop(0, '#a8a8b2'); gr.addColorStop(0.55, '#727280'); gr.addColorStop(1, '#38383f');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 0.6; for (let r = 6; r < R - 26; r += 2.2) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+  // caution band: slanted stripes
+  g.save(); g.beginPath(); g.arc(0, 0, R - 2, 0, TAU); g.arc(0, 0, R - 22, 0, TAU, true); g.clip();
+  g.fillStyle = '#16161b'; g.fillRect(-R, -R, R * 2, R * 2);
+  for (let i = 0; i < 44; i += 2) { const a = i / 44 * TAU, w = TAU / 44, sl = 0.16; g.fillStyle = '#ffd23f'; g.beginPath(); g.moveTo(Math.cos(a) * R, Math.sin(a) * R); g.lineTo(Math.cos(a + w) * R, Math.sin(a + w) * R); g.lineTo(Math.cos(a + w + sl) * (R - 24), Math.sin(a + w + sl) * (R - 24)); g.lineTo(Math.cos(a + sl) * (R - 24), Math.sin(a + sl) * (R - 24)); g.closePath(); g.fill(); }
+  g.restore();
+  g.strokeStyle = '#08080a'; g.lineWidth = 2.5; for (const r of [R - 1.5, R - 22]) { g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R - 0.5, Math.PI * 1.05, Math.PI * 1.7); g.stroke();
+  for (let i = 0; i < 30; i++) { const a = i / 30 * TAU, r = R - 27; g.fillStyle = '#2a2a31'; g.beginPath(); g.arc(Math.cos(a) * r + 0.5, Math.sin(a) * r + 0.5, 1.7, 0, TAU); g.fill(); g.fillStyle = '#c3c3ca'; g.beginPath(); g.arc(Math.cos(a) * r - 0.3, Math.sin(a) * r - 0.3, 0.9, 0, TAU); g.fill(); }
+  // manhole hatch
+  g.save(); g.translate(R * 0.06, -R * 0.34); g.fillStyle = '#38383f'; g.beginPath(); g.arc(0, 0, 18, 0, TAU); g.fill(); g.strokeStyle = '#16161b'; g.lineWidth = 2; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1; for (let i = -12; i <= 12; i += 6) { g.beginPath(); g.moveTo(-12, i); g.lineTo(12, i); g.stroke(); } g.fillStyle = '#16161b'; g.fillRect(-20, -4, 6, 8); g.restore();
+  // portholes
+  for (const [x, y, r] of [[-R * 0.02, R * 0.3, 9], [R * 0.08, R * 0.52, 7]]) { g.fillStyle = '#16161b'; g.beginPath(); g.arc(x, y, r + 3, 0, TAU); g.fill(); g.fillStyle = '#0a3a63'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.fillStyle = 'rgba(160,230,255,.7)'; g.beginPath(); g.ellipse(x - r * 0.3, y - r * 0.35, r * 0.4, r * 0.22, -0.6, 0, TAU); g.fill(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; g.fillStyle = '#8d8d97'; g.fillRect(x + Math.cos(a) * (r + 1.6) - 0.8, y + Math.sin(a) * (r + 1.6) - 0.8, 1.6, 1.6); } }
+  // stencil
+  g.save(); g.translate(R * 0.42, R * 0.28); g.rotate(-1.05); g.font = `700 11px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#16161b'; g.fillText('KNAIFE', 0, -6); g.fillText('WATER', 0, 7); g.fillStyle = '#2ad8ff'; g.beginPath(); g.moveTo(-30, -2); g.quadraticCurveTo(-34, 4, -30, 7); g.quadraticCurveTo(-26, 4, -30, -2); g.fill(); g.restore();
+  const rnd = mulberry(t.seed || 3);
+  for (let i = 0; i < 8; i++) { const a = rnd() * TAU, r0 = (0.25 + rnd() * 0.4) * R, x = Math.cos(a) * r0, y = Math.sin(a) * r0, rg = g.createLinearGradient(x, y, x + 4, y + 16); rg.addColorStop(0, 'rgba(168,94,40,.45)'); rg.addColorStop(1, 'rgba(168,94,40,0)'); g.fillStyle = rg; g.fillRect(x - 2, y, 5, 16); }
+  return c;
+}
+function drawTankLive(t) {
+  const T = t.tank;
+  for (const l of T.leaks) {
+    ctx.save(); ctx.rotate(l.a); ctx.translate(R - 13, 0);
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 5.5, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#a8a8b2'; ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 5); ctx.lineTo(Math.cos(a + 0.2) * 7.5, Math.sin(a + 0.2) * 8.5); } ctx.stroke();
+    if (l.age >= 7) { ctx.strokeStyle = `rgba(42,216,255,${0.5 + 0.5 * Math.sin(time * 8)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+  }
+  // the big pressure gauge
+  ctx.save(); ctx.translate(-R * 0.42, R * 0.06);
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 21, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 19, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#f0f0f4'; ctx.beginPath(); ctx.arc(0, 0, 16.5, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.arc(0, 0, 12.5, -0.25, 0.85); ctx.stroke();
+  for (let i = 0; i <= 10; i++) { const a = Math.PI * 0.75 + i / 10 * Math.PI * 1.5; ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 5 ? 0.8 : 1.6; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 15.5, Math.sin(a) * 15.5); ctx.lineTo(Math.cos(a) * (i % 5 ? 13 : 11.5), Math.sin(a) * (i % 5 ? 13 : 11.5)); ctx.stroke(); }
+  const na = Math.PI * 0.75 + clamp(T.gauge, 0, 1.1) * Math.PI * 1.5 + Math.sin(time * 30) * 0.04 * T.heat;
+  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-Math.cos(na) * 3, -Math.sin(na) * 3); ctx.lineTo(Math.cos(na) * 14, Math.sin(na) * 14); ctx.stroke();
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-6, -8, 7, 3, -0.6, 0, TAU); ctx.fill();
+  ctx.restore();
+  // valve wheel by the hatch
+  ctx.save(); ctx.translate(-R * 0.22, -R * 0.42); ctx.rotate(T.valve);
+  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.stroke(); ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 1.4; ctx.stroke();
+  for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.fillStyle = '#a3122a'; ctx.fillRect(-1, 0, 2, 9); }
+  ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill(); ctx.restore();
+  for (const d of T.dents) { ctx.save(); ctx.rotate(d); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(R - 32, 0, 6, 3, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(R - 36, -3.5, 7, 1); ctx.restore(); }
+  if (T.heat > 0.01) { const hg = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R); hg.addColorStop(0, `rgba(255,122,26,${0.15 * T.heat})`); hg.addColorStop(0.7, `rgba(255,46,69,${0.45 * T.heat})`); hg.addColorStop(1, `rgba(255,230,128,${0.6 * T.heat})`); ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+  if (T.warn && Math.floor(time * 12) % 2) { ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 1, 0, TAU); ctx.stroke(); }
+  if (T.swell > 0) { ctx.strokeStyle = `rgba(255,230,128,${T.swell})`; ctx.lineWidth = 1 + T.swell * 2; ctx.beginPath(); ctx.arc(0, 0, R - 22, 0, TAU); ctx.stroke(); }
+}
+// fixed hazard-striped mounts either side and a collar the tank turns inside; a slow leak drips off the left mount
+function drawTankMounts(t) {
+  const T = t.tank, oy = T.introY || 0;
+  for (const sd of [-1, 1]) {
+    const x0 = CX + sd * (R + 4), x1 = sd < 0 ? -W : W * 2;
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(Math.min(x0, x1) + 6, CY - 9 + oy + 10, Math.abs(x1 - x0), 20);
+    ctx.fillStyle = '#16161b'; ctx.fillRect(Math.min(x0, x1), CY - 11 + oy, Math.abs(x1 - x0), 22);
+    ctx.save(); ctx.beginPath(); ctx.rect(Math.min(x0, x1), CY - 8 + oy, Math.abs(x1 - x0), 16); ctx.clip();
+    ctx.fillStyle = '#ffd23f'; for (let x = Math.min(x0, x1) - 20; x < Math.max(x0, x1) + 20; x += 18) { ctx.beginPath(); ctx.moveTo(x, CY - 8 + oy); ctx.lineTo(x + 9, CY - 8 + oy); ctx.lineTo(x + 1, CY + 8 + oy); ctx.lineTo(x - 8, CY + 8 + oy); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+    ctx.fillStyle = '#5c5c66'; ctx.fillRect(x0 + (sd < 0 ? -18 : 0), CY - 15 + oy, 18, 30); ctx.fillStyle = '#c3c3ca'; for (const yy of [-10, 10]) ctx.fillRect(x0 + sd * 9 - 1.5, CY + yy + oy - 1.5, 3, 3);
+  }
+  ctx.strokeStyle = '#08080a'; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(CX, CY + oy, R + 5, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 5; ctx.stroke();
+}
+function drawOnePipe(t, P) {
+  const g = clamp(P.grow, 0, 1); if (g <= 0) return;
+  const r0 = R * 0.42, r1 = R + 44;
+  ctx.save(); ctx.rotate(P.a);
+  if (g < 0.12) {   // the punch: a pipe drives down out of the camera
+    const k = Math.pow(1 - g / 0.12, 2), sc = 1 + 2.6 * k; ctx.save(); ctx.translate(r0, 0); ctx.scale(sc, sc); ctx.globalAlpha = 1 - k * 0.5; ctx.fillStyle = '#16161b'; ctx.fillRect(-10, -10, 20, 20); ctx.fillStyle = '#8d8d97'; ctx.fillRect(-8, -8, 16, 16); ctx.restore(); ctx.restore(); return;
+  }
+  if (g < 0.78) {   // the punched hole, jagged
+    ctx.fillStyle = '#030305'; ctx.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, r = i % 2 ? 8 : 12; ctx.lineTo(r0 + Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  if (g >= 0.45) {
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(r0, -7 + 6, r1 - r0, 14);
+    ctx.fillStyle = '#16161b'; ctx.fillRect(r0, -9, r1 - r0, 18); ctx.fillStyle = '#727280'; ctx.fillRect(r0, -7, r1 - r0, 14); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(r0, -6, r1 - r0, 3);
+    ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(r1, 0, 16, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(r1, 0, 13.5, 0, TAU); ctx.fill(); ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(r1, 0, 6.5, 0, TAU); ctx.fill();
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; ctx.fillStyle = '#c3c3ca'; ctx.fillRect(r1 + Math.cos(a) * 10.5 - 1.2, Math.sin(a) * 10.5 - 1.2, 2.4, 2.4); }
+    if (g >= 1) { ctx.fillStyle = 'rgba(42,216,255,.6)'; ctx.fillRect(r1 - 2, -1 + Math.sin(time * 9) * 2, 4, 2); }
+  }
+  if (g >= 0.75) {   // the base flange, bolted down
+    ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(r0, 0, 15, 18, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); ctx.ellipse(r0, 0, 12.5, 15.5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#727280'; ctx.fillRect(r0 - 2, -7, 12, 14);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.5; ctx.fillStyle = '#38383f'; ctx.fillRect(r0 + Math.cos(a) * 10 - 1.4, Math.sin(a) * 12.5 - 1.4, 2.8, 2.8); }
+  }
+  for (const [a0, a1] of [[0.45, 0.6], [0.76, 0.92]]) if (g > a0 && g < a1) { const k = Math.sin((g - a0) / (a1 - a0) * Math.PI); ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(r0, 0, 0, r0, 0, 26); gl.addColorStop(0, `rgba(200,244,255,${0.9 * k})`); gl.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = gl; ctx.fillRect(r0 - 26, -26, 52, 52); ctx.restore(); }
+  ctx.restore();
+}
+// the robot arm that builds each pipe: two-bone IK from a turret at the screen edge
+function drawTankRobot(t) {
+  const T = t.tank;
+  for (const P of T.pipes) {
+    const g = P.grow; if (g <= 0.12 || g >= 1) continue;
+    const w = t.rot + P.a, side = Math.cos(w) >= 0 ? 1 : -1, ax = side > 0 ? W + 18 : -18, ay = 150, home = [ax - side * 70, ay + 60], supply = [ax - side * 40, ay + 170];
+    const [bx, by] = worldAt(t, P.a, R * 0.42); const bp = [bx, by + (T.introY || 0)];
+    const L = (p, q, u) => [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u], E = u => easeIO(clamp(u, 0, 1));
+    let tgt2, hold = null;
+    if (g < 0.2) tgt2 = L(home, supply, E((g - 0.12) / 0.08));
+    else if (g < 0.45) { tgt2 = L(supply, bp, E((g - 0.2) / 0.25)); hold = 'pipe'; }
+    else if (g < 0.6) { tgt2 = [bp[0] + Math.cos(time * 30) * 4, bp[1] + Math.sin(time * 27) * 4]; hold = 'weld'; }
+    else if (g < 0.68) tgt2 = L(bp, supply, E((g - 0.6) / 0.08));
+    else if (g < 0.76) { tgt2 = L(supply, bp, E((g - 0.68) / 0.08)); hold = 'flange'; }
+    else if (g < 0.92) { tgt2 = [bp[0] + Math.cos(time * 31) * 5, bp[1] + Math.sin(time * 25) * 5]; hold = 'weld'; }
+    else tgt2 = L(bp, home, E((g - 0.92) / 0.08));
+    const L1 = 175, L2 = 165, dx = tgt2[0] - ax, dy = tgt2[1] - ay, d = clamp(Math.hypot(dx, dy), 20, L1 + L2 - 1), base = Math.atan2(dy, dx);
+    const k = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1)), a1 = base - side * k, ex = ax + Math.cos(a1) * L1, ey = ay + Math.sin(a1) * L1;
+    const hx = ex + (tgt2[0] - ex) / Math.max(1, Math.hypot(tgt2[0] - ex, tgt2[1] - ey)) * L2, hy = ey + (tgt2[1] - ey) / Math.max(1, Math.hypot(tgt2[0] - ex, tgt2[1] - ey)) * L2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 18; ctx.beginPath(); ctx.moveTo(ax + 8, ay + 12); ctx.lineTo(ex + 8, ey + 12); ctx.lineTo(hx + 8, hy + 12); ctx.stroke();
+    for (const [c, wd] of [['#08080a', 18], ['#ff7a1a', 13]]) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke(); ctx.lineWidth = wd - 3; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke(); }
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ax, ay - 3); ctx.lineTo(ex, ey - 3); ctx.stroke();
+    for (const [x, y, r] of [[ax, ay, 16], [ex, ey, 10], [hx, hy, 7]]) { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(x, y, r - 4, 0, TAU); ctx.fill(); }
+    const ha = Math.atan2(hy - ey, hx - ex); ctx.save(); ctx.translate(hx, hy); ctx.rotate(ha);
+    ctx.fillStyle = '#16161b'; ctx.fillRect(2, -9, 10, 4); ctx.fillRect(2, 5, 10, 4);
+    if (hold === 'pipe') { ctx.rotate(w - ha); ctx.fillStyle = '#16161b'; ctx.fillRect(-4, -9, 66, 18); ctx.fillStyle = '#727280'; ctx.fillRect(-4, -7, 66, 14); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-4, -6, 66, 3); }
+    if (hold === 'flange') { ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(10, 0, 15, 18, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.beginPath(); ctx.ellipse(10, 0, 12, 15, 0, 0, TAU); ctx.fill(); }
+    ctx.restore();
+    if (hold === 'weld') { flare(tgt2[0], tgt2[1], 0.35, '#2ad8ff'); if (Math.random() < 0.7) parts.push({ x: tgt2[0], y: tgt2[1], vx: rand(-260, 260), vy: rand(-320, 40), life: rand(0.2, 0.45), max: 0.45, c: Math.random() < 0.5 ? '#ffffff' : '#ffd23f', s: 2, rot: 0, vr: 0 }); }
+  }
+}
+function updateTankPipes(t, dt) {
+  const T = t.tank;
+  for (const P of T.pipes) {
+    if (P.grow >= 1) continue;
+    const g0 = P.grow; P.grow = Math.min(1, P.grow + dt / 3.4);
+    const cross = v => g0 < v && P.grow >= v, [x, y] = worldAt(t, P.a, R * 0.42);
+    if (cross(0.12)) { burst(x, y, 30, ['#ffffff', '#c3c3ca', '#ffd23f'], 520, 40, 3, 0.5); shocks(x, y, 2, 70); shake = Math.max(shake, 14); sfx.clank(); sfx.pipeBurst(); kick(0.12, 0.04, 0.8); }
+    if (cross(0.45) || cross(0.76)) sfx.pipeBolt();
+    if (cross(0.5) || cross(0.8)) sfx.zap(0.4);
+    if (cross(1)) { sfx.clank(); floater('PIPE!', x, y - 24, '#ff7a1a'); }
+  }
+  T.drip = (T.drip || 0) - dt; if (T.drip <= 0) { T.drip = 0.7 + Math.random() * 0.7; waterDrop(CX - R - 14 + rand(-4, 4), CY + 8 + (T.introY || 0), rand(-30, -5), rand(20, 60)); }
+}
+
+// ======================= WATER TANKER intro, cut to the track =======================
+// 0:01 star · 0:04 gauge + shadow pipes · 0:06 needle shakes on the last dial · 0:08 glass and pipes go ·
+// 0:09 pan along the pipe · 0:12 the light comes on: tanker silhouette · 0:13 a full 3D orbit, then over the top ·
+// 0:15.65 (the drop) spotlights, the HUD assembles from shards, the knife rises: fight
+const TI = { star: 1.027, gauge: 4.695, vib: 6.0, shatter: 8.329, pan: 9.0, light: 11.975, orbit: 12.85, top: 14.45, fight: 15.655 };
+const SHOT = { reveal: TI.fight, end: TI.fight + 0.05 };
+const tankArrive = { on: false, t: 9 }; let knifeRiseT = 0;
+function startTankIntro(t) {
+  fx = { type: 'tankintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
+  t.tank.hide = true; t.tank.pipes.forEach(p => p.grow = 0); cinema(true, 0.9);
+  music.cur = ''; setMusic('boss');
+}
+function skipTankIntro() { if (fx && fx.type === 'tankintro' && fx.t < TI.fight - 0.35) { fx.t = TI.fight - 0.35; fx.skipped = true; } }
+function tankMusicClock() { const tr = music.tracks.boss; if (!tr || !music.unlocked || music.cur !== 'boss') return null; const p = tr.el && !tr.node ? tr.el.currentTime : tr.pos; return p > 0.05 ? p : null; }
+function updateTankIntro(t) {
+  tscale = 0; const tg = fx.tg, T = tg.tank, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  const mp = tankMusicClock(); if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) fx.t += (mp - fx.t) * 0.25;
+  if (cineCue('star', TI.star)) { sfx.ready(); bloomBoost = 1; }
+  if (cineCue('gauge', TI.gauge)) { sfx.clank(); sfx.tankGroan(); shake = 6; }
+  if (cineCue('vib', TI.vib)) sfx.heatWarn();
+  if (t > TI.vib && t < TI.shatter && Math.floor(t * 10) !== fx.rv) { fx.rv = Math.floor(t * 10); sfx.rivet(); }
+  if (cineCue('shatter', TI.shatter)) { sfx.screenHit(); sfx.pipeBurst(); sfx.glass && sfx.glass(); shake = 22; kick(0.3, 0.06, 1.4, 0.8); bloomBoost = 1; }
+  if (cineCue('pan', TI.pan)) sfx.groanFar();
+  if (cineCue('light', TI.light)) { sfx.breaker(); bloomBoost = 0.6; }
+  if (cineCue('orbit', TI.orbit)) { sfx.servo(); sfx.chain(); }
+  if (cineCue('top', TI.top)) sfx.whoosh();
+  if (t >= TI.fight && !fx.revealed) {
+    fx.revealed = true; T.hide = false; T.introY = 0; tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 1;
+    shake = 16; kick(0.25, 0.05, 1.2, 0.6); sfx.breaker(); sfx.stamp(); sfx.subDrop(); buzz([60, 30, 90]);
+    T.cycle = 0; endFx('play'); floater('FINISH IT BEFORE THE MILL FLOODS', CX, CY + R + 80, '#2ad8ff');
+  }
+  fxFilter = null;
+}
+function drawIntroStar(t) {
+  const s = t - TI.star, B = beatInfo('boss'), a = clamp(1 - (t - 1.75) / 1.25, 0, 1), pop = 1 + 0.7 * Math.exp(-s * 9) + 0.22 * B.pulse;
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(CX, CY + 50);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, 0, 4, 0, 0, 170 * pop); gl.addColorStop(0, 'rgba(255,210,63,.55)'); gl.addColorStop(1, 'rgba(255,160,40,0)'); ctx.fillStyle = gl; ctx.fillRect(-180 * pop, -180 * pop, 360 * pop, 360 * pop); ctx.restore();
+  ctx.rotate(s * 1.7 + B.pulse * 0.2); ctx.scale(pop, pop);
+  const st = (r1, r2, c) => { ctx.fillStyle = c; ctx.beginPath(); for (let i = 0; i < 8; i++) { const q = i / 8 * TAU, r = i % 2 ? r2 : r1; ctx.lineTo(Math.cos(q) * r, Math.sin(q) * r); } ctx.closePath(); ctx.fill(); };
+  st(78, 16, '#c89a1a'); st(70, 13, '#ffd23f'); st(34, 7, '#fff3c4');
+  ctx.fillStyle = 'rgba(255,243,196,.5)'; ctx.fillRect(-160, -1, 320, 2); ctx.fillRect(-1, -160, 2, 320);
+  ctx.restore();
+}
+const IG_PIPES = Array.from({ length: 16 }, (_, i) => ({ d: [0.35, 0.6, 1.5][i % 3], x: hash(i, 3, 1) * 900 - 200, y: hash(i, 3, 2) * 700 + 20, w: 10 + hash(i, 3, 3) * 26, vert: hash(i, 3, 4) < 0.4, len: 160 + hash(i, 3, 5) * 260 }));
+function drawIntroGauge(t) {
+  const s = t - TI.gauge, broke = t >= TI.shatter, sb = t - TI.shatter;
+  const pan = t > TI.pan ? easeIO(clamp((t - TI.pan) / (TI.light - 0.35 - TI.pan), 0, 1)) : 0, camX = pan * 560;
+  const punch = 1 + 0.12 * Math.exp(-s * 7);
+  ctx.save(); ctx.translate(CX, 330); ctx.scale(punch, punch); ctx.translate(-CX, -330);
+  // shadowed pipes scattered at three depths, drifting with parallax, fading into the dark (and imploding at the shatter)
+  const bgA = clamp(1 - (s - 0.5) / 1.8, 0, 1) * 0.9 + (t > TI.shatter - 0.6 && !broke ? 0.15 : 0);
+  if (bgA > 0.01 || (broke && sb < 0.5)) for (const P of IG_PIPES) {
+    const imp = broke ? clamp(sb / 0.35, 0, 1) : 0, a = broke ? (1 - imp) * 0.6 : bgA; if (a <= 0.01) continue;
+    const x = P.x - camX * P.d + s * 6 * P.d, y = P.y, cx = x + (P.vert ? 0 : P.len / 2), cy = y + (P.vert ? P.len / 2 : 0);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(1 - imp * 0.85, 1 - imp * (P.vert ? 0.2 : 0.85)); ctx.translate(-cx, -cy);
+    const wd = P.w * P.d * 1.4; ctx.fillStyle = P.d > 1 ? '#030305' : P.d > 0.5 ? '#0d0d10' : '#16161b';
+    if (P.vert) ctx.fillRect(x - wd / 2, y, wd, P.len); else ctx.fillRect(x, y - wd / 2, P.len, wd);
+    ctx.fillStyle = P.d > 1 ? '#0d0d10' : '#2a2a31'; if (P.vert) ctx.fillRect(x - wd / 2, y, 2, P.len); else ctx.fillRect(x, y - wd / 2, P.len, 2);
+    ctx.restore();
+  }
+  // the main pipe: across the frame, then elbowing down to the ground
+  const py0 = 470, ex = CX + 470 - camX;
+  ctx.fillStyle = '#0d0d10'; ctx.beginPath(); ctx.moveTo(-W, py0 - 22); ctx.lineTo(ex, py0 - 22); ctx.arcTo(ex + 44, py0 - 22, ex + 44, py0 + 22, 44); ctx.lineTo(ex + 44, H + 80); ctx.lineTo(ex, H + 80); ctx.lineTo(ex, py0 + 22); ctx.lineTo(-W, py0 + 22); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#4a4a53'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-W, py0 - 19); ctx.lineTo(ex, py0 - 19); ctx.arcTo(ex + 41, py0 - 19, ex + 41, py0 + 22, 41); ctx.lineTo(ex + 41, H + 80); ctx.stroke();
+  for (let x = -40; x < ex; x += 110) { ctx.fillStyle = '#2a2a31'; ctx.fillRect(x - camX % 110, py0 - 28, 12, 56); }
+  // the gauge on its stem
+  const gx = CX - camX, gy = 300, gr = 104;
+  ctx.fillStyle = '#16161b'; ctx.fillRect(gx - 9, gy + gr - 6, 18, py0 - gy - gr + 6);
+  ctx.save(); ctx.translate(gx, gy);
+  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, gr + 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(0, 0, gr + 4, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#d8d4c8'; ctx.beginPath(); ctx.arc(0, 0, gr - 4, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#c4122a'; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(0, 0, gr - 22, Math.PI * 0.75 + Math.PI * 1.5 * 0.78, Math.PI * 2.25); ctx.stroke();
+  for (let i = 0; i <= 40; i++) { const a = Math.PI * 0.75 + i / 40 * Math.PI * 1.5, l = i % 5 ? 7 : 14; ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 5 ? 1 : 2.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (gr - 8), Math.sin(a) * (gr - 8)); ctx.lineTo(Math.cos(a) * (gr - 8 - l), Math.sin(a) * (gr - 8 - l)); ctx.stroke(); }
+  for (let i = 0; i <= 8; i++) { const a = Math.PI * 0.75 + i / 8 * Math.PI * 1.5; text(String(i * 5), Math.cos(a) * (gr - 36), Math.sin(a) * (gr - 36), 11, '#16161b', 'center', 700); }
+  text('BAR', 0, 42, 11, '#16161b', 'center', 700);
+  let v = 0.08 + 0.9 * ease3(clamp(s / 1.2, 0, 1)); const shakeN = t > TI.vib && !broke ? clamp((t - TI.vib) / (TI.shatter - TI.vib), 0, 1) : 0;
+  v += Math.sin(time * 80) * 0.02 * shakeN + Math.sin(time * 53) * 0.015 * shakeN; if (broke) v = 0.98 + Math.min(0.5, sb * 3);
+  const na = Math.PI * 0.75 + v * Math.PI * 1.5;
+  ctx.strokeStyle = '#a3122a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-Math.cos(na) * 16, -Math.sin(na) * 16); ctx.lineTo(Math.cos(na) * (gr - 14), Math.sin(na) * (gr - 14)); ctx.stroke();
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
+  if (!broke) { ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.beginPath(); ctx.ellipse(-34, -44, 44, 16, -0.6, 0, TAU); ctx.fill(); }
+  else { ctx.strokeStyle = 'rgba(20,20,26,.9)'; ctx.lineWidth = 2; ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + 0.2; ctx.moveTo(20, -24); ctx.lineTo(20 + Math.cos(a) * 50, -24 + Math.sin(a) * 50); ctx.lineTo(20 + Math.cos(a + 0.25) * 110, -24 + Math.sin(a + 0.25) * 110); } ctx.stroke(); }
+  ctx.restore();
+  // shards of glass and a jet of water out of the burst gauge
+  if (broke && sb < 1.6) {
+    for (let i = 0; i < 26; i++) { const a = hash(i, 4, 1) * TAU, sp = 220 + hash(i, 4, 2) * 520, x = gx + Math.cos(a) * sp * sb, y = gy + Math.sin(a) * sp * sb + 600 * sb * sb, r = 4 + hash(i, 4, 3) * 9; ctx.save(); ctx.translate(x, y); ctx.rotate(sb * (6 + i)); ctx.fillStyle = `rgba(220,240,255,${0.8 * (1 - sb / 1.6)})`; ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 0.7, r * 0.6); ctx.lineTo(-r * 0.6, r * 0.4); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    for (let i = 0; i < 40; i++) { const k = (sb * 2 + hash(i, 5, 1)) % 1, a = -HALF + (hash(i, 5, 2) - 0.5) * 0.9; ctx.fillStyle = 'rgba(160,220,255,.75)'; ctx.fillRect(gx + 20 + Math.cos(a) * k * 300, gy - 30 + Math.sin(a) * k * 300 + k * k * 220, 3, 5); }
+  }
+  ctx.restore();
+  // after the burst it is dark: only a cold rim light on the pipe as we travel along it
+  if (broke) { ctx.fillStyle = `rgba(0,0,0,${clamp((sb - 0.35) / 0.4, 0, 0.72)})`; fillView(); ctx.fillStyle = 'rgba(120,160,200,.18)'; ctx.fillRect(-W, py0 - 22, ex + W, 3); }
+}
+function drawIntroTanker(t) {
+  const tg = fx.tg, s = t - TI.light;
+  const wallA = 1 - clamp((t - TI.top + 0.1) / 0.7, 0, 1);
+  if (wallA > 0) {
+    ctx.save(); ctx.globalAlpha = wallA;
+    const flick = s < 0.22 ? (Math.sin(s * 90) > 0 ? 1 : 0.25) : 1;
+    ctx.fillStyle = '#08080a'; fillView();
+    for (let y = 40; y < H; y += 80) for (let x = -40; x < W + 40; x += 120) { ctx.fillStyle = (x + y) % 3 ? '#121216' : '#16161b'; ctx.fillRect(x + 2, y + 2, 116, 76); }
+    const lg = ctx.createRadialGradient(CX, 120, 20, CX, 260, 420); lg.addColorStop(0, `rgba(255,214,150,${0.26 * flick})`); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = lg; fillView();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(CX, -40, HALF, 620, 10, 180, `rgba(255,190,120,${0.06 * flick})`); ctx.restore();
+    ctx.restore();
+  }
+  let yaw, C, sil;
+  if (t < TI.orbit) { yaw = 0.0001; C = [0, 60, 430]; sil = 1; }
+  else if (t < TI.top) { const u = easeIO(clamp((t - TI.orbit) / (TI.top - TI.orbit), 0, 1)); yaw = u * TAU + 0.0001; C = [0, 60 - 20 * u, 430 - 30 * u]; sil = clamp(1 - (t - TI.orbit) / 0.5, 0, 1); }
+  else { const u = clamp((t - TI.top) / (TI.fight - 0.12 - TI.top), 0, 1), e = easeIO(u); yaw = TAU + HALF * e; C = [0, 40 * (1 - e), 400 + (170 - 400) * e]; sil = 0; if (u >= 1) { yaw = TAU + HALF; C = [0, 0, 170]; } }
+  if (sil > 0 && CANVAS_FILTER) ctx.filter = `brightness(${(1 - 0.94 * sil).toFixed(3)})`;
+  drawTanker3D(tg, C, yaw, 340, R, CX, CY, 0);
+  if (CANVAS_FILTER) ctx.filter = 'none';
+}
+function drawTankIntro(t) {
+  ctx.save();
+  if (t < TI.top) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= TI.star && t < 3.05) drawIntroStar(t);
+  else if (t >= TI.gauge && t < TI.light) drawIntroGauge(t);
+  else if (t >= TI.light) drawIntroTanker(t);
+  ctx.restore();
+  if (t < TI.fight - 0.4) cineSkipHint();
+}
+// after the drop: spotlights snap onto the tanker and fade; the HUD assembles from flying shards; the knife rises into the lane
+function drawTankArrival() {
+  if (!tankArrive.on || tankArrive.t > 2) return;
+  const a = clamp(1 - tankArrive.t / 2, 0, 1);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const [x, y] of [[CX - 200, -60], [CX, -90], [CX + 200, -60]]) { const ang = Math.atan2(CY - y, CX - x), len = Math.hypot(CX - x, CY - y) + R; beam(x, y, ang, len, 8, R + 26, `rgba(255,240,200,${0.16 * a})`); }
+  ctx.strokeStyle = `rgba(255,240,200,${0.6 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CX, CY, R + 8 + (1 - a) * 30, 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+let hudBuf = null, hudShards = null;
+function drawHudShards(fn) {
+  hudBuf = canvasLike(hudBuf); const g = hudBuf.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, hudBuf.width, hudBuf.height); g.setTransform(ctx.getTransform()); withCtx(g, fn);
+  if (!hudShards || hudShards.w !== cv.width || hudShards.h !== cv.height) {
+    const cols = 6, rows = 11, cw = cv.width / cols, rh = cv.height / rows, list = [];
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const x0 = i * cw, y0 = j * rh, jx = (hash(i, j, 61) - 0.5) * cw * 0.5, jy = (hash(i, j, 62) - 0.5) * rh * 0.5, mx = x0 + cw / 2 + jx, my = y0 + rh / 2 + jy;
+      const corners = [[x0, y0], [x0 + cw, y0], [x0 + cw, y0 + rh], [x0, y0 + rh]];
+      for (let k = 0; k < 4; k++) { const p = corners[k], q = corners[(k + 1) % 4], a = hash(i * 4 + k, j, 63) * TAU, d = (90 + hash(i * 4 + k, j, 64) * 160) * dpr; list.push({ pts: [p, q, [mx, my]], vx: Math.cos(a) * d, vy: Math.sin(a) * d, d: hash(i * 4 + k, j, 65) * 0.4 }); }
+    }
+    hudShards = { w: cv.width, h: cv.height, list };
+  }
+  const T = tankArrive.t;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  for (const sh of hudShards.list) {
+    const u = clamp((T - sh.d) / 0.45, 0, 1); if (u <= 0) continue;
+    const e = ease3(u); ctx.save(); ctx.globalAlpha = Math.min(1, u * 1.8); ctx.translate(sh.vx * (1 - e), sh.vy * (1 - e));
+    ctx.beginPath(); ctx.moveTo(...sh.pts[0]); ctx.lineTo(...sh.pts[1]); ctx.lineTo(...sh.pts[2]); ctx.closePath(); ctx.save(); ctx.clip(); ctx.drawImage(hudBuf, 0, 0); ctx.restore();
+    if (u < 1) { ctx.strokeStyle = `rgba(255,255,255,${0.35 * (1 - u)})`; ctx.lineWidth = 1; ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function updateTankArrival(dt) {
+  if (tankArrive.on) { const t0 = tankArrive.t; tankArrive.t += dt; if (t0 < 0.9 && tankArrive.t >= 0.9) { for (const [x, y] of [[70, 36], [CX, 24], [W - 70, 34], [24, H - 120], [W - 70, H - 90]]) flare(x, y, 0.9, '#ffd23f'); bloomBoost = Math.max(bloomBoost, 0.8); sfx.ready(); } if (tankArrive.t > 3) tankArrive.on = false; }
+  knifeRiseT = Math.max(0, knifeRiseT - dt);
+}
+
 
 
 // ======================= BOSS: THE WIRE CLUMP =======================
@@ -8540,7 +8805,7 @@ function breakFeatures(t) {
 // ---------- update ----------
 function update(dt) {
   time += dt;
-  updateMusic(dt); updateFlares(dt);
+  updateMusic(dt); updateFlares(dt); updateTankArrival(dt);
   if (state === 'tomenu') { updateToMenu(dt); return; }
   if (state === 'menu') { updateMenu(dt); return; }
   heartT = Math.max(0, heartT - dt * 1.5);
@@ -9256,7 +9521,7 @@ function drawRewind() {
     f = lit ? 'none' : 'grayscale(1) contrast(40)';
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const fa = clamp(1 - (t - REW_FLASH) / 0.3, 0, 1);
-    if (fa > 0) { ctx.fillStyle = `rgba(255,46,69,${fa * 0.5})`; ctx.fillRect(0, 0, cv.width, cv.height); }
+    if (fa > 0) { ctx.fillStyle = `rgba(255,255,255,${fa})`; ctx.fillRect(0, 0, cv.width, cv.height); }
     if (s >= 0 && popCanvas) {
       const u = clamp(s / 0.2, 0, 1), sc = 0.4 + 0.6 * easeOutBack(u), jit = s < 0.3 ? (0.3 - s) * 20 * dpr : 0;
       ctx.save(); ctx.translate(popPos[0] + rand(-jit, jit), popPos[1] + rand(-jit, jit)); ctx.scale(sc, sc);
@@ -9328,7 +9593,7 @@ function drawImpact() {
     ctx.beginPath(); ctx.arc(0, 0, 26 + el * 400, 0, TAU); ctx.stroke();
     ctx.restore();
   } else if (el < hitstopLen() + 0.1) {
-    ctx.fillStyle = `rgba(255,46,69,${0.32 * (1 - (el - hitstopLen()) / 0.1)})`; ctx.fillRect(-W, -H, W * 3, H * 3);
+    ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (el - hitstopLen()) / 0.1)})`; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
 }
 
@@ -9376,6 +9641,7 @@ function drawScene() {
   drawTypeAmbience(tgt);
   if (tgt && tgt.gear && !tgt.gear.hide) { drawGearBackdrop(tgt); drawDriveGears(tgt); }
   if (tgt && tgt.tire && !tgt.tire.hide) drawTireBackdrop(tgt);
+  if (tgt && tgt.tank && !tgt.tank.hide) drawTankMounts(tgt);
   if (tgt && tgt.wire) drawWireCables(tgt);
 
   if (tgt) drawTarget();
@@ -9383,6 +9649,9 @@ function drawScene() {
   if (tgt && tgt.tire) drawTireLoose(tgt);
   if (tgt && tgt.nest) drawNestFront(tgt);
   if (tgt && tgt.wire) drawWireFront(tgt);
+  if (tgt && tgt.tank && !tgt.tank.hide) drawTankRobot(tgt);
+  if (bossBgKey(tgt) === 'boss') drawTankFore();
+  drawTankArrival();
   if (ixq.length) drawIx();
   drawSawmill(tgt);
   if (ghostSaws.length) drawSawmill({ f: { saws: ghostSaws }, pop: 1, smooth: true });
@@ -9420,7 +9689,7 @@ function drawScene() {
   if (fx && fx.type === 'abkill') drawAbKill(fx.t);
   if (fx && fx.type === 'queenrise') drawQueenRise(fx.t);
   if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
-    const off = state === 'play' ? Math.pow(clamp(readyT / 0.09, 0, 1), 2) * 90 : 0, ky = KNIFE_Y + Math.min(off, 90);
+    const off = state === 'play' ? Math.pow(clamp(readyT / 0.09, 0, 1), 2) * 90 : 0, ky = KNIFE_Y + Math.min(off, 90) + 380 * Math.pow(knifeRiseT / 1.3, 3);
     if (abil.state === 'armed') drawKnifeAura(ky, 1, ABILITY.mode === 'arm' ? ABILITY.id : 'strong');
     if (abil.ov > 0) drawOvervoltAura(ky);
     if (state === 'play') { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(CX, ky + KL + 5, 15, 3.5, 0, 0, TAU); ctx.fill(); }
@@ -9445,7 +9714,7 @@ function drawScene() {
   if (ixq.length && state !== 'menu') drawIxTitles();
   if (sporeT > 0 && state !== 'menu') drawSporeHaze();
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal)))) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -9541,7 +9810,7 @@ const GL_MAIN = `precision highp float;
   float b2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
   float b4(vec2 a){ return b2(0.5 * a) * 0.25 + b2(a); }
   vec3 S(vec2 q){ return texture2D(tex, q).rgb; }
-  const vec3 INK = vec3(0.031, 0.031, 0.04), BLOOD = vec3(1.0, 0.18, 0.27);
+  const vec3 INK = vec3(0.0), BLOOD = vec3(1.0);
   void main(){
     vec2 px = floor(uv * res) + 0.5, q = px / res;
     vec3 c = S(q);
@@ -9714,6 +9983,7 @@ function drawBackdrop() {
     if (state !== 'menu') { ctx.save(); ctx.translate(px * 0.5, py * 0.5); ctx.globalAlpha = 0.05 + (tgt ? tgt.hit * 0.06 : 0); dtext(String(stage).padStart(2, '0'), CX, CY + 6, 250, '#ffffff', 'center', null, -0.18); ctx.restore(); }
   }
   if (!bk && state !== 'menu') { drawMillFloor(px, py); drawMillLight(px, py); }
+  if (bk !== 'boss') {
   // hanging chains and hooks, swinging with the camera
   ctx.save(); ctx.translate(px * 0.8, py * 0.8);
   for (let i = 0; i < 5; i++) {
@@ -9730,6 +10000,7 @@ function drawBackdrop() {
     const y = ((time * sp + hash(i, 0, 24) * 2000) % (H + 400)) - 200;
     ctx.fillStyle = hash(i, 0, 25) < 0.25 ? '#ffffff' : '#38383f';
     ctx.fillRect(Math.round(x), y, dz > 1 ? 3 : 2, len);
+  }
   }
   // rotating reticle around the log
   ctx.save(); ctx.translate(CX, CY); ctx.rotate(-time * 0.6);
@@ -9752,7 +10023,7 @@ function drawBackdrop() {
 // the plane in front of the action: sawdust in the air and out-of-focus rigging that slides the other way
 function introCovering() { return !!(fx && /intro$/.test(fx.type)); }
 function drawForeground() {
-  if (introCovering()) return;
+  if (introCovering() || bossBgKey(tgt) === 'boss') return;
   const px = plx.x, py = plx.y;
   for (let i = 0; i < 34; i++) {
     const dz = 1.15 + hash(i, 8, 1) * 1.5, sp = 6 + hash(i, 8, 2) * 16;
@@ -10388,7 +10659,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 48', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 49', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

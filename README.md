@@ -61,3 +61,6 @@ A knife-throwing web game. Open `index.html` in a browser.
 
 ## Build 48
 - Redesign pass using the installed game skills (director, graphics scorecard, UI patterns, game feel, Web Audio bus, bloom). Evidence and scorecard: `artifacts/build48-evidence.md`.
+
+## Build 49
+- Water Tanker rebuild: track-synced intro (cut points at the measured hits 1.03 / 4.69 / 8.33 / 11.98 / 15.66 s, clock follows the music's playback position), overhead boss art, robot-built pipe obstacles, and a 5-layer procedural overhead background driven by a per-beat structure map of `boss.mp3` (energy / bass / highs, 715 beats) plus a live AnalyserNode on the music bus. Failure frames back to black and white.

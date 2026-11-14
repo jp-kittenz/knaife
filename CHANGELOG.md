@@ -2,6 +2,38 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 49
+- **Water Tanker rebuilt.**
+  - **Intro, cut to the track:** every beat lands on a hit measured from the music file, and the picture follows the song's real playback position.
+    - 0:01 a rotating gold star on the first hit.
+    - 0:04 the pressure gauge slams in, with shadowed pipes drifting at three depths.
+    - 0:06 the needle shakes on the last dial.
+    - 0:08 the glass bursts and the pipes implode.
+    - 0:09 a dark pan along the pipe to its elbow.
+    - 0:12 the light comes on: the tanker in silhouette on the wall.
+    - 0:13 a full 3D orbit, then the camera swings over the top and lands exactly on the gameplay view (no cut).
+    - 0:15.65 (the drop) spotlights snap on, the HUD assembles from flying shards with a flash, and the knife rises into the lane.
+  - **Boss art, seen from overhead:** a caution-striped lid, a big pressure gauge, portholes, a hatch and a KNAIFE WATER stencil, turning inside a collar held by fixed hazard-striped mounts, with a slow leak dripping off the left mount.
+  - **Pipe obstacles are built live:**
+    - A pipe punches a hole in the tank.
+    - A robot arm places the pipe and welds it.
+    - It brings the base flange and welds again.
+    - Pipes block once they are placed.
+  - **New overhead background**, five layers deep:
+    - The plant floor, with background tanks, control platforms, and hard-hatted workers running around the tanks.
+    - Red, yellow and green pipe networks at increasing depth.
+    - The boss.
+    - A blurred purple foreground.
+    - It is procedurally generated, scrolls right with parallax, and is full of valves, steam vents, outflows, lamps and alert beacons.
+  - **The background follows the song, not just the tempo:**
+    - Floodlights bang on with beat 1 and off with beat 2.
+    - Everything runs faster and harder as the music builds.
+    - Alert beacons spin up ahead of build-ups.
+    - The lights strobe on the drops.
+    - A pressure ring goes out every bar.
+    - This is driven by a per-beat map of the track's energy, bass and highs, plus a live analyser on the music.
+- Failure frames are back to black and white.
+
 ## Build 48
 - **Redesign pass on look, feel and sound** (theme kept: the sawmill, the pixel palette, the red accents).
 - **Lighting and rendering**:
