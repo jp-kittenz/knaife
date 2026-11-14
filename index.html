@@ -293,6 +293,8 @@ const sfx = {
   iceCrack() { noise(0.09, 4200, 3, 0.35, 'bandpass'); tone('triangle', 2400, 1300, 0.09, 0.08); tone('triangle', 3100, 1800, 0.07, 0.06, { delay: 0.04 }); },
   iceBreak() { for (let i = 0; i < 5; i++) tone('triangle', 2000 + i * 420, 900 + i * 200, 0.12, 0.07, { delay: i * 0.03, wet: 0.5 }); noise(0.25, 5000, 1, 0.3, 'highpass', { curve: 1.5 }); },
   sawDown() { tone('sawtooth', 260, 38, 1.5, 0.12, { wet: 0.4 }); noise(1.3, 1800, 3, 0.2, 'bandpass', { sweepTo: 240, curve: 0.8 }); },
+  musicSlam() { tone('sine', 70, 26, 1.1, 0.8, { drive: true, wet: 0.5 }); noise(0.9, 180, 0.7, 0.6, 'lowpass', { curve: 1.3, wet: 0.6 }); noise(0.18, 3800, 0.8, 0.4, 'highpass', { curve: 2 }); tone('sawtooth', 110, 55, 0.6, 0.08, { drive: true }); },
+  tapeStop() { tone('sawtooth', 220, 30, 1.1, 0.05, { wet: 0.4 }); noise(1.0, 900, 1, 0.12, 'bandpass', { sweepTo: 90 }); },
   boing() { tone('sine', 160, 620, 0.18, 0.25, { wet: 0.4 }); tone('sine', 620, 240, 0.3, 0.15, { delay: 0.16, wet: 0.4 }); tone('triangle', 320, 900, 0.12, 0.08, { delay: 0.05 }); },
   hiss() { noise(0.8, 4200, 0.6, 0.45, 'highpass', { curve: 1.4, wet: 0.4 }); noise(0.5, 900, 1, 0.25, 'bandpass', { curve: 2 }); },
   bees() { tone('sawtooth', 218, 232, 1.3, 0.05, { wet: 0.3 }); tone('sawtooth', 247, 238, 1.3, 0.04); tone('sawtooth', 196, 205, 1.1, 0.03, { delay: 0.1 }); },
@@ -386,7 +388,10 @@ const sfx = {
 };
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3' };
+// bar-aligned loop points (seconds, as Chromium decodes the files): the intro plays once, then the body loops on a crossfaded seam
+const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236] };
+function loopSrc(src, name) { const L = LOOPS[name]; if (L && src.buffer && src.buffer.duration > L[1] - 0.02) { src.loopStart = L[0]; src.loopEnd = Math.min(L[1], src.buffer.duration); } }
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
   return music.tracks[name] || (music.tracks[name] = { name, el: null, node: null, buf: null, filt: null, gain: null, mix: 0, loading: false, failed: false });
@@ -396,7 +401,7 @@ function playTrack(tr, fromStart) {
   if (tr.buf && a) {                                      // decoded: (re)start a buffer source
     if (tr.node && !fromStart) return;
     if (tr.node) { try { tr.node.stop(); } catch (e) {} }
-    const src = a.createBufferSource(); src.buffer = tr.buf; src.loop = true; src.playbackRate.value = music.rate;
+    const src = a.createBufferSource(); src.buffer = tr.buf; src.loop = true; loopSrc(src, tr.name); src.playbackRate.value = music.rate;
     src.connect(tr.filt); src.start(0, 0); tr.node = src; return;
   }
   if (!tr.el) {
@@ -412,8 +417,9 @@ function playTrack(tr, fromStart) {
       .then(buf => {
         tr.buf = buf; tr.filt = a.createBiquadFilter(); tr.filt.type = 'lowpass'; tr.filt.frequency.value = 20000; tr.filt.Q.value = 0.8;
         tr.gain = a.createGain(); tr.gain.gain.value = 0; tr.filt.connect(tr.gain).connect(a.destination);
-        const src = a.createBufferSource(); src.buffer = buf; src.loop = true;
-        src.connect(tr.filt); src.start(0, tr.el ? (tr.el.currentTime || 0) % buf.duration : 0); tr.node = src;
+        const src = a.createBufferSource(); src.buffer = buf; src.loop = true; loopSrc(src, tr.name);
+        const L = LOOPS[tr.name]; let at = tr.el ? (tr.el.currentTime || 0) : 0; if (L && at > L[1]) at = L[0] + (at - L[0]) % (L[1] - L[0]);
+        src.connect(tr.filt); src.start(0, at % buf.duration); tr.node = src;
         const el = tr.el; tr.el = null;
         if (el) { let v = el.volume; const fade = setInterval(() => { v -= 0.05; if (v <= 0) { el.pause(); clearInterval(fade); } else el.volume = v; }, 40); }
       })
@@ -422,6 +428,12 @@ function playTrack(tr, fromStart) {
 }
 function startMusic() { music.unlocked = true; playTrack(trackObj(music.cur), false); }
 // switch tracks: the new one starts from the top, the old one fades out
+// cut straight to a track at full volume: no crossfade, the old one is gone
+function slamMusic(name) {
+  music.cur = name; music.rate = 1; music.cut = 20000;
+  for (const n in music.tracks) if (n !== name) { const tr = music.tracks[n]; tr.mix = 0; if (tr.node) { try { tr.node.stop(); } catch (e) {} tr.node = null; } if (tr.el && !tr.el.paused) tr.el.pause(); }
+  const tr = trackObj(name); tr.mix = 1; if (music.unlocked) playTrack(tr, true);
+}
 function setMusic(name) {
   if (music.cur === name) return;
   music.cur = name;
@@ -438,7 +450,10 @@ function updateMusic(rdt) {
   else if (state === 'over') { rate = 0.75; cut = 900; vol = 0.35; }
   else if (state === 'rewind') { rate = rewindT < REW_SWITCH ? 0.7 : 1; cut = rewindT < REW_SWITCH ? 500 : 20000; }
   else if (fx && fx.type === 'tankintro') { rate = 1; cut = fx.t < SHOT.reveal ? 900 + 2600 * clamp(fx.t / SHOT.reveal, 0, 1) : 20000; vol = 0.6; }
-  else if (fx && fx.type === 'nestintro') { rate = 1; cut = fx.t < NSHOT.reveal ? 600 + 3000 * clamp(fx.t / NSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'nestintro' && fx.t < NSHOT.macro) { const u = clamp(fx.t / (NSHOT.macro - 0.08), 0, 1); rate = 1 - 0.7 * Math.pow(u, 1.6); cut = 20000 * Math.pow(0.012, u); vol = 0.5 * (1 - Math.pow(u, 3)); }
+  else if (fx && fx.type === 'nestintro') { rate = 1; cut = fx.t < NSHOT.reveal ? 900 + 3500 * clamp((fx.t - NSHOT.macro) / (NSHOT.reveal - NSHOT.macro), 0, 1) : 20000; vol = 0.62; }
+  else if (fx && fx.type === 'queenrise' && fx.t < 1.4) { const u = clamp((fx.t - 0.2) / 1.12, 0, 1); rate = 1 - 0.68 * Math.pow(u, 1.5); cut = 20000 * Math.pow(0.013, u); vol = fx.t > 1.3 ? 0 : 0.55; }
+  else if (fx && fx.type === 'queenrise') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = fx.t < TSHOT.reveal ? 800 + 2800 * clamp(fx.t / TSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = fx.t < GSHOT.reveal ? 700 + 3200 * clamp(fx.t / GSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
@@ -446,11 +461,13 @@ function updateMusic(rdt) {
   if (music.cur === 'boss') vol *= 1.1;
   if (music.cur === 'gear') vol *= 1.2;
   if (music.cur === 'tire') vol *= 0.95;
+  if (music.cur === 'nest' || music.cur === 'queen') vol *= 0.9;
   music.rate += (rate - music.rate) * Math.min(1, rdt * 6); music.cut += (cut - music.cut) * Math.min(1, rdt * 8);
   music.t -= rdt; const tick = music.t <= 0; if (tick) music.t = 0.1;
   for (const name in music.tracks) {
     const tr = music.tracks[name], on = name === music.cur;
     tr.mix += ((on ? 1 : 0) - tr.mix) * Math.min(1, rdt * (on ? 0.9 : 1.6));
+    if (tr.el && tick && LOOPS[name] && tr.el.currentTime > LOOPS[name][1]) { try { tr.el.currentTime -= LOOPS[name][1] - LOOPS[name][0]; } catch (e) {} }
     const v = (muted ? 0 : vol) * tr.mix;
     if (tr.node) {
       tr.node.playbackRate.value = music.rate; tr.filt.frequency.value = music.cut;
@@ -1087,7 +1104,7 @@ function summonButton(x, y) {
 
 function chargeAbility() {
   if (abil.state !== 'cooldown') return;
-  abil.charge++;
+  abil.charge += 1 + (abil.boost || 0); abil.boost = 0;
   if (abil.charge >= abil.need) { abil.state = 'ready'; abil.flash = 1; sfx.ready(); buzz(10); }
 }
 
@@ -1381,6 +1398,8 @@ function updateCam(rdt, frozen) {
   if (!frozen) { cam.kz *= Math.exp(-rdt * 6); cam.kr *= Math.exp(-rdt * 5); aberr = Math.max(0, aberr - rdt * 1.6); zblur = Math.max(0, zblur - rdt * 1.8); }
   bars += (barsT - bars) * Math.min(1, rdt * 7); vign += (vignT - vign) * Math.min(1, rdt * 5);
   stunT = Math.max(0, stunT - rdt);
+  if (stunShield > 0) { stunShield -= rdt; stunT = 0; }
+  updateFeed(rdt);
 }
 function applyCam() {
   const z = cam.z + cam.kz;
@@ -1860,6 +1879,7 @@ function featureHits(k, t) {
   for (const kg of (F.kegs || [])) if (kg.alive && inArc(a, kg.a, 0.17) && tip <= CY + R + 30) { deflect(k); stageMiss--; kegBlast(t, kg, true); return true; }
   for (const b of F.branches) {
     if (!b.alive || !inArc(a, b.a, 0.13) || tip > CY + R + b.len) continue;
+    if (b.bird && b.bird.on && b.bird.safe > 0) { scareBird(t, b); deflect(k); stageMiss--; combo = 0; return true; }
     if (b.bird && b.bird.on) { killBird(t, b); k.done = true; return true; }
     if (b.link >= 0 && F.links[b.link].alive) { b.wob = 1; sfx.ping(); floater('LOCKED', CX, CY + R + 70, '#c3c3ca'); deflect(k); return true; }
     if (b.sub === 'swirl' && b.hp > 1) { b.hp--; b.wob = 1.4; sfx.boing(); floater('BOING', CX, CY + R + 70, '#ffd23f'); deflect(k, Math.random() < 0.5 ? -1 : 1, 1.2); return true; }
@@ -2243,8 +2263,8 @@ const KNIFE_ABILITIES = {
     desc: 'Tap the emblem to arm the next knife. Throw it: time slows, it hits for double, and a stuck knife in its path explodes instead of costing a heart.',
     // returns bonus damage dealt by the interaction
     onImpact(t, aHit) {
-      const F = t.f; if (!F) return 0;
-      let bonus = 0;
+      const F = t.f; if (!F) return abilityInteract(t, 'strong', aHit);
+      let bonus = abilityInteract(t, 'strong', aHit);
       const delays = [];
       // branches: every branch is torn off, birds are shooed first
       F.branches.forEach((b, i) => { if (b.alive) { if (b.bird && b.bird.on) scareBird(t, b); delays.push([i * 0.08, () => breakBranch(t, b, true)]); } });
@@ -2508,7 +2528,7 @@ function markerHit(t, s) {
   shocks(x, y, 3, 200); burst(x, y, 90, [t.pal.light, t.pal.dark, '#ff2e45', '#ffffff'], 800, 80, 5, 0.9);
   for (let i = 0; i < 40; i++) splinter(x, y, t, 700);
   kick(0.4, 0.08, 1.4, 1.2); shake = 30; floater('MARKED X4', CX, CY + R + 60, '#ff2e45'); sfx.markerHit(); buzz([60, 30, 90]);
-  abilityMeetsLog(t, 'marker', s.a);
+  abilityInteract(t, 'marker', s.a); abilityMeetsLog(t, 'marker', s.a);
 }
 function markerMiss(t) {
   const m = t.marker; m.throws--;
@@ -2630,7 +2650,7 @@ function updateChain(t, dt) {
     kick(0.12, 0.04, 1, 0.4); shake = Math.max(shake, 18); zapT = Math.max(zapT, 0.9); sfx.zap(0.9);
   }
   if (c.gone.size === c.nodes.length) {
-    t.chain = null; abilityMeetsLog(t, 'chain', 0); holdForBranches(t);
+    t.chain = null; abilityInteract(t, 'chain', 0); abilityMeetsLog(t, 'chain', 0); holdForBranches(t);
     kick(0.3, 0.08, 1.6, 1); floater('OVERLOAD -' + c.nodes.length, CX, CY - R - 40, '#2ad8ff'); sfx.knifeExplode(); buzz([60, 30, 60, 30, 120]);
     summonButton(CX, CY);
   }
@@ -2809,7 +2829,7 @@ function startCarve(t, s) {
   fx = { type: 'carve', t: 0, freeze: 0.14, x: CX, y: CY + R, lines: impactLinesFor(14, 420), tg: t, a2, pts, seg, len, stroke: 0, popped: false };
   state = 'fx'; cinema(true, 0.6); camFocus(CX, CY, 1.3); kick(0.1, 0.03, 0.5);
   const [x, y] = worldAt(t, s.a, R); burst(x, y, 30, [t.pal.light, '#fff0cc'], 380, 60, 3, 0.6); sfx.carve();
-  abilityMeetsLog(t, 'carve', s.a);
+  abilityInteract(t, 'carve', s.a); abilityMeetsLog(t, 'carve', s.a);
 }
 function carvePoint(f, d) {
   for (let i = 1; i < f.pts.length; i++) if (f.seg[i] >= d) { const u = (d - f.seg[i - 1]) / (f.seg[i] - f.seg[i - 1] || 1); return [f.pts[i - 1][0] + (f.pts[i][0] - f.pts[i - 1][0]) * u, f.pts[i - 1][1] + (f.pts[i][1] - f.pts[i - 1][1]) * u, Math.atan2(f.pts[i][1] - f.pts[i - 1][1], f.pts[i][0] - f.pts[i - 1][0])]; }
@@ -2907,7 +2927,7 @@ function updateCookFx(t) {
   while (f.chopped < COOK_CHOPS.length && t >= COOK_CHOPS[f.chopped]) { f.chopped++; sfx.chop(); shake = Math.max(shake, 7); burst(CX + (f.chopped - 3) * 9, CY, 14, ['#ffb0b8', '#ffffff', '#ff6070'], 240, 40, 2.5, 0.4); }
   if (t > 2.8 && !f.fire) { f.fire = true; sfx.sizzle(); sfx.whoosh(); }
   if (t > 2.8 && t < 3.6 && Math.random() < 0.8) smoke.push({ x: CX + rand(-30, 30), y: CY + rand(-6, 6), vx: rand(-20, 20), vy: rand(-110, -50), r: rand(4, 9), life: 1.3, max: 1.3, g: 220, c: 'rgba(240,240,244,.45)' });
-  if (t > 3.65 && !f.ding) { f.ding = true; abilityMeetsLog(tgt, 'cook', 0); sfx.ding(); kick(0.08, 0.02, 0.4); burst(CX, CY, 30, ['#ffd23f', '#ffffff'], 300, 0, 3, 0.6); }
+  if (t > 3.65 && !f.ding) { f.ding = true; abilityInteract(tgt, 'cook', 0); abilityMeetsLog(tgt, 'cook', 0); sfx.ding(); kick(0.08, 0.02, 0.4); burst(CX, CY, 30, ['#ffd23f', '#ffffff'], 300, 0, 3, 0.6); }
   if (t > 4.1 && !f.flown) {
     f.flown = true; abil.birds--;
     launchFlight({ x: CX, y: CY, tx: ITEM_X, ty: ITEM_Y0 - trayEntries().length * 0 , col: '#ffa04a', draw: iconMeal, sc1: 0.7, then: () => { abil.items.push('bird'); abil.pop.bird = 1; } });
@@ -5368,16 +5388,16 @@ function startQueenRise(t) {
   const T = t.nest; T.stingers = []; T.jelly = []; T.flyers = []; T.over = T.dir * 1.2;
   fx = { type: 'queenrise', t: 0, lt: 0, freeze: 0.25, x: CX, y: CY, lines: impactLinesFor(28, 1000), tg: t };
   state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.22); kick(0.3, 0.08, 1.4, 0.8);
-  sfx.subDrop(); sfx.hornetBuzz(); buzz([60, 30, 120]);
+  sfx.subDrop(); sfx.hornetBuzz(); sfx.tapeStop(); buzz([60, 30, 120]);
 }
 function updateQueenRise(t) {
   const tg = fx.tg, T = tg.nest, dt = t - fx.lt; fx.lt = t;
   tscale = t < 1.4 ? 0.35 : 0.6;
   nestMoveWasps(tg, dt * 2.2);
   if (t < 1.4) { T.crack = clamp((t - 0.3) / 1.0, 0, 1); shake = Math.max(shake, 3 + T.crack * 10); T.over = T.dir * (1.2 - T.crack); if (Math.floor(t * 6) !== fx.bz) { fx.bz = Math.floor(t * 6); sfx.hornetBuzz(); } }
-  if (t > 0.5 && !fx.pop) { fx.pop = true; for (const s of tg.stuck.slice()) nestDropKnife(tg, s, rand(380, 640)); sfx.popOut(); }
+  if (t > 0.5 && !fx.pop) { fx.pop = true; for (const s of tg.stuck.slice()) nestDropKnife(tg, s, rand(380, 640)); sfx.popOut(); sfx.riser(); }
   if (t >= 1.4 && !fx.hatch) {
-    fx.hatch = true; T.crack = 0; T.over = 0; T.breaches = [];
+    fx.hatch = true; T.crack = 0; T.over = 0; T.breaches = []; slamMusic('queen'); sfx.musicSlam();
     T.queen = { x: CX, y: CY, s: 0.5, mode: 'emerge', t: 0, ph: 0, a: -HALF, hd: -HALF, next: 2.5, last: null, st: '', fired: 0 };
     for (let i = 0; i < 26; i++) { const a = rand(TAU), sp = rand(300, 800); debris.push({ kind: 'paper', r: rand(6, 13), x: CX + Math.cos(a) * 30, y: CY + Math.sin(a) * 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 240, rot: rand(TAU), vr: rand(-14, 14), c: ['#ffe2a6', '#e09a52', '#a85e28'][i % 3] }); }
     burst(CX, CY, 60, ['#ffd23f', '#ff7a1a', '#ffe2a6', '#ff2e45'], 760, 60, 4, 0.7); shocks(CX, CY, 3, 260); shake = 30; kick(0.45, 0.1, 1.8, 1.2);
@@ -5445,7 +5465,7 @@ function startNestIntro(t) {
   const [px, py] = t.nestAt || [CX, CY + R];
   fx = { type: 'nestintro', t: 0, freeze: 0, tg: t, cuts: {}, px, py, logTex: t.tex, rot: t.rot };
   state = 'fx'; cinema(true, 0.9); camFocus(px, py, 1.45);
-  setMusic('boss'); sfx.bees(); sfx.hornetBuzz(); buzz([20, 40, 20]);
+  sfx.tapeStop(); sfx.bees(); sfx.hornetBuzz(); buzz([20, 40, 20]);
 }
 function skipNestIntro() { if (fx && fx.type === 'nestintro' && fx.t < NSHOT.reveal) { fx.t = NSHOT.reveal - 0.01; fx.skipped = true; } }
 function updateNestIntro(t) {
@@ -5456,7 +5476,7 @@ function updateNestIntro(t) {
   const at = (k, tt) => { if (t >= tt && !fx[k]) { fx[k] = true; return true; } return false; };
   if (t < NSHOT.macro && Math.floor(t * 3) !== fx.bz) { fx.bz = Math.floor(t * 3); sfx.hornetBuzz(); }
   if (t >= NSHOT.macro && !fx.conv) {   // behind the cut, the log becomes the nest
-    fx.conv = true; fx.logTex = fx.logTex || tg.tex; flying = []; banner.t = 0; setupNest(tg); knivesTotal = knivesLeft = NEST_HP; camFocus(CX, CY, 1);
+    fx.conv = true; slamMusic('nest'); sfx.musicSlam(); fx.logTex = fx.logTex || tg.tex; flying = []; banner.t = 0; setupNest(tg); knivesTotal = knivesLeft = NEST_HP; camFocus(CX, CY, 1);
   }
   if (cutAt('macro', NSHOT.macro)) { sfx.servo(); sfx.heartbeat(); }
   if (at('snap', NSHOT.macro + 1.05)) { sfx.snap(); sfx.clank(); shake = 10; }
@@ -5642,14 +5662,14 @@ function makeBird() {
 // what each bird does when a knife lands beside it
 function birdReact(t, b) {
   const B = b.bird, [x, y] = worldAt(t, b.a, R + b.len * 0.75);
-  if (B.kind === 'crow') { B.back = 4.5; floater('CAW! IT WILL BE BACK', x, y - 44, '#c3c3ca'); sfx.caw(); }
-  if (B.kind === 'owl') {
+  if (B.kind === 'crow' && !B.gone) { B.back = 4.5; floater('CAW! IT WILL BE BACK', x, y - 44, '#c3c3ca'); sfx.caw(); }
+  if (B.kind === 'owl' && !B.deep) {
     fxp.push({ kind: 'fly', x, y, tx: CX, ty: KNIFE_Y + 30, t: 0, max: 0.45, life: 9, item: 'owl', then() { stunT = Math.max(stunT, 2.5); stunMax = 2.5; shake = Math.max(shake, 12); burst(CX, KNIFE_Y + 20, 26, ['#a85e28', '#f2cf94', '#ffffff'], 380, 60, 3, 0.5); floater('THE OWL STRIKES!', CX, KNIFE_Y - 40, '#ffa04a'); sfx.hoot(); sfx.stun(); buzz([30, 30, 60]); kick(0.1, 0.04, 0.8); } });
     floater('YOU WOKE THE OWL', x, y - 44, '#ffa04a'); sfx.hoot();
   }
 }
 function updateBird(t, b, dt, live) {
-  const B = b.bird, F = t.f; B.hop += dt; B.pk = Math.max(0, B.pk - dt * 3);
+  const B = b.bird, F = t.f; B.hop += dt; B.pk = Math.max(0, B.pk - dt * 3); if (B.safe > 0) B.safe -= dt;
   if (!b.alive || !live) return;
   if (B.kind === 'crow' && !B.on && B.back > 0) {
     B.back -= dt;
@@ -5973,7 +5993,7 @@ const ABIL_NOTES = {
 function abilityMeetsLog(t, id, a) {
   if (!t || !t.f || t.boss || t.nestBait || !t.type || t.type === 'plain') return;
   const F = t.f, ty = t.type, near = (arr, key = 'a') => arr.slice().sort((p, q) => angDiff(p[key], a) - angDiff(q[key], a));
-  const say = (txt, col = '#ffffff') => floater(txt, CX, CY - R - 40, col), later = (d, f) => pending.push({ t: d, f });
+  const say = (txt, col = '#ffffff') => { floater(txt, CX, CY - R - 40, col); feed(txt, id); }, later = (d, f) => pending.push({ t: d, f });
   const jam = s => { F.saws.forEach(w => { if (w.alive) w.jam = Math.max(w.jam || 0, s); }); }, shut = s => { if (F.treehole) F.treehole.shut = s; };
   const spit = () => { const H0 = F.treehole, n = H0.stored; H0.stored = 0; for (let i = 0; i < n; i++) { const [x, y] = worldAt(t, H0.a, R - 16); debris.push({ kind: 'knife', x, y, vx: rand(-300, 300), vy: rand(-600, -400), rot: rand(TAU), vr: rand(-16, 16) }); } if (n) { knivesLeft = Math.max(0, knivesLeft - n); score += n; H0.gulp = 1.4; sfx.burp(); } return n; };
   const plates = n => near(F.plates.filter(p => p.hp > 0).map(p => Object.assign(p, { mid: normA((p.a0 + p.a1) / 2) })), 'mid').slice(0, n).forEach((p, i) => later(i * 0.07, () => { p.hp = 1; hitPlate(t, p); }));
@@ -6030,6 +6050,208 @@ function abilityMeetsLog(t, id, a) {
   }
   shocks(CX, CY, 2, 150); kick(0.1, 0.03, 0.7, 0.4); plxKick(rand(-20, 20), -20);
 }
+
+// ======================= ABILITY INTERACTIONS: every knife x every thing it can meet =======================
+// 28 targets per knife: 11 log types, 5 special branches, 4 birds, apples, hidden knives, 4 named bosses, the queen, the classic bosses.
+// Log-type effects for Strong Throw live in KNIFE_ABILITIES.strong.onImpact, and for the others in abilityMeetsLog();
+// everything else is here. Each entry: [name, what it does, effect(c)].
+let stunShield = 0, abilFeed = [];
+const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice',
+  'sub:swirl', 'sub:fire', 'sub:hive', 'sub:wire', 'sub:linked', 'bird:song', 'bird:crow', 'bird:pecker', 'bird:owl', 'apples', 'hidden',
+  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:classic'];
+const KNIFE_COL = { strong: '#ffffff', marker: '#ff2e45', carve: '#f2cf94', chain: '#2ad8ff', cook: '#ffa04a' };
+function feed(txt, id) { abilFeed.push({ txt, col: KNIFE_COL[id] || '#ffffff', t: -abilFeed.filter(f => f.t < 0.3).length * 0.16 }); if (abilFeed.length > 7) abilFeed.shift(); }
+function updateFeed(dt) { for (const f of abilFeed) f.t += dt; abilFeed = abilFeed.filter(f => f.t < 2.6); }
+function drawAbilFeed() {
+  let y = CY + R + 70;
+  for (const f of abilFeed) {
+    if (f.t < 0) continue;
+    const u = clamp(f.t / 0.14, 0, 1), out = clamp((f.t - 2.2) / 0.4, 0, 1), FW = 150, x = W + 10 - (FW + 18) * (1 - Math.pow(1 - u, 3)) + out * (FW + 30);
+    ctx.save(); ctx.globalAlpha = 1 - out; ctx.translate(x, y); ctx.transform(1, 0, -0.25, 1, 0, 0);
+    ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, -9, FW, 18); ctx.fillStyle = f.col; ctx.fillRect(0, -9, 4, 18); if (f.t < 0.1) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, -9, FW, 18); }
+    ctx.restore();
+    ctx.save(); ctx.font = `700 8px ${FONT}`; const tw = ctx.measureText(f.txt).width; ctx.restore();
+    ctx.save(); ctx.translate(x + 10, y + 0.5); ctx.scale(Math.min(1, (FW - 16) / tw), 1); text(f.txt, 0, 0, 8, f.col, 'left', 700); ctx.restore();
+    y += 21;
+  }
+}
+function heal1() { if (lives < MAX_LIVES) { lives++; abil.pop['heart' + (lives - 1)] = 1; sfx.heal(); return true; } return false; }
+function boostAbility(n) { abil.boost = (abil.boost || 0) + n; }
+function interKeys(t) {
+  const ks = [], F = t.f || {};
+  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire');
+  else if (t.nest) { ks.push('boss:nest'); if (t.nest.queen) ks.push('boss:queen'); }
+  else if (t.boss) ks.push('boss:classic');
+  else if (t.type) ks.push('type:' + t.type);
+  const seen = new Set();
+  for (const b of F.branches || []) {
+    if (!b.alive) continue;
+    if (['swirl', 'fire', 'hive', 'wire', 'linked'].includes(b.sub) && !seen.has(b.sub)) { seen.add(b.sub); ks.push('sub:' + b.sub); }
+    if (b.bird && (b.bird.on || b.bird.back > 0) && !seen.has(b.bird.kind)) { seen.add(b.bird.kind); ks.push('bird:' + b.bird.kind); }
+  }
+  if ((t.apples || []).some(a => !a.cut)) ks.push('apples');
+  if ((t.stuck || []).some(s => s.hidden)) ks.push('hidden');
+  return ks;
+}
+// shared verbs
+const V = {
+  subs: (c, sub) => c.F.branches.filter(b => b.alive && b.sub === sub),
+  birds: (c, k) => c.F.branches.filter(b => b.alive && b.bird && b.bird.kind === k),
+  shoo: (c, b) => { if (b.bird && b.bird.on) scareBird(c.t, b); },
+  brk: (c, b, d = 0) => c.later(d, () => { if (b.alive) { V.shoo(c, b); breakBranch(c.t, b, true); } }),
+  drill: (c, b, n) => { for (let i = 0; i < n; i++) { const a = normA(b.a + (i % 2 ? -1 : 1) * (0.4 + 0.2 * Math.floor(i / 2))); if (c.F.holes.every(h => angDiff(h.a, a) > 0.25)) { c.F.holes.push({ a, w: 0.13, r: 8, glint: 0, used: false, bug: 6, burst: 1 }); const [x, y] = worldAt(c.t, a, R - 10); burst(x, y, 12, [c.t.pal.light, '#ffd23f'], 240, 30, 3, 0.4); } } sfx.holeHit(); },
+  apples: (c, each) => { let n = 0; for (const ap of c.t.apples) if (!ap.cut) { n++; c.later(n * 0.06, () => { if (!ap.cut) sliceApple(ap, c.t.rot + ap.a); }); } if (each) c.score(each * n); return n; },
+  hidden: c => c.t.stuck.filter(s => s.hidden),
+  reveal: (c, s) => { s.hidden = false; s.reveal = 1; revealFlash(c.t, s); },
+  wood: (c, x, y) => launchFlight({ x, y, tx: ITEM_X, ty: ITEM_Y0, col: '#f2cf94', draw: iconWood, sc1: 0.8, then: () => { abil.items.push('woodknife'); abil.pop.woodknife = 1; } }),
+  wasps: (c, n) => { const T = c.t.nest; for (let i = 0; i < n && T.wasps.length; i++) { const w = T.wasps.splice(Math.floor(rand(T.wasps.length)), 1)[0], [x, y] = waspPos(c.t, w); burst(x, y, 16, ['#ffd23f', '#08080a', '#ffffff'], 300, 30, 2.5, 0.4); fxp.push({ kind: 'bee', x, y, vx: rand(-300, 300), vy: rand(-300, -100), ph: 0, life: 1, max: 1, flee: true }); } sfx.sting(); },
+  daze: c => { const Q = c.t.nest.queen; if (!Q || Q.mode === 'emerge' || Q.mode === 'death') return; Q.mode = 'dazed'; Q.t = 0; Q.st = ''; c.t.nest.exposed = true; c.t.nest.stingers = []; burst(Q.x, Q.y, 40, ['#ffd23f', '#ff7a1a', '#ffffff'], 600, 40, 3.5, 0.6); shocks(Q.x, Q.y, 2, 130); sfx.shriek(); },
+  tirePen: (c, n) => { const T = c.t.tire; if (T.layer === 'rubber') { T.pen = Math.min(TIRE_RUBBER, T.pen + n); T.flashHP = 0.4; } else c.dmg(n); },
+};
+const INTER = {
+  strong: {
+    'type:plain': ['SHOCKWAVE', 'The blast throws out every knife within a hand-width of the hit, clearing room.', c => { for (const s of c.t.stuck.slice()) if (!s.ability && !s.hidden && angDiff(s.a, c.a) < 0.42 && angDiff(s.a, c.a) > 0.01) { const w = c.t.rot + s.a; c.t.stuck.splice(c.t.stuck.indexOf(s), 1); debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * 600, vy: Math.sin(w) * 600 - 200, rot: w - HALF, vr: rand(-16, 16) }); } }],
+    'type:branches': ['TIMBER', 'Tears off every branch at once. Birds are shooed first.', null],
+    'type:holes': ['CORE BREACH', 'A weak-spot hit becomes a X4 core breach.', null],
+    'type:bushes': ['DEFOLIATE', 'Blows every bush away and blasts hidden knives out.', null],
+    'type:moss': ['SCORCHED EARTH', 'Burns all moss off. The hit counts in full.', null],
+    'type:bark': ['ARMOUR BREAK', 'Blows every plate off.', null],
+    'type:treehole': ['ERUPTION', 'The hollow erupts: each swallowed knife deals 1 damage.', null],
+    'type:saw': ['KNOCKBACK', 'Knocks the saw carriage back by half.', null],
+    'type:blackout': ['BREAKER RESET', 'Full light for 9s.', null],
+    'type:tnt': ['DETONATOR', 'Every keg goes up at once, 2 damage each.', null],
+    'type:ice': ['ICEBREAKER', 'All ice is blown clear.', null],
+    'sub:swirl': ['SPRINGBOARD', 'Every spring branch fires back into the log: +1 damage each.', c => c.dmg(V.subs(c, 'swirl').length)],
+    'sub:fire': ['FIREBALL', 'Burning branches are blown into the log: +1 damage each, and the fire is out.', c => { for (const b of V.subs(c, 'fire')) { const [x, y] = worldAt(c.t, b.a, R + 30); embers(x, y, 40, 600); } c.dmg(V.subs(c, 'fire').length); }],
+    'sub:hive': ['HONEY BLAST', 'The hive bursts into honey: +3 score, and the bees are too sticky to jam you.', c => { c.score(3); abil.pauseT = 0; }],
+    'sub:wire': ['GROUNDED', 'The shock runs back up the blade: your ability recharges 2 hits faster.', c => { boostAbility(2); c.t.f.arcs.length = 0; }],
+    'sub:linked': ['CHAIN WHIP', 'The snapped chain whips round and knocks out the 2 stuck knives nearest it.', c => { const near = c.t.stuck.filter(s => !s.ability && !s.hidden).sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a)).slice(1, 3); for (const s of near) { const w = c.t.rot + s.a; c.t.stuck.splice(c.t.stuck.indexOf(s), 1); debris.push({ kind: 'knife', x: CX + Math.cos(w) * R, y: CY + Math.sin(w) * R, vx: Math.cos(w) * 560, vy: Math.sin(w) * 560 - 200, rot: w, vr: 20 }); } sfx.chain(); }],
+    'bird:song': ['ENCORE', 'The songbird flies off singing: +2 score.', c => { V.birds(c, 'song').forEach(b => V.shoo(c, b)); c.score(2); sfx.tweet(); }],
+    'bird:crow': ['SCARECROW', 'The crow is scared off for good. It never comes back.', c => V.birds(c, 'crow').forEach(b => { V.shoo(c, b); b.bird.back = 0; b.bird.gone = true; })],
+    'bird:pecker': ['DRILL TEAM', 'Before it flees, the woodpecker drills 2 weak spots.', c => V.birds(c, 'pecker').forEach(b => { V.drill(c, b, 2); V.shoo(c, b); })],
+    'bird:owl': ['SILENT WINGS', 'The owl leaves without waking: you cannot be stunned for 8s.', c => { V.birds(c, 'owl').forEach(b => { b.bird.deep = true; V.shoo(c, b); }); stunShield = 8; }],
+    'apples': ['FRUIT SALAD', 'The shockwave slices every apple on the rim.', c => V.apples(c, 0)],
+    'hidden': ['FLUSHED', 'Hidden knives are blasted out of the log: +1 each.', c => { const h = V.hidden(c); h.forEach(s => { V.reveal(c, s); s.blast = true; }); c.score(h.length); }],
+    'boss:tank': ['RIVETED', 'The impact seals every leak and adds 10s to the flood clock.', c => { const T = c.t.tank; T.leaks = []; if (T.flood !== null) T.flood += 10; sfx.rivet(); }],
+    'boss:gear': ['GEAR STRIP', 'A live chain snaps at once. Otherwise a rim pinion is sheared off.', c => { const T = c.t.gear; if (chainLive(T.sw)) c.later(0.1, () => snapChain(c.t)); else if (T.pins.length) { T.pins.pop(); sfx.clank(); } }],
+    'boss:tire': ['BLOWOUT', 'Rubber: 3 punctures at once. Steel: the burnout stalls and the blades fold away.', c => { const T = c.t.tire; if (T.layer === 'rubber') V.tirePen(c, 3); else { T.mode = 'slow'; T.cyc = 0; T.blades = 0; } sfx.puncture(); }],
+    'boss:nest': ['SHOCKWAVE', 'Two wasps are blown out of the air and an infested patch is scoured clean.', c => { V.wasps(c, 2); c.t.nest.spots.sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a)).shift(); }],
+    'boss:queen': ['ROYAL CRASH', 'The queen is knocked out of the air: dazed, and the next hit is x2.', c => V.daze(c)],
+    'boss:classic': ['HEARTWOOD', 'The blow reaches the heartwood: +3 score.', c => c.score(3)],
+  },
+  marker: {
+    'type:plain': ['DOUBLE TAP', 'A second marker appears straight after the first is hit.', c => c.later(0.4, () => { if (tgt === c.t && !c.t.marker) placeMarker(); })],
+    'sub:swirl': ['CALIBRATED', 'Every spring is unwound: they break in one hit.', c => V.subs(c, 'swirl').forEach(b => { b.hp = 1; b.wob = 1; })],
+    'sub:fire': ['FIREBREAK', 'Fire timers reset to 10s, +1 score.', c => { V.subs(c, 'fire').forEach(b => b.fireT = 10); c.score(1); }],
+    'sub:hive': ['QUEEN SPOTTED', 'The bees panic: any jam is lifted and the hive drips +2.', c => { abil.pauseT = 0; c.score(2); }],
+    'sub:wire': ['INSULATED', 'Live zones are switched off.', c => { c.t.f.arcs.length = 0; }],
+    'sub:linked': ['LOCKPICK', 'Every chain between branches springs open.', c => c.F.links.forEach(L => { if (L.alive) breakLink(c.t, L); })],
+    'bird:song': ['MARKED SAFE', 'For 12s a knife into the songbird just scares it off.', c => V.birds(c, 'song').forEach(b => b.bird.safe = 12)],
+    'bird:crow': ['TAGGED', 'The crow is tagged: once scared it never returns.', c => V.birds(c, 'crow').forEach(b => b.bird.gone = true)],
+    'bird:pecker': ['TARGET PRACTICE', 'The woodpecker drills a weak spot right where the mark was.', c => { const b = V.birds(c, 'pecker')[0]; if (b && c.F.holes.every(h => angDiff(h.a, c.a) > 0.25)) { c.F.holes.push({ a: c.a, w: 0.13, r: 8, glint: 0, used: false, bug: 6, burst: 1 }); sfx.peck(); } }],
+    'bird:owl': ['DEEP SLEEP', 'The owl sleeps through anything for the rest of the stage.', c => V.birds(c, 'owl').forEach(b => b.bird.deep = true)],
+    'apples': ['APPLE SHOT', 'The apple nearest the mark is split: +2 apples.', c => { const ap = c.t.apples.filter(a => !a.cut).sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a))[0]; if (ap) { sliceApple(ap, c.t.rot + ap.a); apples += 2; } }],
+    'hidden': ['SPOTTED', 'Every hidden knife is revealed: +1 each.', c => { const h = V.hidden(c); h.forEach(s => V.reveal(c, s)); c.score(h.length); }],
+    'boss:tank': ['COOLANT LINE', 'The heat cycle resets: the tank is cool for a full cycle.', c => { const T = c.t.tank; T.heat = 0; T.cycle = 0; T.hot = false; }],
+    'boss:gear': ['WEAK LINK', 'The next gear swap is delayed by 6s.', c => { const T = c.t.gear; if (!T.sw) T.next += 6; }],
+    'boss:tire': ['PRESSURE POINT', 'Rubber: a chalk mark at the hit and every mark refreshed. Steel: blades jam shut for 6s.', c => { const T = c.t.tire; if (T.layer === 'rubber') { T.dents.forEach(d => d.life = TIRE.dentLife); T.dents.push({ a: c.a, life: TIRE.dentLife, born: time }); } else { T.blades = 0; T.cyc = Math.min(T.cyc, TIRE.slow - 6); } }],
+    'boss:nest': ['FLY SWATTER', 'The wasp nearest the mark is swatted, and the infested patch there is cleared.', c => { V.wasps(c, 1); const T = c.t.nest; T.spots = T.spots.filter(s => angDiff(s.a, c.a) > 0.5); }],
+    'boss:queen': ['EXPOSED', 'The queen is marked: the next hit on the nest is x2.', c => { c.t.nest.exposed = true; }],
+    'boss:classic': ['TRUE STRIKE', '+3 score.', c => c.score(3)],
+  },
+  carve: {
+    'type:plain': ['WHITTLE', 'A second wooden knife is carved from the offcut.', c => { const [x, y] = worldAt(c.t, c.a, R); c.later(0.7, () => V.wood(c, x, y)); }],
+    'sub:swirl': ['COILED SPRING', 'Springs are cut free: they break, +1 each.', c => { const s = V.subs(c, 'swirl'); s.forEach((b, i) => V.brk(c, b, i * 0.1)); c.score(s.length); }],
+    'sub:fire': ['TORCH', 'Burning branches are carved into torches: fire out, +1 each.', c => { const s = V.subs(c, 'fire'); s.forEach((b, i) => V.brk(c, b, i * 0.1)); c.score(s.length); }],
+    'sub:hive': ['HONEYCOMB', 'The comb is carved out: +2 apples to spend in the store.', c => { apples += 2; abil.pauseT = 0; }],
+    'sub:wire': ['WOODEN HANDLE', 'Insulated: live zones are cleared and you get a wooden knife.', c => { c.t.f.arcs.length = 0; const b = V.subs(c, 'wire')[0]; if (b) { const [x, y] = worldAt(c.t, b.a, R + 30); V.wood(c, x, y); } }],
+    'sub:linked': ['CARVED KEY', 'Every chain between branches is unlocked.', c => c.F.links.forEach(L => { if (L.alive) breakLink(c.t, L); })],
+    'bird:song': ['BIRDHOUSE', 'The songbird moves into a carved birdhouse: gone safely, +2.', c => { V.birds(c, 'song').forEach(b => V.shoo(c, b)); c.score(2); }],
+    'bird:crow': ['SCARECROW', 'A carved scarecrow: the crow leaves and never returns.', c => V.birds(c, 'crow').forEach(b => { V.shoo(c, b); b.bird.gone = true; b.bird.back = 0; })],
+    'bird:pecker': ['PERCH POLE', 'The woodpecker drills 2 weak spots into the new pole.', c => V.birds(c, 'pecker').forEach(b => V.drill(c, b, 2))],
+    'bird:owl': ['NEST BOX', 'The owl is tucked into a box and carried off asleep.', c => V.birds(c, 'owl').forEach(b => { b.bird.deep = true; V.shoo(c, b); })],
+    'apples': ['APPLE CORE', 'Every apple is cored: +1 extra apple each.', c => { apples += V.apples(c, 0); }],
+    'hidden': ['DECOYS', 'Hidden knives are swapped for wooden ones: out of the log and into your tray.', c => { for (const s of V.hidden(c)) { const [x, y] = worldAt(c.t, s.a, R); c.t.stuck.splice(c.t.stuck.indexOf(s), 1); V.wood(c, x, y); } }],
+    'boss:tank': ['WOODEN PLUGS', 'Every leak is plugged with a dowel.', c => { c.t.tank.leaks = []; sfx.thunk(); }],
+    'boss:gear': ['WOODEN TOOTH', 'A wooden tooth jams the gearbox for 3s.', c => { c.t.gear.jam = Math.max(c.t.gear.jam, 3); }],
+    'boss:tire': ['TIRE IRON', 'Rubber: +2 punctures. Steel: a lug nut is levered off without falling into your lane.', c => { const T = c.t.tire; if (T.layer === 'rubber') V.tirePen(c, 2); else if (T.nuts > 0) { T.nuts--; c.dmg(1); } }],
+    'boss:nest': ['FLY SWATTERS', 'Two carved swatters knock two wasps out of orbit.', c => V.wasps(c, 2)],
+    'boss:queen': ['WOODEN CROWN', 'The queen is distracted: her next move waits 6s longer.', c => { c.t.nest.queen.next += 6; }],
+    'boss:classic': ['CHIP AWAY', '+2 score and a wooden knife.', c => { c.score(2); const [x, y] = worldAt(c.t, c.a, R); V.wood(c, x, y); }],
+  },
+  chain: {
+    'type:plain': ['GROUND LOOP', 'The current loops back: your ability recharges 2 hits faster.', c => boostAbility(2)],
+    'sub:swirl': ['MAGNETISED', 'Springs are yanked off: +1 each.', c => { const s = V.subs(c, 'swirl'); s.forEach((b, i) => V.brk(c, b, i * 0.1)); c.dmg(s.length); }],
+    'sub:fire': ['PLASMA', 'Burning branches explode: +1 damage each.', c => { const s = V.subs(c, 'fire'); s.forEach((b, i) => V.brk(c, b, i * 0.1)); c.dmg(s.length); }],
+    'sub:hive': ['BUG ZAPPER', 'The bees are zapped: jam lifted, +1 each zap.', c => { abil.pauseT = 0; c.score(3); }],
+    'sub:wire': ['OVERCHARGE', 'Live wires feed the overload: +1 damage per wire.', c => { const s = V.subs(c, 'wire'); s.forEach((b, i) => V.brk(c, b, i * 0.1)); c.dmg(s.length); c.t.f.arcs.length = 0; }],
+    'sub:linked': ['ARC WELD', 'Chains between branches melt.', c => c.F.links.forEach(L => { if (L.alive) breakLink(c.t, L); })],
+    'bird:song': ['STATIC FLUFF', 'The songbird flies off with its feathers on end: +1.', c => { V.birds(c, 'song').forEach(b => V.shoo(c, b)); c.score(1); }],
+    'bird:crow': ['ELECTRIC FENCE', 'The perch is live: the crow will never land again.', c => V.birds(c, 'crow').forEach(b => { V.shoo(c, b); b.bird.gone = true; b.bird.back = 0; })],
+    'bird:pecker': ['CONDUCTOR', 'Its beak conducts: one last weak spot, then it flees.', c => V.birds(c, 'pecker').forEach(b => { V.drill(c, b, 1); V.shoo(c, b); })],
+    'bird:owl': ['WIDE AWAKE', 'The owl wakes in a fright and flies off. No swoop.', c => V.birds(c, 'owl').forEach(b => { b.bird.deep = true; V.shoo(c, b); })],
+    'apples': ['BAKED APPLES', 'Every apple is zapped open: +3 each.', c => V.apples(c, 3)],
+    'hidden': ['METAL DETECTOR', 'Hidden knives join the overload: revealed and blown out, 1 damage each.', c => { const h = V.hidden(c); h.forEach(s => { V.reveal(c, s); s.blast = true; }); c.dmg(h.length); }],
+    'boss:tank': ['SHORTED HEATER', 'The heater fuses: no heat for a full cycle, and +5s on the flood clock.', c => { const T = c.t.tank; T.heat = 0; T.cycle = 0; if (T.flood !== null) T.flood += 5; }],
+    'boss:gear': ['SHORT CIRCUIT', 'The gearbox seizes for 4s and any swap is cancelled.', c => { const T = c.t.gear; T.jam = Math.max(T.jam, 4); if (chainLive(T.sw)) c.later(0.1, () => snapChain(c.t)); }],
+    'boss:tire': ['ARC WELD', 'Rubber: the marks are welded open, +2 punctures. Steel: the blades are welded shut until the next burnout.', c => { const T = c.t.tire; if (T.layer === 'rubber') V.tirePen(c, 2); else { T.blades = 0; T.cyc = 0; } }],
+    'boss:nest': ['ZAPPER', 'Half the orbiting wasps are fried.', c => V.wasps(c, Math.ceil(c.t.nest.wasps.length / 2))],
+    'boss:queen': ['TASER', 'The queen is stunned out of the air: dazed, next hit x2.', c => V.daze(c)],
+    'boss:classic': ['CONDUCTED', '+3 score.', c => c.score(3)],
+  },
+  cook: {
+    'type:plain': ['CUTTING BOARD', 'The log was a good board: +1 and a clean slate (stun cleared).', c => { c.score(1); stunT = 0; }],
+    'sub:swirl': ['WHISK', 'Springs are used as whisks: they break, +1 each.', c => { const s = V.subs(c, 'swirl'); s.forEach((b, i) => V.brk(c, b, i * 0.1)); c.score(s.length); }],
+    'sub:fire': ['OPEN FLAME', 'The fire is put to use: timers reset, +1.', c => { V.subs(c, 'fire').forEach(b => b.fireT = 10); c.score(1); }],
+    'sub:hive': ['HONEY GLAZE', 'Honey glaze: the bees calm down (jam lifted), +2.', c => { abil.pauseT = 0; c.score(2); }],
+    'sub:wire': ['HOTPLATE', 'Live zones become hotplates and burn out.', c => { c.t.f.arcs.length = 0; c.score(1); }],
+    'sub:linked': ['SKEWERS', 'The chains make good skewers: every link breaks.', c => c.F.links.forEach(L => { if (L.alive) breakLink(c.t, L); })],
+    'bird:song': ['CRUMBS', 'The songbird gets crumbs and leaves happy: +2 apples.', c => { V.birds(c, 'song').forEach(b => V.shoo(c, b)); apples += 2; }],
+    'bird:crow': ['LEFTOVERS', 'The crow is fed and never returns.', c => V.birds(c, 'crow').forEach(b => { V.shoo(c, b); b.bird.gone = true; b.bird.back = 0; })],
+    'bird:pecker': ['SPICE RACK', 'The woodpecker drills a spice rack: 2 weak spots.', c => V.birds(c, 'pecker').forEach(b => V.drill(c, b, 2))],
+    'bird:owl': ['MIDNIGHT SNACK', 'The owl is fed and flies off fat and sleepy: +1.', c => { V.birds(c, 'owl').forEach(b => { b.bird.deep = true; V.shoo(c, b); }); c.score(1); }],
+    'apples': ['APPLE PIE', 'Every apple goes in the pie: +2 each, banked.', c => { const n = V.apples(c, 2); apples += n; }],
+    'hidden': ['CUTLERY', 'Hidden knives become cutlery: pulled out of the log.', c => { for (const s of V.hidden(c)) { V.reveal(c, s); s.blast = true; } }],
+    'boss:tank': ['STEAMER', 'The tank becomes a steamer: +8s on the flood clock.', c => { const T = c.t.tank; if (T.flood !== null) T.flood += 8; }],
+    'boss:gear': ['GREASED', 'Cooking grease in the works: the gearbox stalls for 2s.', c => { c.t.gear.jam = Math.max(c.t.gear.jam, 2); }],
+    'boss:tire': ['BARBECUE', 'Rubber: the marks last longer. Steel: the burnout is put off for a full cycle.', c => { const T = c.t.tire; if (T.layer === 'rubber') T.dents.forEach(d => d.life += 5); else { T.mode = 'slow'; T.cyc = 0; } }],
+    'boss:nest': ['HONEY TRAP', 'Three wasps leave to eat.', c => V.wasps(c, 3)],
+    'boss:queen': ['ROYAL BANQUET', 'The queen stops to feast: her next move waits 8s.', c => { c.t.nest.queen.next += 8; }],
+    'boss:classic': ['FEAST', '+1 heart, or +3 score if your hearts are full.', c => { if (!heal1()) c.score(3); }],
+  },
+};
+// run every interaction that applies right now. Strong Throw returns its damage as bonus; the others deal it directly.
+function abilityInteract(t, id, a, typeDone) {
+  if (!t || !INTER[id]) return 0;
+  let bonus = 0, n = 0;
+  const c = { t, F: t.f || { branches: [], links: [], holes: [], arcs: [] }, a, later: (d, f) => d > 0 ? pending.push({ t: d, f }) : f(), score: v => { score += v; }, dmg: v => { bonus += v; } };
+  for (const key of interKeys(t)) {
+    const e = INTER[id][key];
+    if (!e) { if (key.startsWith('type:')) { const tn = (id === 'strong' ? INTER.strong : null); if (tn && tn[key]) { feed(tn[key][0], id); n++; } else if (ABIL_NOTES[id] && ABIL_NOTES[id][key.slice(5)]) { n++; } } continue; }
+    if (e[2]) { try { e[2](c); } catch (err) { console.warn(key, err); } }
+    feed(e[0], id); n++;
+  }
+  if (n >= 3) { floater(n + ' INTERACTIONS!', CX, CY - R - 70, KNIFE_COL[id]); sfx.combo(n * 2); }
+  if (id === 'strong') return bonus;
+  if (bonus) { knivesLeft = Math.max(0, knivesLeft - bonus); score += bonus; t.hit = 1; holdForBranches(t); }
+  return 0;
+}
+// encyclopedia: which interaction key a page is about
+function entryKeys(e) {
+  if (e.cat === 'LOG TYPE') return ['type:' + e.type];
+  if (e.sub === 'bird') return ['bird:' + (e.kind || 'song')];
+  if (e.cat === 'BRANCH') return e.sub === 'plain' ? ['type:branches'] : ['sub:' + e.sub];
+  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.nest) return ['boss:nest', 'boss:queen'];
+  if (e.boss !== undefined) return ['boss:classic'];
+  if (e.name === 'APPLES') return ['apples']; if (e.hidden) return ['hidden'];
+  return [];
+}
+function interText(id, key) {
+  if (INTER[id][key]) return INTER[id][key][0] + ': ' + INTER[id][key][1];
+  if (key.startsWith('type:') && ABIL_NOTES[id] && ABIL_NOTES[id][key.slice(5)]) return ABIL_NOTES[id][key.slice(5)];
+  return null;
+}
+function interCount(id) { return INTER_KEYS.filter(k => interText(id, k)).length; }
 
 // ---- EAT: the meal flies to the empty heart slot and the heart re-forms ----
 function eatMeal() {
@@ -6858,6 +7080,7 @@ function drawHUD() {
     const bt = heartbeat(time, 132), g = ctx.createRadialGradient(CX, H / 2, 220, CX, H / 2, 520); g.addColorStop(0, 'rgba(255,46,69,0)'); g.addColorStop(1, `rgba(255,46,69,${0.1 + 0.2 * bt})`);
     ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
+  drawAbilFeed();
   drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD();
   // remaining knives
   if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest))) for (let i = 0; i < knivesTotal; i++) {
@@ -7794,6 +8017,7 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'WOODPECKER PERCH', sub: 'bird', kind: 'pecker', danger: 0.6, tip: 'Leave it alone for a while: it makes weak spots for you.', how: 'Every few seconds it drills a fresh X2 weak spot beside its branch (up to 3). Hitting it ends the run.', abil: 'Shooed before the branch breaks.' },
   { cat: 'BRANCH', name: 'OWL PERCH', sub: 'bird', kind: 'owl', danger: 0.65, tip: 'Break the branch with an ability, or stay well away from it.', how: 'Asleep. Land a knife beside it and it wakes, swoops and stuns you for 2.5s. Hitting it ends the run.', abil: 'Shooed quietly before the branch breaks.' },
   { cat: 'MECHANIC', name: 'RAPID COMBO', type: 'plain', how: 'Land hits less than 1.15s apart to build a combo. Every third hit in a row pays +1. A miss, bounce or graze resets it.', abil: 'Ability hits keep the chain alive.' },
+  { cat: 'MECHANIC', name: 'HIDDEN KNIVES', hidden: true, type: 'bushes', how: 'Knives can hide inside bushes. A white glint in the leaves is the only warning. Breaking the bush springs them out.', abil: 'Every ability has its own way of dealing with them.' },
   { cat: 'MECHANIC', name: 'CLOSE CALL', graze: true, how: 'Stick a knife right beside another without touching it for +1.', abil: 'The ability never grazes.' },
   { cat: 'MECHANIC', name: 'FLAWLESS', apple: true, how: 'Clear a stage without a single miss, bounce or lost knife for +2. The last hit of every stage plays out in slow motion.', abil: 'Counts as a clean hit.' },
   { cat: 'BRANCH', name: 'BRANCH', sub: 'plain', how: 'Snaps in one hit. Leaves and splinters everywhere.', abil: 'Torn off with the rest.' },
@@ -8127,7 +8351,7 @@ function drawShopScreen() {
       ['lore', cardTex('kl-' + id, 76, 92, 'LORE', [{ text: kn.lore, size: 7 }]), 1, [kx - 8, ky + 92]],
       ['ability', cardTex('ka-' + id, 108, 176, kn.name, [{ text: 'ACTIVE', size: 8, col: actCol }, { text: A.name, size: 8, col: '#ffffff' },
         { text: P ? 'PASSIVE' : 'NO PASSIVE', size: 8, col: P ? pasCol : '#5c5c66' }, ...(P ? [{ text: P.name, size: 8, col: '#ffffff' }] : []),
-        { text: 'See the ABILITY tab.', size: 7, col: '#8d8d97' }]), -1, [kx + 22, ky - 60]],
+        { text: interCount(A.id) + ' INTERACTIONS', size: 8, col: '#ffd23f' }, { text: 'See the ABILITY tab.', size: 7, col: '#8d8d97' }]), -1, [kx + 22, ky - 60]],
     ];
   } else {
     drawAbilityShowcase(kx, ky);
@@ -8176,7 +8400,7 @@ function drawEncyScreen() {
   const cards = [
     ['name', cardTex(k + 'n', 150, 62, e.name, [{ text: e.cat + '   ' + (ui.idx + 1) + '/' + ENTRIES.length, size: 8, col }], col), 1, [lx, ly - 64]],
     ['how', cardTex(k + 'h', 116, 180, 'HOW IT WORKS', [{ text: e.how, size: 7 }, ...(e.danger !== undefined ? [{ stat: 'DANGER', v: e.danger, txt: e.danger > 0.75 ? 'DEADLY' : e.danger > 0.5 ? 'HIGH' : e.danger > 0.25 ? 'MEDIUM' : 'LOW', col: e.danger > 0.6 ? '#ff2e45' : '#ffd23f' }] : []), ...(e.tip ? [{ text: 'TIP: ' + e.tip, size: 6, col: '#ffd23f' }] : [])], col), -1, [lx + 62, ly + 4]],
-    ['abil', cardTex(k + 'a' + EQUIP, 120, 150, 'WITH ' + (ABILITY.id === 'strong' ? 'STRONG THROW' : ABILITY.name), [{ text: (ABILITY.id !== 'strong' && e.type && ABIL_NOTES[ABILITY.id] && ABIL_NOTES[ABILITY.id][e.type]) || (ABILITY.id !== 'strong' && e.cat === 'LOG TYPE' ? 'No special reaction.' : e.abil), size: 7 }, ...(e.cat === 'LOG TYPE' && ABILITY.id === 'strong' ? [{ text: 'Equip another knife in the store to see what its ability does here.', size: 6, col: '#8d8d97' }] : [])], '#ffffff'), 1, [lx - 58, ly + 30]],
+    ['abil', cardTex(k + 'a' + EQUIP, 120, 176, 'WITH ' + (ABILITY.id === 'strong' ? 'STRONG THROW' : ABILITY.name), (() => { const ks = entryKeys(e), lines = ks.map(q => interText(ABILITY.id, q)).filter(Boolean); return lines.length ? lines.map(x => ({ text: x, size: 7 })).concat([{ text: interCount(ABILITY.id) + ' INTERACTIONS ON THIS KNIFE', size: 6, col: '#8d8d97' }]) : [{ text: e.abil, size: 7 }]; })(), '#ffffff'), 1, [lx - 58, ly + 30]],
   ];
   for (const [id, tex, side, anchor] of cards) {
     const p = livePanel(ENCY[id], id, {}); p.ry += flipRy;
@@ -8226,7 +8450,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 38', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 39', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

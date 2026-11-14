@@ -29,3 +29,7 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Display font with per-letter banner slams; rapid combos, close calls, slow-motion finisher, flawless bonus; saws slide in and spin down / retract.
 - Marker, Carve, Chain and Cook each react to every log type (see the encyclopedia, which follows the equipped knife).
 - Faster pacing and richer sound.
+
+## Build 39
+- Hornet's Nest has its own music: the nest theme (Flamewall cut, loops bars 33.2s-110.0s on a crossfaded seam) and a queen theme (loops 0.12s-19.32s). The hive break tape-stops the stage music and slams into the nest theme; the queen's hatch tape-stops it, cuts to silence and slams into the queen theme.
+- 28 ability interactions per knife (11 log types, 5 branch kinds, 4 birds, apples, hidden knives, 4 named bosses, the queen, classic bosses), called out in an on-screen feed and listed per knife in the encyclopedia.
