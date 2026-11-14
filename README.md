@@ -38,3 +38,7 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Every log feature redrawn and reanimated: shaded tapered branches with flipping leaves, layered flames that rise with the screen, a steel coil spring, a swinging beehive that drips honey, a frayed sparking cable, a sagging padlocked chain, layered swaying bushes, scalloped moss with strands and dew, tunnel weak spots with beating cores and a walking beetle, a hollow with brow, eyes, jaw, tongue and breath, bevelled armour with a sweeping sheen, a motion-blurred saw.
 - New log types: LODESTONE (magnetic pulses bunch knives, poles repel), BRAMBLE (orbiting thorn vines snag), FUNGAL LOG (mushrooms x2 + spore haze), RUNESTONE (hit the lit rune for x2 and charge).
 - 32 ability interactions per knife.
+
+## Build 45
+- New log types: SPIRALWOOD (three spiral tracks shift every 3 hits, carrying their knives), RESINWOOD (resin holds knives for 0 damage; a second hit cracks the patch), PETRIFIED LOG (stone ricochets harmlessly, hit the wooden seams; stone crumbles after 3 hits), EMBERCORE (drifting glowing cracks flare when hit and the glare hides nearby knives), RINGWOOD (three coloured rings; every 3 hits one rises and its knives slide outward).
+- 37 ability interactions per knife.

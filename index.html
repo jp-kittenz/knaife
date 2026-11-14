@@ -300,6 +300,12 @@ const sfx = {
   sporeBurst() { noise(0.5, 700, 0.8, 0.45, 'lowpass', { sweepTo: 200, wet: 0.6 }); tone('sine', 220, 90, 0.4, 0.22, { wet: 0.6 }); for (let i = 0; i < 4; i++) tone('triangle', 900 + i * 300, 1200 + i * 300, 0.12, 0.04, { delay: 0.1 + i * 0.06, wet: 0.8 }); },
   runeOn() { tone('triangle', 660, 990, 0.25, 0.06, { wet: 0.8 }); tone('sine', 1320, 1320, 0.4, 0.03, { delay: 0.05, wet: 0.9 }); },
   runeHit() { for (const [f, d] of [[523, 0], [784, 0.05], [1047, 0.1], [1568, 0.15]]) tone('triangle', f, f, 0.5, 0.08, { delay: d, wet: 0.9 }); tone('sine', 110, 55, 0.4, 0.3, { drive: true }); },
+  spiralShift() { tone('sawtooth', 120, 420, 0.6, 0.06, { wet: 0.5 }); noise(0.6, 600, 2, 0.25, 'bandpass', { sweepTo: 2400, wet: 0.4 }); tone('sine', 80, 50, 0.4, 0.3, { drive: true }); },
+  resinCrack() { noise(0.12, 2600, 2, 0.4, 'bandpass'); tone('triangle', 1400, 700, 0.12, 0.1); noise(0.3, 500, 1, 0.25, 'lowpass', { delay: 0.05 }); },
+  stoneHit() { tone('square', 2200, 1600, 0.06, 0.08); noise(0.08, 3800, 2, 0.35, 'highpass'); tone('sine', 300, 140, 0.12, 0.25); },
+  flare() { noise(0.6, 900, 0.7, 0.5, 'lowpass', { sweepTo: 3000, rise: true, wet: 0.4 }); tone('sawtooth', 90, 180, 0.5, 0.08, { drive: true }); },
+  ringRise() { tone('sine', 70, 140, 0.4, 0.35, { drive: true }); noise(0.35, 400, 1, 0.3, 'lowpass', { sweepTo: 1200 }); tone('square', 600, 900, 0.1, 0.04, { delay: 0.25 }); },
+  ringSink() { tone('sine', 140, 60, 0.35, 0.3, { drive: true }); noise(0.25, 900, 1, 0.2, 'lowpass', { sweepTo: 300 }); },
   boing() { tone('sine', 160, 620, 0.18, 0.25, { wet: 0.4 }); tone('sine', 620, 240, 0.3, 0.15, { delay: 0.16, wet: 0.4 }); tone('triangle', 320, 900, 0.12, 0.08, { delay: 0.05 }); },
   hiss() { noise(0.8, 4200, 0.6, 0.45, 'highpass', { curve: 1.4, wet: 0.4 }); noise(0.5, 900, 1, 0.25, 'bandpass', { curve: 2 }); },
   bees() { tone('sawtooth', 218, 232, 1.3, 0.05, { wet: 0.3 }); tone('sawtooth', 247, 238, 1.3, 0.04); tone('sawtooth', 196, 205, 1.1, 0.03, { delay: 0.1 }); },
@@ -1818,8 +1824,8 @@ function drawSwirl() {
 }
 
 // ---------- log types ----------
-const LOG_TYPES = ['branches', 'holes', 'bushes', 'moss', 'bark', 'treehole', 'saw', 'blackout', 'tnt', 'ice', 'lodestone', 'bramble', 'fungal', 'runestone'];
-const TYPE_NAME = { plain: 'PLAIN LOG', branches: 'BRANCHED LOG', holes: 'WEAK-SPOT LOG', bushes: 'OVERGROWN LOG', moss: 'MOSSY LOG', bark: 'ARMOURED LOG', treehole: 'HUNGRY HOLLOW', saw: 'SAWMILL', blackout: 'BLACKOUT', tnt: 'POWDER KEG', ice: 'FROSTBITE', lodestone: 'LODESTONE', bramble: 'BRAMBLE', fungal: 'FUNGAL LOG', runestone: 'RUNESTONE' };
+const LOG_TYPES = ['branches', 'holes', 'bushes', 'moss', 'bark', 'treehole', 'saw', 'blackout', 'tnt', 'ice', 'lodestone', 'bramble', 'fungal', 'runestone', 'spiralwood', 'resinwood', 'petrified', 'embercore', 'ringwood'];
+const TYPE_NAME = { plain: 'PLAIN LOG', branches: 'BRANCHED LOG', holes: 'WEAK-SPOT LOG', bushes: 'OVERGROWN LOG', moss: 'MOSSY LOG', bark: 'ARMOURED LOG', treehole: 'HUNGRY HOLLOW', saw: 'SAWMILL', blackout: 'BLACKOUT', tnt: 'POWDER KEG', ice: 'FROSTBITE', lodestone: 'LODESTONE', bramble: 'BRAMBLE', fungal: 'FUNGAL LOG', runestone: 'RUNESTONE', spiralwood: 'SPIRALWOOD', resinwood: 'RESINWOOD', petrified: 'PETRIFIED LOG', embercore: 'EMBERCORE', ringwood: 'RINGWOOD' };
 const BRANCH_SUBS = ['plain', 'swirl', 'fire', 'hive', 'wire', 'linked', 'bird'];
 const BIRD_COLS = [['#2ad8ff', '#1f5fd1'], ['#ff2e45', '#a3122a'], ['#ffd23f', '#ff7a1a'], ['#9466ff', '#5c5c66']];
 let forceType = null, fxp = [], zapT = 0, stunMax = 2, typeHint = 0;
@@ -1828,7 +1834,7 @@ const inArc = (a, c, w) => angDiff(a, c) < w;
 
 function decorate(t, type) {
   t.type = type;
-  const F = t.f = { branches: [], links: [], holes: [], bushes: [], moss: [], plates: [], treehole: null, saws: [], arcs: [], kegs: [], ice: [], dark: null, mag: null, vines: [], shrooms: [], runes: null };
+  const F = t.f = { branches: [], links: [], holes: [], bushes: [], moss: [], plates: [], treehole: null, saws: [], arcs: [], kegs: [], ice: [], dark: null, mag: null, vines: [], shrooms: [], runes: null, spiral: null, resin: [], stone: [], seams: [], ember: null, rings: null };
   t.labelT = 3.2;
   const taken = t.stuck.map(s => s.a).concat(t.apples.map(a => a.a));
   const spot = (n, sep) => { const out = placeAngles(n, sep, taken); taken.push(...out); return out; };
@@ -1889,6 +1895,11 @@ function decorate(t, type) {
   else if (type === 'bramble') { const o = rand(TAU), n = 3; setupVines(t, Array.from({ length: n }, (_, i) => normA(o + i / n * TAU))); }
   else if (type === 'fungal') { let g = spot(3, 0.75); if (!g.length) g = [rand(TAU)]; setupShrooms(t, g); }
   else if (type === 'runestone') setupRunes(t);
+  else if (type === 'spiralwood') setupSpiral(t);
+  else if (type === 'resinwood') { let g = spot(3, 0.7); if (!g.length) g = [rand(TAU)]; setupResin(t, g); }
+  else if (type === 'petrified') setupStone(t);
+  else if (type === 'embercore') setupEmber(t);
+  else if (type === 'ringwood') setupRings(t);
   else if (type === 'ice') { let g = spot(2 + Math.floor(rand(2)), 1.2); if (!g.length) g = [rand(TAU)]; setupIce(t, g); }
 }
 
@@ -1966,6 +1977,7 @@ function stickNormal(k, t) {
   if (t.nest && nestSurfaceHit(k, t, a)) return;
   if (F && F.mag && magPoleHit(k, t, a)) return;
   if (F && F.vines && F.vines.length && vineSnag(k, t, a)) return;
+  if (F && F.stone && F.stone.length && stoneHit(k, t, a)) return;
   k.done = true; chargeAbility();
   const s = { a, wob: 0.09 }; t.stuck.push(s); addMark(t, a);
   if (t.tire) tireStuck(t, s, a);
@@ -1973,6 +1985,10 @@ function stickNormal(k, t) {
   if (F && F.ice && F.ice.length) iceStick(t, s, a);
   if (F && F.shrooms && F.shrooms.length) shroomStick(t, s, a);
   if (F && F.runes) runeStick(t, s, a);
+  if (F && F.resin && F.resin.length) resinStick(t, s, a);
+  if (F && F.ember) emberStick(t, s, a);
+  if (F && F.spiral) spiralHit(t);
+  if (F && F.rings) ringHit(t, s);
   if (t.gear) {
     const T = t.gear, bi = Math.round(normA(a) / TAU * GEAR_TEETH) % GEAR_TEETH;
     burst(CX, CY + R, 22, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 60, 2.5, 0.45); sfx.clank();
@@ -2242,6 +2258,9 @@ function updateFeatures(t, dt) {
   if (F.vines && F.vines.length) updateVines(t, dt, live);
   if (F.shrooms && F.shrooms.length) updateShrooms(t, dt);
   if (F.runes) updateRunes(t, dt, live);
+  if (F.spiral) updateSpiral(t, dt);
+  if (F.ember) updateEmber(t, dt, live);
+  if (F.rings) updateRings(t, dt);
   for (const b of F.bushes) { b.wob = Math.max(0, b.wob - dt); b.glint -= dt; if (b.glint < -0.25) b.glint = rand(1.2, 2.8); }
   for (const h of F.holes) { h.bug -= dt; if (h.bug < -1.6) h.bug = rand(5, 10); h.burst = Math.max(0, h.burst - dt * 2); }
   for (const m of F.moss) {
@@ -2346,6 +2365,11 @@ const KNIFE_ABILITIES = {
       (F.vines || []).forEach(v => { if (v.hp > 0) { v.hp = 0; const [x, y] = worldAt(t, normA(v.a + F.vrot), R + 8); for (let i = 0; i < 4; i++) debris.push({ kind: 'vine', x, y, vx: rand(-400, 400), vy: rand(-500, -200), rot: rand(TAU), vr: rand(-10, 10) }); } });
       (F.shrooms || []).forEach(m => { if (m.alive) { m.alive = false; bonus++; const [x, y] = worldAt(t, m.a, R + 10); debris.push({ kind: 'cap', x, y, vx: rand(-300, 300), vy: -500, rot: 0, vr: rand(-10, 10), hue: m.hue }); } });
       if (F.runes) { F.rall = 6; bonus++; }
+      if (F.spiral) F.spiral.lock = 999;
+      (F.resin || []).forEach(P => { if (P.hp > 0) { P.hp = 0; const [x, y] = worldAt(t, P.a, R); for (let i = 0; i < 8; i++) debris.push({ kind: 'amber', r: rand(3, 7), x, y, vx: rand(-360, 360), vy: rand(-460, -120), rot: rand(TAU), vr: rand(-14, 14) }); } }); t.stuck.forEach(o => o.resin = false);
+      (F.stone || []).forEach(P => { if (P.hp > 0) { P.hp = 0; for (let i = 0; i < 6; i++) { const a = P.a0 + (P.a1 - P.a0) * Math.random(), [x, y] = worldAt(t, a, R); debris.push({ kind: 'rock', r: rand(4, 9), x, y, vx: rand(-400, 400), vy: rand(-500, -150), rot: rand(TAU), vr: rand(-10, 10) }); } } });
+      if (F.ember) { F.ember.cracks = []; F.ember.flares = []; }
+      if (F.rings) { F.rings.lock = 999; F.rings.up = [0, 0, 0]; }
       if (F.dark) { F.dark.forced = 9; floater('BREAKER RESET  9S', CX, CY - R - 34, '#ffe680'); sfx.breaker(); }
       for (const [d, f] of delays) pending.push({ t: d, f });
       return bonus;
@@ -6022,7 +6046,7 @@ function drawTypeFace(t) {
 // in the world, behind the log: motes of the right kind at their own depths
 function drawTypeAmbience(t) {
   if (!t || t.boss || !t.type || t.nestBait) return;
-  drawTypeAmbience3(t);
+  drawTypeAmbience3(t); drawTypeAmbience4(t);
   const px = plx.x, py = plx.y, wrap = (v, m) => ((v % m) + m) % m;
   const mote = (i, sd) => { const dz = 0.5 + hash(i, sd, 1) * 0.9; return [dz, hash(i, sd, 2), hash(i, sd, 3), hash(i, sd, 4)]; };
   switch (t.type) {
@@ -6072,10 +6096,10 @@ function drawTypeDebris(d) {
 // ======================= every knife's ability meets every log type =======================
 // what the encyclopedia says, and what abilityMeetsLog() does
 const ABIL_NOTES = {
-  marker: { plain: 'The mark is worth 4 and cracks the log wide open.', branches: 'PRUNED: the two branches nearest the mark snap off.', holes: 'CORES EXPOSED: every weak spot is primed again.', bushes: 'FLUSHED OUT: every hidden knife is revealed and apple bushes drop their fruit.', moss: 'DRIED OUT: all moss withers to its last layer.', bark: 'SEAM FOUND: the three plates nearest the mark burst.', treehole: 'CHOKED: the hollow clamps shut for 8s.', saw: 'JAMMED: the blades stop cutting for 6s.', blackout: 'FLARE: the whole log is lit for 6s.', tnt: 'FUSES CUT: every keg gets 10 more seconds.', ice: 'THAWED: every ice sheet shatters.' , lodestone: 'DEMAGNETISED: no pulses for 8s.', bramble: 'PRUNED: the vine nearest the mark is cut away.', fungal: 'PICKED CLEAN: the nearest mushroom is harvested, +1, no spores.', runestone: 'RUNES READ: every rune lights for 6s.' },
-  carve: { plain: 'Carves a wooden knife out of the log.', branches: 'WHITTLED: the nearest branch becomes a second wooden knife.', holes: 'HOLLOWED: the carving leaves a fresh weak spot.', bushes: 'TOPIARY: the nearest bush is trimmed for 2 apples.', moss: 'SCRAPED: the nearest moss patch is peeled off whole.', bark: 'PRISED OPEN: the two plates by the carving come away.', treehole: 'FALSE TEETH: it spits out everything it swallowed, 1 damage each.', saw: 'WEDGED: the saw carriage is knocked back.', blackout: 'LANTERN: a carved lantern lights your lane for good.', tnt: 'DEFUSED: the nearest keg is made safe.', ice: 'ICE SCULPTURE: the nearest sheet is carved away, +2.' , lodestone: 'POLE CARVED OUT: the nearest pole is cut from the rim.', bramble: 'TOPIARY: two vines are trimmed off.', fungal: 'FORAGED: every mushroom is picked, +1 apple each.', runestone: 'ENGRAVED: +2 and every rune lights for 4s.' },
-  chain: { plain: 'Linked knives explode for 1 damage each.', branches: 'SCORCHED: the overload burns every branch off.', holes: 'CORE SPARK: each unused weak spot takes 1 damage.', bushes: 'BRUSH FIRE: every bush burns away.', moss: 'FRIED: all moss is burnt to its last layer.', bark: 'CONDUCTED: every plate takes a hit.', treehole: 'SHOCKED: it coughs up its knives and stays shut for 6s.', saw: 'SHORT CIRCUIT: saws are thrown back and jam for 5s.', blackout: 'POWER SURGE: lights on for 8s.', tnt: 'CHAIN DETONATION: every keg goes off in your favour.', ice: 'FLASH MELT: all ice is gone.' , lodestone: 'ELECTROMAGNET: the field flips and pushes stuck knives apart.', bramble: 'BURNT BRAMBLE: every vine burns away.', fungal: 'SPORE BLAST: every mushroom explodes, 1 damage each, no spores.', runestone: 'RUNIC CIRCUIT: every rune lights for 5s.' },
-  cook: { plain: 'Cooks a caught bird on the log for +1 heart.', branches: 'FLAME GRILLED: burning branches are used up as fuel, +2.', holes: 'STUFFED: +1.', bushes: 'GARNISHED: apple bushes are picked clean.', moss: 'HERB CRUST: +2 and every moss patch loses a layer.', bark: 'SEARED ON IRON: +2.', treehole: 'FED: the hollow is satisfied and stays shut for 10s.', saw: 'SLICED THIN: the saws pause for 4s, +1.', blackout: 'CANDLELIT: lights on for 5s.', tnt: 'FLAMBE: +3. Do not try this at home.', ice: 'ON ICE: one sheet melts, +1.' , lodestone: 'CAST IRON: +2.', bramble: 'BERRY JAM: the vines are stripped, +1 apple.', fungal: 'MUSHROOM SOUP: +1 heart, or +3 if your hearts are full.', runestone: 'RUNE CAKE: +2 and 2 ability charge.' },
+  marker: { plain: 'The mark is worth 4 and cracks the log wide open.', branches: 'PRUNED: the two branches nearest the mark snap off.', holes: 'CORES EXPOSED: every weak spot is primed again.', bushes: 'FLUSHED OUT: every hidden knife is revealed and apple bushes drop their fruit.', moss: 'DRIED OUT: all moss withers to its last layer.', bark: 'SEAM FOUND: the three plates nearest the mark burst.', treehole: 'CHOKED: the hollow clamps shut for 8s.', saw: 'JAMMED: the blades stop cutting for 6s.', blackout: 'FLARE: the whole log is lit for 6s.', tnt: 'FUSES CUT: every keg gets 10 more seconds.', ice: 'THAWED: every ice sheet shatters.' , lodestone: 'DEMAGNETISED: no pulses for 8s.', bramble: 'PRUNED: the vine nearest the mark is cut away.', fungal: 'PICKED CLEAN: the nearest mushroom is harvested, +1, no spores.', runestone: 'RUNES READ: every rune lights for 6s.' , spiralwood: 'TRACKS LOCKED: no shifts for 8s.', resinwood: 'SOLVENT: the patch nearest the mark dissolves.', petrified: 'FAULT LINE: the stone nearest the mark crumbles.', embercore: 'COOLED: flares die out and the cracks crawl for 8s.', ringwood: 'LEVELLED: every ring sinks back and stays down 8s.' },
+  carve: { plain: 'Carves a wooden knife out of the log.', branches: 'WHITTLED: the nearest branch becomes a second wooden knife.', holes: 'HOLLOWED: the carving leaves a fresh weak spot.', bushes: 'TOPIARY: the nearest bush is trimmed for 2 apples.', moss: 'SCRAPED: the nearest moss patch is peeled off whole.', bark: 'PRISED OPEN: the two plates by the carving come away.', treehole: 'FALSE TEETH: it spits out everything it swallowed, 1 damage each.', saw: 'WEDGED: the saw carriage is knocked back.', blackout: 'LANTERN: a carved lantern lights your lane for good.', tnt: 'DEFUSED: the nearest keg is made safe.', ice: 'ICE SCULPTURE: the nearest sheet is carved away, +2.' , lodestone: 'POLE CARVED OUT: the nearest pole is cut from the rim.', bramble: 'TOPIARY: two vines are trimmed off.', fungal: 'FORAGED: every mushroom is picked, +1 apple each.', runestone: 'ENGRAVED: +2 and every rune lights for 4s.' , spiralwood: 'PLANED FLAT: the tracks never shift again this stage.', resinwood: 'AMBER CARVING: every patch is cut out, +1 apple each.', petrified: 'CHISELLED: the two nearest stone patches are carved away.', embercore: 'EMBER POCKET: carves out a wooden knife.', ringwood: 'RINGS PINNED: the rings never rise again this stage.' },
+  chain: { plain: 'Linked knives explode for 1 damage each.', branches: 'SCORCHED: the overload burns every branch off.', holes: 'CORE SPARK: each unused weak spot takes 1 damage.', bushes: 'BRUSH FIRE: every bush burns away.', moss: 'FRIED: all moss is burnt to its last layer.', bark: 'CONDUCTED: every plate takes a hit.', treehole: 'SHOCKED: it coughs up its knives and stays shut for 6s.', saw: 'SHORT CIRCUIT: saws are thrown back and jam for 5s.', blackout: 'POWER SURGE: lights on for 8s.', tnt: 'CHAIN DETONATION: every keg goes off in your favour.', ice: 'FLASH MELT: all ice is gone.' , lodestone: 'ELECTROMAGNET: the field flips and pushes stuck knives apart.', bramble: 'BURNT BRAMBLE: every vine burns away.', fungal: 'SPORE BLAST: every mushroom explodes, 1 damage each, no spores.', runestone: 'RUNIC CIRCUIT: every rune lights for 5s.' , spiralwood: 'CURRENT SHIFT: forces a shift now, +1.', resinwood: 'RESIN MELT: every patch melts away.', petrified: 'SHATTER STRIKE: every stone patch takes a hit.', embercore: 'IGNITION: every crack flares, 1 damage each.', ringwood: 'RING SURGE: knives on a raised ring explode, 1 damage each.' },
+  cook: { plain: 'Cooks a caught bird on the log for +1 heart.', branches: 'FLAME GRILLED: burning branches are used up as fuel, +2.', holes: 'STUFFED: +1.', bushes: 'GARNISHED: apple bushes are picked clean.', moss: 'HERB CRUST: +2 and every moss patch loses a layer.', bark: 'SEARED ON IRON: +2.', treehole: 'FED: the hollow is satisfied and stays shut for 10s.', saw: 'SLICED THIN: the saws pause for 4s, +1.', blackout: 'CANDLELIT: lights on for 5s.', tnt: 'FLAMBE: +3. Do not try this at home.', ice: 'ON ICE: one sheet melts, +1.' , lodestone: 'CAST IRON: +2.', bramble: 'BERRY JAM: the vines are stripped, +1 apple.', fungal: 'MUSHROOM SOUP: +1 heart, or +3 if your hearts are full.', runestone: 'RUNE CAKE: +2 and 2 ability charge.' , spiralwood: 'SWISS ROLL: +2.', resinwood: 'CARAMEL: the patches are scraped off, +1 apple each.', petrified: 'STONE OVEN: +2.', embercore: 'EMBER ROAST: +1 heart, or +3 if your hearts are full.', ringwood: 'LAYER CAKE: +2 and 2 ability charge.' },
 };
 function abilityMeetsLog(t, id, a) {
   if (!t || !t.f || t.boss || t.nestBait || !t.type || t.type === 'plain') return;
@@ -6091,6 +6115,14 @@ function abilityMeetsLog(t, id, a) {
   const popPole = P => { P.hp = 0; const [x, y] = worldAt(t, P.a, R); for (let i = 0; i < 4; i++) debris.push({ kind: 'magnet', pol: P.pol, x, y, vx: rand(-400, 400), vy: rand(-500, -200), rot: rand(TAU), vr: rand(-14, 14) }); sfx.magRepel(); };
   const cutVine = v => { v.hp = 0; const [x, y] = worldAt(t, normA(v.a + F.vrot), R + 8); for (let i = 0; i < 4; i++) debris.push({ kind: 'vine', x, y, vx: rand(-400, 400), vy: rand(-500, -200), rot: rand(TAU), vr: rand(-10, 10) }); sfx.rustle(); };
   const pick = m => { m.alive = false; const [x, y] = worldAt(t, m.a, R + 10); debris.push({ kind: 'cap', x, y, vx: rand(-300, 300), vy: -500, rot: 0, vr: rand(-10, 10), hue: m.hue }); };
+  const crumble = P => { P.hp = 0; for (let i = 0; i < 6; i++) { const q = P.a0 + (P.a1 - P.a0) * Math.random(), [x, y] = worldAt(t, q, R); debris.push({ kind: 'rock', r: rand(4, 9), x, y, vx: rand(-400, 400), vy: rand(-500, -150), rot: rand(TAU), vr: rand(-10, 10) }); } sfx.barkBreak(); };
+  const unresin = P => { P.hp = 0; const [x, y] = worldAt(t, P.a, R); for (let i = 0; i < 8; i++) debris.push({ kind: 'amber', r: rand(3, 7), x, y, vx: rand(-360, 360), vy: rand(-460, -120), rot: rand(TAU), vr: rand(-14, 14) }); t.stuck.forEach(o => { if (inArc(o.a, P.a, P.w + 0.05)) o.resin = false; }); sfx.resinCrack(); };
+  const resins = () => (F.resin || []).filter(P => P.hp > 0), stones = () => (F.stone || []).filter(P => P.hp > 0).sort((p, q) => angDiff(normA((p.a0 + p.a1) / 2), a) - angDiff(normA((q.a0 + q.a1) / 2), a));
+  if (ty === 'spiralwood') { if (id === 'marker') { F.spiral.lock = 8; say('TRACKS LOCKED  8S', '#c4a8ff'); } if (id === 'carve') { F.spiral.lock = 999; say('PLANED FLAT', '#f2cf94'); } if (id === 'chain') { spiralShift(t); score++; say('CURRENT SHIFT  +1', '#2ad8ff'); } if (id === 'cook') { score += 2; say('SWISS ROLL  +2', '#ffa04a'); } }
+  if (ty === 'resinwood') { const rs = resins(); if (id === 'marker') { const P = rs.sort((p, q) => angDiff(p.a, a) - angDiff(q.a, a))[0]; if (P) unresin(P); say('SOLVENT', '#ffa04a'); } if (id === 'carve') { rs.forEach(unresin); apples += rs.length; say('AMBER CARVING  +' + rs.length + ' APPLES', '#ffe680'); } if (id === 'chain') { rs.forEach(unresin); say('RESIN MELT', '#2ad8ff'); } if (id === 'cook') { rs.forEach(unresin); apples += rs.length; say('CARAMEL', '#ffa04a'); } }
+  if (ty === 'petrified') { const st = stones(); if (id === 'marker') { if (st[0]) crumble(st[0]); say('FAULT LINE', '#c3c3ca'); } if (id === 'carve') { st.slice(0, 2).forEach(crumble); say('CHISELLED', '#f2cf94'); } if (id === 'chain') { st.forEach(P => { P.hp--; P.hitT = 1; if (P.hp <= 0) crumble(P); }); say('SHATTER STRIKE', '#2ad8ff'); } if (id === 'cook') { score += 2; say('STONE OVEN  +2', '#ffa04a'); } }
+  if (ty === 'embercore') { const E = F.ember; if (id === 'marker') { E.flares = []; E.cool = 8; say('COOLED  8S', '#c8f4ff'); } if (id === 'carve') { const [x, y] = worldAt(t, a, R); launchFlight({ x, y, tx: ITEM_X, ty: ITEM_Y0, col: '#f2cf94', draw: iconWood, sc1: 0.8, then: () => { abil.items.push('woodknife'); abil.pop.woodknife = 1; } }); say('EMBER POCKET', '#ff7a1a'); } if (id === 'chain') { E.cracks.forEach(c => E.flares.push({ a: c.a, t: 1.6, max: 1.6 })); knivesLeft = Math.max(0, knivesLeft - E.cracks.length); score += E.cracks.length; say('IGNITION  -' + E.cracks.length, '#ff7a1a'); } if (id === 'cook') { if (!heal1()) score += 3; say('EMBER ROAST', '#ffa04a'); } }
+  if (ty === 'ringwood') { const G = F.rings; if (id === 'marker') { G.up = [0, 0, 0]; G.lock = 8; say('LEVELLED  8S', '#ffffff'); } if (id === 'carve') { G.lock = 999; G.up = [0, 0, 0]; say('RINGS PINNED', '#f2cf94'); } if (id === 'chain') { const up = t.stuck.filter(o => o.ring !== undefined && G.rise[o.ring] > 0.5); up.forEach((o, i) => later(i * 0.06, () => { if (!t.stuck.includes(o)) return; const w = t.rot + o.a; shatterKnifeAt(CX + Math.cos(w) * (R - EMBED), CY + Math.sin(w) * (R - EMBED), w + Math.PI, 1.2); t.stuck.splice(t.stuck.indexOf(o), 1); sfx.zap(0.5); })); knivesLeft = Math.max(0, knivesLeft - up.length); score += up.length; say('RING SURGE  -' + up.length, '#2ad8ff'); } if (id === 'cook') { score += 2; chargeAbility(); chargeAbility(); say('LAYER CAKE', '#ffa04a'); } }
   if (ty === 'lodestone') { if (id === 'marker') { F.mag.off = 8; say('DEMAGNETISED  8S', '#c3c3ca'); } if (id === 'carve') { const P = poles().sort((p, q) => angDiff(p.a, a) - angDiff(q.a, a))[0]; if (P) popPole(P); say('POLE CARVED OUT', '#f2cf94'); } if (id === 'chain') { for (const s of t.stuck) { const P = poles().sort((p, q) => angDiff(p.a, s.a) - angDiff(q.a, s.a))[0]; if (P && angDiff(P.a, s.a) < 1.2) s.pull = -Math.sign(Math.atan2(Math.sin(P.a - s.a), Math.cos(P.a - s.a))) * 0.3; } F.mag.t = 0; F.mag.pulse = 1; say('ELECTROMAGNET', '#2ad8ff'); } if (id === 'cook') { score += 2; say('CAST IRON  +2', '#ffa04a'); } }
   if (ty === 'bramble') { const vs = vines(); if (id === 'marker') { const v = vs.sort((p, q) => angDiff(normA(p.a + F.vrot), a) - angDiff(normA(q.a + F.vrot), a))[0]; if (v) cutVine(v); say('PRUNED', '#7fbf3a'); } if (id === 'carve') { vs.slice(0, 2).forEach(cutVine); say('TOPIARY', '#7fbf3a'); } if (id === 'chain') { vs.forEach(v => { const [x, y] = worldAt(t, normA(v.a + F.vrot), R + 8); embers(x, y, 24, 400); cutVine(v); }); say('BURNT BRAMBLE', '#ff7a1a'); } if (id === 'cook') { vs.forEach(cutVine); apples++; say('BERRY JAM', '#ff6070'); } }
   if (ty === 'fungal') { const ms = shrooms(); if (id === 'marker') { const m = ms.sort((p, q) => angDiff(p.a, a) - angDiff(q.a, a))[0]; if (m) { pick(m); score++; } say('PICKED CLEAN', '#7cff4f'); } if (id === 'carve') { ms.forEach(pick); apples += ms.length; say('FORAGED  +' + ms.length + ' APPLES', '#7cff4f'); } if (id === 'chain') { ms.forEach(pick); knivesLeft = Math.max(0, knivesLeft - ms.length); score += ms.length; say('SPORE BLAST  -' + ms.length, '#7cff4f'); } if (id === 'cook') { if (!heal1()) score += 3; say('MUSHROOM SOUP', '#ffa04a'); } }
@@ -6151,7 +6183,7 @@ function abilityMeetsLog(t, id, a) {
 // Log-type effects for Strong Throw live in KNIFE_ABILITIES.strong.onImpact, and for the others in abilityMeetsLog();
 // everything else is here. Each entry: [name, what it does, effect(c)].
 let stunShield = 0, abilFeed = [];
-const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice', 'type:lodestone', 'type:bramble', 'type:fungal', 'type:runestone',
+const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice', 'type:lodestone', 'type:bramble', 'type:fungal', 'type:runestone', 'type:spiralwood', 'type:resinwood', 'type:petrified', 'type:embercore', 'type:ringwood',
   'sub:swirl', 'sub:fire', 'sub:hive', 'sub:wire', 'sub:linked', 'bird:song', 'bird:crow', 'bird:pecker', 'bird:owl', 'apples', 'hidden',
   'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:classic'];
 const KNIFE_COL = { strong: '#ffffff', marker: '#ff2e45', carve: '#f2cf94', chain: '#2ad8ff', cook: '#ffa04a' };
@@ -6220,6 +6252,11 @@ const INTER = {
     'type:bramble': ['THORN SHREDDER', 'Every vine is shredded off the rim.', null],
     'type:fungal': ['SPORE BOMB', 'Every mushroom bursts: +1 damage each, and you are not spored.', null],
     'type:runestone': ['RUNIC SHATTER', 'All runes light up for 6s, +1 damage.', null],
+    'type:spiralwood': ['UNWOUND', 'The spiral tracks seize: no more shifts this stage.', null],
+    'type:resinwood': ['RESIN SHATTER', 'Every resin patch is cracked open.', null],
+    'type:petrified': ['QUARRY BLAST', 'All the stone is blasted off the rim.', null],
+    'type:embercore': ['SNUFFED', 'The glowing cracks go out for good.', null],
+    'type:ringwood': ['FLATTENED', 'Every ring is hammered flat and stays down.', null],
     'sub:swirl': ['SPRINGBOARD', 'Every spring branch fires back into the log: +1 damage each.', c => c.dmg(V.subs(c, 'swirl').length)],
     'sub:fire': ['FIREBALL', 'Burning branches are blown into the log: +1 damage each, and the fire is out.', c => { for (const b of V.subs(c, 'fire')) { const [x, y] = worldAt(c.t, b.a, R + 30); embers(x, y, 40, 600); } c.dmg(V.subs(c, 'fire').length); }],
     'sub:hive': ['HONEY BLAST', 'The hive bursts into honey: +3 score, and the bees are too sticky to jam you.', c => { c.score(3); abil.pauseT = 0; }],
@@ -6377,7 +6414,7 @@ function ixAnchor(t, key, a) {
 }
 const IX_SFX = {
   'type:plain': () => sfx.smash(), 'type:branches': () => sfx.snap(), 'type:holes': () => sfx.holeHit(), 'type:bushes': () => sfx.rustle(), 'type:moss': () => sfx.squish(),
-  'type:bark': () => sfx.barkBreak(), 'type:treehole': () => sfx.gulp(), 'type:saw': () => sfx.sawKick(), 'type:blackout': () => sfx.breaker(), 'type:tnt': () => sfx.kegBoom(), 'type:ice': () => sfx.iceBreak(), 'type:lodestone': () => sfx.magPulse(), 'type:bramble': () => sfx.rustle(), 'type:fungal': () => sfx.sporeBurst(), 'type:runestone': () => sfx.runeHit(),
+  'type:bark': () => sfx.barkBreak(), 'type:treehole': () => sfx.gulp(), 'type:saw': () => sfx.sawKick(), 'type:blackout': () => sfx.breaker(), 'type:tnt': () => sfx.kegBoom(), 'type:ice': () => sfx.iceBreak(), 'type:lodestone': () => sfx.magPulse(), 'type:bramble': () => sfx.rustle(), 'type:fungal': () => sfx.sporeBurst(), 'type:runestone': () => sfx.runeHit(), 'type:spiralwood': () => sfx.spiralShift(), 'type:resinwood': () => sfx.resinCrack(), 'type:petrified': () => sfx.stoneHit(), 'type:embercore': () => sfx.flare(), 'type:ringwood': () => sfx.ringRise(),
   'sub:swirl': () => sfx.boing(), 'sub:fire': () => sfx.whoosh(), 'sub:hive': () => sfx.bees(), 'sub:wire': () => sfx.zap(0.5), 'sub:linked': () => sfx.chain(),
   'bird:song': () => sfx.tweet(), 'bird:crow': () => sfx.caw(), 'bird:pecker': () => sfx.peck(), 'bird:owl': () => sfx.hoot(), 'apples': () => sfx.apple(), 'hidden': () => sfx.reveal(),
   'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
@@ -6415,6 +6452,11 @@ const IX_DRAW = {
   'type:bramble'(e, u) { ctx.globalAlpha = 1 - u; for (let i = 0; i < 3; i++) { ctx.strokeStyle = i % 2 ? '#3d6b1f' : '#1f3a10'; ctx.lineWidth = 4 - i; ctx.beginPath(); for (let k = 0; k <= 40; k++) { const q = k / 40, a = q * TAU * 1.5 + u * 6 + i * 2, r = 20 + q * 90 * ease3(u); ctx[k ? 'lineTo' : 'moveTo'](e.x + Math.cos(a) * r, e.y + Math.sin(a) * r); } ctx.stroke(); } ctx.fillStyle = '#a3122a'; for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + u * 4, r = 30 + ease3(u) * 80; ctx.save(); ctx.translate(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(10, 0); ctx.lineTo(0, 3); ctx.fill(); ctx.restore(); } ctx.globalAlpha = 1; },
   'type:fungal'(e, u) { const r = ease3(u) * 90; ctx.globalAlpha = (1 - u) * 0.85; for (let i = 0; i < 9; i++) { const a = i / 9 * TAU + e.seed; ctx.fillStyle = i % 2 ? '#7cff4f' : '#c4a8ff'; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * r * 0.6, e.y + Math.sin(a) * r * 0.6 - u * 50, 14 + u * 22, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1 - u; ctx.fillStyle = '#7cff4f'; ctx.beginPath(); ctx.ellipse(e.x, e.y - 20 - u * 30, 34 * (1 - u * 0.3), 22, 0, Math.PI, TAU); ctx.fill(); ctx.fillStyle = '#ffffff'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(e.x - 18 + i * 12, e.y - 30 - u * 30, 3, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; },
   'type:runestone'(e, u) { ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(u * 3); ctx.globalAlpha = 1 - u; ixRing(0, 0, 40 + ease3(u) * 70, 3, '#2ad8ff', 1 - u); ctx.strokeStyle = '#c8f4ff'; ctx.lineWidth = 2.5; for (let i = 0; i < 6; i++) { ctx.save(); ctx.rotate(i / 6 * TAU); ctx.translate(0, -(40 + ease3(u) * 70)); ctx.beginPath(); for (const [x1, y1, x2, y2] of RUNE_GLYPHS[i % RUNE_GLYPHS.length]) { ctx.moveTo(x1 * 1.5, y1 * 1.5); ctx.lineTo(x2 * 1.5, y2 * 1.5); } ctx.stroke(); ctx.restore(); } ctx.restore(); ctx.globalAlpha = 1; },
+  'type:spiralwood'(e, u) { ctx.globalAlpha = 1 - u; for (let arm = 0; arm < 3; arm++) { ctx.strokeStyle = TRACK_COL[arm]; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 40; i++) { const q = i / 40, a = arm / 3 * TAU + q * 7 + u * 8, r = q * (40 + ease3(u) * 90); ctx[i ? 'lineTo' : 'moveTo'](e.x + Math.cos(a) * r, e.y + Math.sin(a) * r); } ctx.stroke(); } ctx.globalAlpha = 1; },
+  'type:resinwood'(e, u) { ctx.globalAlpha = 1 - u; for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + e.seed, r = ease3(u) * 100; ctx.save(); ctx.translate(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r + u * u * 60); ctx.rotate(a + u * 6); ctx.fillStyle = i % 2 ? '#ffa04a' : '#ffe680'; ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(0, -8); ctx.lineTo(8, 0); ctx.lineTo(0, 6); ctx.closePath(); ctx.fill(); ctx.restore(); } ctx.fillStyle = 'rgba(255,160,74,.5)'; ctx.beginPath(); ctx.arc(e.x, e.y, 30 * (1 - u), 0, TAU); ctx.fill(); ctx.globalAlpha = 1; },
+  'type:petrified'(e, u) { ctx.globalAlpha = 1 - u; for (let i = 0; i < 14; i++) { const a = hash(i, 5, e.seed) * TAU, r = ease3(u) * (60 + 70 * hash(i, 6, e.seed)); ctx.save(); ctx.translate(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r + u * u * 90); ctx.rotate(u * 9 + i); ctx.fillStyle = i % 3 ? '#5c5c66' : '#a8a8b2'; ctx.beginPath(); ctx.moveTo(-9, 3); ctx.lineTo(-3, -9); ctx.lineTo(9, -4); ctx.lineTo(6, 9); ctx.closePath(); ctx.fill(); ctx.restore(); } ixRing(e.x, e.y, ease3(u) * 120, 5, '#c3c3ca', 1 - u); ctx.globalAlpha = 1; },
+  'type:embercore'(e, u) { const g = ctx.createRadialGradient(e.x, e.y, 2, e.x, e.y, 30 + ease3(u) * 110); g.addColorStop(0, `rgba(255,230,128,${1 - u})`); g.addColorStop(0.4, `rgba(255,122,26,${0.8 * (1 - u)})`); g.addColorStop(1, 'rgba(255,46,69,0)'); ctx.fillStyle = g; ctx.fillRect(e.x - 160, e.y - 160, 320, 320); ctx.globalAlpha = 1 - u; for (let i = 0; i < 18; i++) { const a = i / 18 * TAU, r = 20 + ease3(u) * 120; ctx.fillStyle = i % 2 ? '#ffd23f' : '#ff7a1a'; ctx.fillRect(e.x + Math.cos(a) * r - 2, e.y + Math.sin(a) * r - u * 40 - 2, 4, 4); } ctx.globalAlpha = 1; },
+  'type:ringwood'(e, u) { for (let k = 0; k < 3; k++) { const q = clamp(u * 1.5 - k * 0.15, 0, 1), lift = Math.sin(q * Math.PI) * 30; ixRing(e.x, e.y - lift, 30 + k * 28, 5, TRACK_COL[k], 1 - u); ixRing(e.x + 4, e.y + 6, 30 + k * 28, 3, '#08080a', (1 - u) * 0.5); } },
   'sub:swirl'(e, u) { const st = Math.sin(u * Math.PI * 3) * (1 - u) * 50; ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i <= 14; i++) { const y = e.y - i * (4 + st / 14 * 2), x = e.x + (i % 2 ? -12 : 12); ctx[i ? 'lineTo' : 'moveTo'](x, y); } ctx.stroke(); for (let k = 0; k < 3; k++) ixRing(e.x, e.y - 30, 20 + ((u * 3 + k / 3) % 1) * 70, 2, '#ffd23f', 1 - u); },
   'sub:fire'(e, u) { for (let i = 0; i < 6; i++) { const a = -Math.PI * (0.15 + 0.7 * i / 5), d = ease3(u) * 140, x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d + u * u * 120; for (let k = 4; k >= 0; k--) { ctx.globalAlpha = (1 - u) * (1 - k / 5); ctx.fillStyle = k ? '#ff7a1a' : '#ffe680'; ctx.beginPath(); ctx.arc(x - Math.cos(a) * k * 8, y - Math.sin(a) * k * 8, 8 - k, 0, TAU); ctx.fill(); } } ctx.globalAlpha = 1; },
   'sub:hive'(e, u) { ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2; ctx.globalAlpha = 1 - u; for (let i = 0; i < 7; i++) { const a = i / 7 * TAU, r = 26 * ease3(u); hexPath(e.x + Math.cos(a) * r * 1.6, e.y + Math.sin(a) * r * 1.6, 12); ctx.stroke(); } ctx.fillStyle = '#ffa04a'; for (let i = 0; i < 7; i++) { const x = e.x + (i - 3) * 13, L = ease3(u) * (40 + 50 * hash(i, 9, e.seed)); ctx.fillRect(x - 2.5, e.y, 5, L); ctx.beginPath(); ctx.arc(x, e.y + L, 5, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; },
@@ -7135,6 +7177,212 @@ function drawTypeAmbience3(t) {
   if (t.type === 'runestone') { ctx.save(); ctx.translate(CX + px * 0.6, CY + py * 0.6); ctx.rotate(time * 0.1); ctx.strokeStyle = 'rgba(42,216,255,.12)'; ctx.lineWidth = 2; for (const r of [170, 230]) { ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke(); } for (let i = 0; i < 12; i++) { ctx.rotate(TAU / 12); ctx.strokeStyle = 'rgba(42,216,255,.22)'; ctx.beginPath(); for (const [x1, y1, x2, y2] of RUNE_GLYPHS[i % RUNE_GLYPHS.length]) { ctx.moveTo(x1, -200 + y1); ctx.lineTo(x2, -200 + y2); } ctx.stroke(); } ctx.restore(); }
 }
 
+// ======================= LOG TYPES IV: spiralwood, resinwood, petrified, embercore, ringwood =======================
+const TRACK_COL = ['#2ad8ff', '#ff7a1a', '#c4a8ff'];
+// ---------- SPIRALWOOD: three spiral tracks. Every 3 hits each track slides a different way, carrying its knives. ----------
+function setupSpiral(t) { t.f.spiral = { off: rand(TAU), hits: 0, every: 3, shift: 0, lock: 0, glow: [0, 0, 0], arrow: [0, 0, 0] }; }
+const trackOf = (S, a) => Math.floor(normA(a - S.off) / (TAU / 3)) % 3;
+function spiralHit(t) {
+  const S = t.f.spiral; if (S.lock > 0) return;
+  S.hits++;
+  if (S.hits === S.every - 1) floater('THE SPIRAL SHIFTS NEXT HIT', CX, CY - R - 40, '#c4a8ff');
+  if (S.hits >= S.every) { S.hits = 0; pending.push({ t: 0.25, f: () => spiralShift(t) }); }
+}
+function spiralShift(t) {
+  const S = t.f.spiral; if (tgt !== t) return;
+  const d = [0, 1, 2].map(i => (i % 2 ? -1 : 1) * (Math.random() < 0.5 ? -1 : 1) * rand(0.45, 0.95));
+  for (const s of t.stuck) { if (s.hidden) continue; s.trk = d[trackOf(S, s.a)]; }
+  S.arrow = d.map(x => Math.sign(x)); S.glow = [1, 1, 1]; S.shift = 1;
+  sfx.spiralShift(); shake = Math.max(shake, 8); kick(0.08, 0.04, 0.8, 0.4); plxKick(rand(-30, 30), 0); floater('SPIRAL SHIFT', CX, CY - R - 40, '#c4a8ff');
+}
+function updateSpiral(t, dt) {
+  const S = t.f.spiral; S.lock = Math.max(0, S.lock - dt); S.shift = Math.max(0, S.shift - dt * 0.8); S.glow = S.glow.map(g => Math.max(0, g - dt));
+  for (const s of t.stuck) {
+    if (!s.trk) continue;
+    const step = Math.sign(s.trk) * Math.min(Math.abs(s.trk), dt * 1.4), na = normA(s.a + step), hit = t.stuck.find(o => o !== s && !o.hidden && angDiff(o.a, na) < 0.16 && !o.trk);
+    if (hit) { s.trk = 0; s.wob = 0.2; hit.wob = 0.2; sfx.ping(); continue; }
+    s.a = na; s.trk -= step; s.wob = 0.05; if (Math.abs(s.trk) < 0.003) s.trk = 0;
+  }
+}
+function drawSpiralFace(t) {
+  const S = t.f.spiral;
+  for (let tr = 0; tr < 3; tr++) {
+    const a0 = S.off + tr * TAU / 3, g = S.glow[tr];
+    ctx.save(); ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a0, a0 + TAU / 3); ctx.closePath(); ctx.clip();
+    ctx.strokeStyle = g > 0 ? TRACK_COL[tr] : 'rgba(30,13,3,.55)'; ctx.lineWidth = 2.2;
+    for (let arm = 0; arm < 3; arm++) { ctx.beginPath(); for (let i = 0; i <= 60; i++) { const u = i / 60, a = arm / 3 * TAU + u * TAU * 1.4 + time * 0.15 + (g > 0 ? S.arrow[tr] * (1 - g) * 0.8 : 0), r = R * u; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); }
+    ctx.restore();
+    // the track band on the rim, colour coded
+    ctx.strokeStyle = TRACK_COL[tr]; ctx.globalAlpha = 0.35 + 0.65 * g; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, R - 4, a0 + 0.04, a0 + TAU / 3 - 0.04); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillStyle = '#16161b'; ctx.fillRect(Math.cos(a0) * (R - 12) - 3, Math.sin(a0) * (R - 12) - 3, 6, 6);
+    if (g > 0) for (let k = 0; k < 3; k++) { const a = a0 + TAU / 6 + S.arrow[tr] * ((1 - g) * 0.8 + k * 0.18) - S.arrow[tr] * 0.2; ctx.save(); ctx.rotate(a); ctx.translate(R - 4, 0); ctx.rotate(S.arrow[tr] > 0 ? HALF : -HALF); ctx.fillStyle = TRACK_COL[tr]; ctx.beginPath(); ctx.moveTo(-5, -3); ctx.lineTo(0, 4); ctx.lineTo(5, -3); ctx.fill(); ctx.restore(); }
+  }
+  // the warning pips: hits until the next shift
+  for (let i = 0; i < S.every; i++) { ctx.save(); ctx.rotate(-t.rot); ctx.fillStyle = i < S.hits ? '#c4a8ff' : '#2a2a31'; ctx.beginPath(); ctx.arc((i - 1) * 9, 0, 3, 0, TAU); ctx.fill(); ctx.restore(); }
+}
+
+// ---------- RESINWOOD: amber patches. A knife in resin sticks but deals nothing; a second hit cracks the patch open. ----------
+function setupResin(t, angs) { t.f.resin = angs.map(a => ({ a, w: rand(0.22, 0.3), hp: 2, seed: rand(99), crack: 0 })); }
+function resinStick(t, s, a) {
+  const P = t.f.resin.find(p => p.hp > 0 && inArc(a, p.a, p.w)); if (!P) return;
+  const [x, y] = worldAt(t, a, R);
+  if (P.hp === 2) {
+    P.hp = 1; P.crack = 1; s.resin = true; knivesLeft++; score--; combo = 0;
+    for (let i = 0; i < 14; i++) parts.push({ x, y, vx: rand(-160, 160), vy: rand(-200, 40), life: rand(0.4, 0.8), max: 0.8, c: i % 2 ? '#ffa04a' : '#ffe680', s: 3, rot: 0, vr: 0 });
+    floater('STUCK IN RESIN  0', CX, CY + R + 56, '#ffa04a'); sfx.squelch();
+  } else {
+    P.hp = 0; P.crack = 1;
+    for (let i = 0; i < 18; i++) debris.push({ kind: 'amber', r: rand(3, 7), x: x + rand(-10, 10), y: y + rand(-10, 10), vx: rand(-360, 360), vy: rand(-460, -120), rot: rand(TAU), vr: rand(-14, 14) });
+    shock(x, y, 0.3, 70); floater('RESIN CRACKED', CX, CY + R + 56, '#ffe680'); sfx.resinCrack(); shake = Math.max(shake, 8);
+    for (const o of t.stuck) if (o.resin && inArc(o.a, P.a, P.w + 0.05)) o.resin = false;
+  }
+}
+function drawResin(t) {
+  for (const P of t.f.resin) {
+    if (P.hp <= 0) continue;
+    ctx.save(); ctx.rotate(P.a);
+    const path = () => { ctx.beginPath(); for (let i = 0; i <= 16; i++) { const u = i / 16, a = -P.w + 2 * P.w * u, r = R + 4 + Math.sin(u * 9 + P.seed) * 2; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } for (let i = 16; i >= 0; i--) { const u = i / 16, a = -P.w * 0.9 + 1.8 * P.w * u, r = R - 22 - Math.sin(u * 7 + P.seed) * 5 - Math.sin(u * Math.PI) * 8; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); };
+    path(); const g = ctx.createRadialGradient(R - 14, -4, 2, R - 10, 0, 30); g.addColorStop(0, 'rgba(255,230,128,.95)'); g.addColorStop(0.5, 'rgba(255,160,74,.9)'); g.addColorStop(1, 'rgba(168,94,40,.92)'); ctx.fillStyle = g; ctx.fill();
+    ctx.save(); path(); ctx.clip();
+    // a trapped beetle and bubbles drifting in the amber
+    ctx.fillStyle = 'rgba(42,20,8,.75)'; ctx.beginPath(); ctx.ellipse(R - 12, 2, 4, 2.6, 0.4, 0, TAU); ctx.fill(); ctx.strokeStyle = 'rgba(42,20,8,.6)'; ctx.lineWidth = 0.7; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(R - 12, 2); ctx.lineTo(R - 15, 2 + sd * 5); ctx.stroke(); }
+    for (let i = 0; i < 5; i++) { const ph = (time * 0.15 + hash(i, P.seed, 1)) % 1, a = (hash(i, P.seed, 2) * 2 - 1) * P.w * 0.8, r = R - 20 + ph * 22; ctx.strokeStyle = 'rgba(255,240,200,.7)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 1.4 + hash(i, P.seed, 3) * 1.6, 0, TAU); ctx.stroke(); }
+    const sh = (time * 0.4 + P.seed) % 1; ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R - 8, -P.w + sh * 2 * P.w - 0.06, -P.w + sh * 2 * P.w + 0.06); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,240,200,.8)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, R + 3, -P.w * 0.7, P.w * 0.1); ctx.stroke();
+    if (P.hp === 1) { ctx.strokeStyle = 'rgba(94,46,16,.95)'; ctx.lineWidth = 1.4; for (let i = 0; i < 4; i++) { const a = (hash(i, P.seed, 4) * 2 - 1) * P.w * 0.7; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (R + 3), Math.sin(a) * (R + 3)); ctx.lineTo(Math.cos(a + 0.05) * (R - 8), Math.sin(a + 0.05) * (R - 8)); ctx.lineTo(Math.cos(a - 0.03) * (R - 18), Math.sin(a - 0.03) * (R - 18)); ctx.stroke(); } }
+    // drips
+    const dp = (time * 0.35 + P.seed) % 1; ctx.fillStyle = '#ffa04a'; ctx.beginPath(); ctx.ellipse(Math.cos(P.w * 0.3) * (R + 4 + dp * 10), Math.sin(P.w * 0.3) * (R + 4 + dp * 10), 2.2, 1.6 + dp * 1.5, P.w * 0.3, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  // resin smeared on the knives it caught
+  for (const s of t.stuck) if (s.resin) { ctx.save(); ctx.rotate(s.a); ctx.fillStyle = 'rgba(255,160,74,.85)'; ctx.beginPath(); ctx.ellipse(R + 8, 0, 9, 5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,240,200,.7)'; ctx.fillRect(R + 4, -3, 6, 1.5); ctx.restore(); }
+}
+
+// ---------- PETRIFIED: stone covers most of the rim. Stone ricochets harmlessly; only the wooden seams take a knife. ----------
+function setupStone(t) {
+  const n = 4, off = rand(TAU), seams = Array.from({ length: n }, (_, i) => normA(off + (i + rand(-0.15, 0.15)) / n * TAU)).sort((a, b) => a - b), sw = 0.24;
+  t.f.stone = []; t.f.seams = seams;
+  for (let i = 0; i < n; i++) { const a0 = seams[i] + sw, a1 = (i + 1 < n ? seams[i + 1] : seams[0] + TAU) - sw; if (a1 - a0 > 0.15) t.f.stone.push({ a0, a1, hp: 3, seed: rand(99), hitT: 0 }); }
+  t.stuck = t.stuck.filter(s => !t.f.stone.some(p => inArc(s.a, normA((p.a0 + p.a1) / 2), (p.a1 - p.a0) / 2)));
+}
+function stoneAt(t, a) { return t.f.stone.find(p => p.hp > 0 && inArc(a, normA((p.a0 + p.a1) / 2), (p.a1 - p.a0) / 2)); }
+function stoneHit(k, t, a) {
+  const P = stoneAt(t, a); if (!P) return false;
+  k.done = true; knivesLeft++; combo = 0; P.hp--; P.hitT = 1;
+  const sd = Math.random() < 0.5 ? -1 : 1; debris.push({ kind: 'knife', x: CX, y: CY + R + 8, vx: sd * rand(420, 600), vy: rand(-520, -300), rot: 0, vr: sd * 26 });
+  for (let i = 0; i < 16; i++) parts.push({ x: CX + rand(-6, 6), y: CY + R, vx: rand(-360, 360), vy: rand(-380, 20), life: rand(0.3, 0.6), max: 0.6, c: i % 3 ? '#8d8d97' : '#ffffff', s: 2.5, rot: 0, vr: 0 });
+  sfx.stoneHit(); shake = Math.max(shake, 5);
+  if (P.hp <= 0) { const mid = (P.a0 + P.a1) / 2; for (let i = 0; i < 18; i++) { const a = P.a0 + (P.a1 - P.a0) * Math.random(), [x, y] = worldAt(t, a, R), w = t.rot + a; debris.push({ kind: 'rock', r: rand(4, 9), x, y, vx: Math.cos(w) * rand(150, 400), vy: Math.sin(w) * rand(150, 400) - 200, rot: rand(TAU), vr: rand(-10, 10) }); } const [x, y] = worldAt(t, mid, R); shocks(x, y, 2, 90); floater('STONE CRUMBLES', x, y - 30, '#c3c3ca'); sfx.barkBreak(); }
+  else floater('RICOCHET', CX, CY + R + 56, '#c3c3ca');
+  return true;
+}
+function drawStone(t) {
+  for (const P of t.f.stone) {
+    if (P.hp <= 0) continue;
+    const j = P.hitT * 2;
+    ctx.save(); ctx.translate(rand(-j, j), rand(-j, j));
+    const path = (r0, r1) => { ctx.beginPath(); ctx.arc(0, 0, r0, P.a0, P.a1); for (let i = 12; i >= 0; i--) { const a = P.a0 + (P.a1 - P.a0) * i / 12, r = r1 - hash(i, P.seed, 1) * 7; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); };
+    path(R + 5, R - 18); const g = ctx.createRadialGradient(0, 0, R - 24, 0, 0, R + 5); g.addColorStop(0, '#38383f'); g.addColorStop(0.6, P.hitT > 0.5 ? '#c3c3ca' : '#5c5c66'); g.addColorStop(1, '#8d8d97'); ctx.fillStyle = g; ctx.fill();
+    ctx.save(); path(R + 5, R - 18); ctx.clip();
+    for (let i = 0; i < 18; i++) { const a = P.a0 + (P.a1 - P.a0) * hash(i, P.seed, 2), r = R - 16 + hash(i, P.seed, 3) * 20, s = 2 + hash(i, P.seed, 4) * 5; ctx.fillStyle = i % 3 === 0 ? '#a8a8b2' : i % 3 === 1 ? '#4a4a53' : '#2a2a31'; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r - s); ctx.lineTo(Math.cos(a) * r + s, Math.sin(a) * r); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r + s); ctx.lineTo(Math.cos(a) * r - s, Math.sin(a) * r); ctx.fill(); }
+    // crystals that catch the light
+    for (let i = 0; i < 3; i++) { const a = P.a0 + (P.a1 - P.a0) * hash(i, P.seed, 5), r = R - 6, gl = Math.max(0, Math.sin(time * 1.7 + i * 2 + P.seed)); ctx.fillStyle = i % 2 ? '#c4a8ff' : '#c8f4ff'; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r - 5); ctx.lineTo(Math.cos(a) * r + 3, Math.sin(a) * r); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r + 5); ctx.lineTo(Math.cos(a) * r - 3, Math.sin(a) * r); ctx.fill(); if (gl > 0.92) star(Math.cos(a) * r, Math.sin(a) * r, 6, '#ffffff'); }
+    if (P.hp < 3) { ctx.strokeStyle = '#08080a'; ctx.lineWidth = 1.4; for (let i = 0; i < (3 - P.hp) * 2; i++) { const a = P.a0 + (P.a1 - P.a0) * hash(i, P.seed, 6); ctx.beginPath(); ctx.moveTo(Math.cos(a) * (R + 5), Math.sin(a) * (R + 5)); ctx.lineTo(Math.cos(a + 0.06) * (R - 4), Math.sin(a + 0.06) * (R - 4)); ctx.lineTo(Math.cos(a - 0.02) * (R - 14), Math.sin(a - 0.02) * (R - 14)); ctx.stroke(); } }
+    ctx.restore();
+    ctx.strokeStyle = '#16161b'; ctx.lineWidth = 1.4; path(R + 5, R - 18); ctx.stroke();
+    ctx.restore();
+  }
+  // the seams: exposed wood, glowing a little so the eye finds them
+  for (const a of t.f.seams) { const p = 0.5 + 0.5 * Math.sin(time * 3 + a); ctx.strokeStyle = `rgba(255,226,166,${0.35 + 0.3 * p})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 2, a - 0.2, a + 0.2); ctx.stroke(); }
+}
+
+// ---------- EMBERCORE: glowing cracks drift round the log. Hit one and it flares: the glare hides nearby knives. ----------
+function setupEmber(t) { t.f.ember = { cracks: [{ a: rand(TAU), w: 0.2 }, { a: rand(TAU), w: 0.2 }], spd: (Math.random() < 0.5 ? -1 : 1) * rand(0.35, 0.6), flares: [], cool: 0 }; t.f.ember.cracks[1].a = normA(t.f.ember.cracks[0].a + Math.PI); }
+function updateEmber(t, dt, live) {
+  const E = t.f.ember; E.cool = Math.max(0, E.cool - dt);
+  if (live) for (const c of E.cracks) c.a = normA(c.a + E.spd * dt * (E.cool > 0 ? 0.3 : 1));
+  for (const f of E.flares) f.t -= dt; E.flares = E.flares.filter(f => f.t > 0);
+  if (Math.random() < dt * 12) { const c = E.cracks[Math.floor(rand(E.cracks.length))], [x, y] = worldAt(t, c.a + rand(-c.w, c.w), R); parts.push({ x, y, vx: rand(-40, 40), vy: rand(-160, -60), life: rand(0.4, 0.8), max: 0.8, c: Math.random() < 0.5 ? '#ffd23f' : '#ff7a1a', s: 2, rot: 0, vr: 0 }); }
+}
+function emberStick(t, s, a) {
+  const E = t.f.ember, c = E.cracks.find(c => inArc(a, c.a, c.w)); if (!c) return;
+  E.flares.push({ a, t: 2.8, max: 2.8 });
+  const [x, y] = worldAt(t, a, R); embers(x, y, 50, 600); shock(x, y, 0.35, 120);
+  for (let i = 0; i < 16; i++) smoke.push({ x, y, vx: rand(-100, 100), vy: rand(-160, -40), r: rand(5, 10), life: 1.2, max: 1.2, g: rand(40, 80) });
+  floater('FLARE!', CX, CY + R + 56, '#ff7a1a'); sfx.flare(); kick(0.12, 0.04, 1, 0.5);
+}
+function drawEmberFace(t) {
+  const E = t.f.ember;
+  ctx.save(); const g = ctx.createRadialGradient(0, 0, 4, 0, 0, R * 0.5); g.addColorStop(0, `rgba(255,122,26,${0.35 + 0.15 * Math.sin(time * 2)})`); g.addColorStop(1, 'rgba(255,46,69,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 0.5, 0, TAU); ctx.fill(); ctx.restore();
+  for (const c of E.cracks) {
+    const p = 0.7 + 0.3 * Math.sin(time * 8 + c.a * 5);
+    ctx.save(); ctx.rotate(c.a); ctx.lineCap = 'round';
+    const gl = ctx.createRadialGradient(R - 8, 0, 2, R - 8, 0, 34); gl.addColorStop(0, `rgba(255,122,26,${0.45 * p})`); gl.addColorStop(1, 'rgba(255,46,69,0)'); ctx.fillStyle = gl; ctx.fillRect(R - 44, -36, 72, 72);
+    for (const [col, w] of [['#6a0a18', 11], ['#ff2e45', 7.5], ['#ff7a1a', 4.5], ['#ffe680', 2]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = w * p; ctx.beginPath();
+      for (let i = 0; i <= 8; i++) { const u = i / 8, a = (u * 2 - 1) * c.w, r = R - 2 - (hash(i, 7, Math.floor(c.w * 100)) * 14) - Math.sin(u * Math.PI) * 8; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,122,26,.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(Math.cos(0) * (R - 12), 0); ctx.lineTo(R * 0.45, Math.sin(time * 3) * 3); ctx.stroke();
+    ctx.restore();
+  }
+}
+// the glare goes over the knives: drawn after them
+function drawEmberFlares(t) {
+  const E = t.f.ember; if (!E) return;
+  for (const f of E.flares) {
+    const u = f.t / f.max, a = Math.min(1, (1 - u) * 8) * Math.min(1, u * 3);
+    ctx.save(); ctx.rotate(f.a);
+    const g = ctx.createRadialGradient(R + 40, 0, 4, R + 50, 0, 170); g.addColorStop(0, `rgba(255,240,200,${0.97 * a})`); g.addColorStop(0.55, `rgba(255,160,74,${0.92 * a})`); g.addColorStop(0.85, `rgba(255,122,26,${0.6 * a})`); g.addColorStop(1, 'rgba(255,46,69,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(R - 20, 0); ctx.arc(0, 0, R + KL + 40, -0.6, 0.6); ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 8; i++) { const r = R + 10 + ((time * 120 + i * 40) % 140), w = (hash(i, 2, 9) - 0.5) * 0.8; ctx.fillStyle = `rgba(255,230,128,${a * (1 - (r - R) / 160)})`; ctx.fillRect(Math.cos(w) * r, Math.sin(w) * r, 3, 3); }
+    ctx.restore();
+  }
+}
+
+// ---------- RINGWOOD: three concentric rings. Every 3 hits one ring rises out of the face and its knives slide outward. ----------
+function setupRings(t) { t.f.rings = { rise: [0, 0, 0], up: [0, 0, 0], hits: 0, every: 3, next: Math.floor(rand(3)), warn: 0, ord: 0, lock: 0 }; for (const s of t.stuck) s.ring = Math.floor(rand(3)); }
+function ringHit(t, s) {
+  const G = t.f.rings; s.ring = G.ord++ % 3; if (G.lock > 0) return;
+  G.hits++;
+  if (G.hits === G.every - 1) { G.warn = 1; floater('A RING RISES NEXT HIT', CX, CY - R - 40, TRACK_COL[G.next]); }
+  if (G.hits >= G.every) { G.hits = 0; G.warn = 0; const k = G.next; G.up[k] = 3.2; G.next = (k + 1 + Math.floor(rand(2))) % 3; sfx.ringRise(); shake = Math.max(shake, 7); kick(0.1, 0.03, 0.8, 0.4); floater('RING RISES', CX, CY - R - 40, TRACK_COL[k]); }
+}
+function updateRings(t, dt) {
+  const G = t.f.rings; G.lock = Math.max(0, G.lock - dt);
+  for (let k = 0; k < 3; k++) { if (G.up[k] > 0) { G.up[k] -= dt; if (G.up[k] <= 0) sfx.ringSink(); } const tgtR = G.up[k] > 0 ? 1 : 0; G.rise[k] += (tgtR - G.rise[k]) * Math.min(1, dt * (tgtR ? 7 : 4)); }
+  for (const s of t.stuck) if (s.ring !== undefined && !s.hidden) s.sink = -28 * G.rise[s.ring];
+}
+function drawRingFace(t) {
+  const G = t.f.rings, radii = [[R * 0.08, R * 0.36], [R * 0.36, R * 0.66], [R * 0.66, R * 0.97]];
+  for (let k = 0; k < 3; k++) {
+    const [r0, r1] = radii[k], rz = G.rise[k], warn = G.warn > 0 && k === G.next ? 0.5 + 0.5 * Math.sin(time * 14) : 0, dz = rz * 9;
+    if (rz > 0.02) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.arc(4, 6, r1 + 2, 0, TAU); ctx.arc(4, 6, r0, 0, TAU, true); ctx.fill('evenodd'); }
+    ctx.save(); ctx.translate(-plx.x * 0.05 * rz, -dz); ctx.scale(1 + 0.05 * rz, 1 + 0.05 * rz);
+    if (rz > 0.02) { ctx.fillStyle = '#45210b'; ctx.beginPath(); ctx.arc(0, dz * 0.6, r1, 0, TAU); ctx.arc(0, dz * 0.6, r0, 0, TAU, true); ctx.fill('evenodd'); }
+    ctx.strokeStyle = TRACK_COL[k]; ctx.globalAlpha = 0.3 + 0.5 * rz + 0.4 * warn; ctx.lineWidth = 2 + 2 * rz; ctx.beginPath(); ctx.arc(0, 0, r1 - 1, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+    if (rz > 0.02) { ctx.fillStyle = `rgba(255,226,166,${0.15 * rz})`; ctx.beginPath(); ctx.arc(0, 0, r1, 0, TAU); ctx.arc(0, 0, r0, 0, TAU, true); ctx.fill('evenodd'); }
+    ctx.restore();
+  }
+  // each knife wears its ring colour at the collar
+  for (const s of t.stuck) if (s.ring !== undefined && !s.hidden) { ctx.save(); ctx.rotate(s.a); ctx.fillStyle = TRACK_COL[s.ring]; ctx.fillRect(R - 6, -4, 5, 8); ctx.restore(); }
+}
+
+function drawTypes4Debris(d) {
+  if (d.kind === 'amber') { ctx.fillStyle = '#ffa04a'; ctx.beginPath(); ctx.moveTo(-d.r, 0); ctx.lineTo(0, -d.r); ctx.lineTo(d.r, 0); ctx.lineTo(0, d.r * 0.7); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ffe680'; ctx.fillRect(-d.r * 0.4, -d.r * 0.5, d.r * 0.4, d.r * 0.3); return true; }
+  if (d.kind === 'rock') { ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.moveTo(-d.r, d.r * 0.3); ctx.lineTo(-d.r * 0.4, -d.r); ctx.lineTo(d.r, -d.r * 0.4); ctx.lineTo(d.r * 0.6, d.r); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#a8a8b2'; ctx.fillRect(-d.r * 0.4, -d.r * 0.6, d.r * 0.6, d.r * 0.3); return true; }
+  return false;
+}
+function drawTypeAmbience4(t) {
+  const px = plx.x, py = plx.y, wrap = (v, m) => ((v % m) + m) % m;
+  if (t.type === 'spiralwood') { ctx.save(); ctx.translate(CX + px * 0.6, CY + py * 0.6); for (let arm = 0; arm < 3; arm++) { ctx.strokeStyle = `rgba(196,168,255,${0.08 + 0.05 * Math.sin(time + arm)})`; ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i <= 60; i++) { const u = i / 60, a = arm / 3 * TAU + u * 7 - time * 0.3, r = 130 + u * 220; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); } ctx.restore(); }
+  if (t.type === 'resinwood') for (let i = 0; i < 12; i++) { const dz = 0.5 + hash(i, 31, 1) * 0.9, x = hash(i, 31, 2) * W + px * dz, ph = wrap(time * (0.1 + hash(i, 31, 3) * 0.15) + hash(i, 31, 4), 1), y = ph * (H + 40) - 20 + py * dz; ctx.fillStyle = `rgba(255,160,74,${0.35 * dz})`; ctx.beginPath(); ctx.ellipse(x, y, 2.5 * dz, 3.5 * dz + ph * 2, 0, 0, TAU); ctx.fill(); }
+  if (t.type === 'petrified') for (let i = 0; i < 16; i++) { const dz = 0.5 + hash(i, 32, 1) * 0.9, x = wrap(hash(i, 32, 2) * W + time * 6 * dz, W) + px * dz, y = wrap(hash(i, 32, 3) * H + time * 18 * dz, H) + py * dz; ctx.fillStyle = `rgba(141,141,151,${0.35 * dz})`; ctx.fillRect(x, y, 2 * dz, 2 * dz); }
+  if (t.type === 'embercore') { for (let i = 0; i < 26; i++) { const dz = 0.5 + hash(i, 33, 1) * 0.9, ph = wrap(time * (0.25 + hash(i, 33, 2) * 0.3) + hash(i, 33, 3), 1), x = hash(i, 33, 4) * W + Math.sin(ph * 8 + i) * 16 + px * dz, y = H - ph * (H + 40) + py * dz; ctx.fillStyle = i % 2 ? `rgba(255,122,26,${1 - ph})` : `rgba(255,210,63,${1 - ph})`; ctx.fillRect(x, y, 2 * dz, 2 * dz); } const g = ctx.createLinearGradient(0, H - 220, 0, H); g.addColorStop(0, 'rgba(255,46,69,0)'); g.addColorStop(1, 'rgba(255,46,69,.12)'); ctx.fillStyle = g; ctx.fillRect(-W, H - 220, W * 3, 400); }
+  if (t.type === 'ringwood') { const G = t.f.rings; ctx.save(); ctx.translate(CX + px * 0.6, CY + py * 0.6); for (let k = 0; k < 3; k++) { ctx.strokeStyle = TRACK_COL[k]; ctx.globalAlpha = 0.06 + 0.2 * G.rise[k]; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 150 + k * 50 + G.rise[k] * 20, 0, TAU); ctx.stroke(); } ctx.restore(); ctx.globalAlpha = 1; }
+}
+
 // ---- EAT: the meal flies to the empty heart slot and the heart re-forms ----
 function eatMeal() {
   const slot = lives, hx = heartX(slot);
@@ -7246,6 +7494,7 @@ function drawBirdZone(t, b) {
 function drawFeaturesOnFace(t) {
   if (!t.f) return;
   drawTypeFace(t); drawTypeFace3(t);
+  if (t.f.spiral) drawSpiralFace(t); if (t.f.ember) drawEmberFace(t); if (t.f.rings) drawRingFace(t);
   if (t.f.holes.length) drawHoles(t);
   if (t.f.treehole) drawTreeHole(t);
   for (const m of t.f.moss) drawMoss(t, m);
@@ -7263,6 +7512,9 @@ function drawFeaturesOut(t) {
   if (t.f.mag) drawMagPoles(t);
   if (t.f.vines && t.f.vines.length) drawVines(t);
   if (t.f.shrooms && t.f.shrooms.length) drawShrooms(t);
+  if (t.f.stone && t.f.stone.length) drawStone(t);
+  if (t.f.resin && t.f.resin.length) drawResin(t);
+  if (t.f.ember) drawEmberFlares(t);
   drawArcs(t);
 }
 
@@ -7280,6 +7532,9 @@ function drawLabels(t) {
   (F.vines || []).forEach(v => v.hp > 0 && tags.push([normA(v.a + F.vrot), R + 40, 'THORNS', '#ff6070']));
   (F.shrooms || []).forEach(m => m.alive && tags.push([m.a, R + 50, 'X2 + SPORES', '#7cff4f']));
   if (F.runes) tags.push([F.runes[F.rlit].a, R + 22, 'HIT WHEN LIT', '#2ad8ff']);
+  (F.resin || []).forEach(P => P.hp > 0 && tags.push([P.a, R + 34, P.hp > 1 ? 'STICKY: 0 DMG' : 'CRACK IT', '#ffa04a']));
+  (F.seams || []).forEach(a => tags.push([a, R + 24, 'SEAM', '#ffe2a6']));
+  if (F.ember) F.ember.cracks.forEach(c => tags.push([c.a, R + 26, 'FLARES', '#ff7a1a']));
   if (F.plates.length) tags.push([-t.rot - HALF, R + 26, 'FIND GAPS', '#c3c3ca']);
   ctx.save(); ctx.globalAlpha = a;
   for (const [ang, r, txt, col] of tags) {
@@ -7313,6 +7568,7 @@ function drawFeatureDebris(d) {
     case 'paper': case 'comb': case 'queen': return drawNestDebris(d);
     case 'iceshard': return drawTypeDebris(d);
     case 'vine': case 'cap': case 'magnet': return drawTypes3Debris(d);
+    case 'amber': case 'rock': return drawTypes4Debris(d);
     case 'wknife': case 'plank': return drawCaseDebris(d);
     case 'tooth': ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(0, -5); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill(); return true;
     case 'hub': ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); return true;
@@ -7383,6 +7639,11 @@ function drawTypeMeter() {
   else if (t.type === 'saw') { const s = F.saws.slice().sort((a, b) => b.cut - a.cut)[0]; txt = 'BREAK IT BEFORE THE SAW  ' + Math.ceil((1 - s.cut) * s.time) + 'S'; col = s.cut > 0.7 && Math.sin(time * 12) > 0 ? '#ff2e45' : '#ffd23f'; }
   else if (t.type === 'treehole') { txt = 'TREE HOLE  X' + F.treehole.stored; }
   else if (t.type === 'holes') { txt = 'WEAK SPOTS X2'; col = '#ffd23f'; }
+  else if (t.type === 'spiralwood') { const S = F.spiral; txt = S.lock > 0 ? 'TRACKS LOCKED' : 'SHIFT IN ' + (S.every - S.hits) + ' HIT' + (S.every - S.hits > 1 ? 'S' : ''); col = S.every - S.hits === 1 && Math.sin(time * 12) > 0 ? '#ffffff' : '#c4a8ff'; }
+  else if (t.type === 'resinwood') { txt = 'RESIN ' + F.resin.filter(P => P.hp > 0).length + '  /  2 HITS CRACK A PATCH'; col = '#ffa04a'; }
+  else if (t.type === 'petrified') { txt = 'STONE ' + F.stone.filter(P => P.hp > 0).length + '  /  HIT THE SEAMS'; col = '#c3c3ca'; }
+  else if (t.type === 'embercore') { txt = F.ember.flares.length ? 'FLARE! KNIVES HIDDEN' : 'CRACKS FLARE WHEN HIT'; col = '#ff7a1a'; }
+  else if (t.type === 'ringwood') { const G = F.rings; txt = G.lock > 0 ? 'RINGS PINNED' : G.rise.some(r => r > 0.5) ? 'RING UP: KNIVES STICK OUT' : 'RING RISES IN ' + (G.every - G.hits); col = TRACK_COL[G.next]; }
   else if (t.type === 'lodestone') { const M = F.mag; txt = M.off > 0 ? 'DEMAGNETISED ' + Math.ceil(M.off) + 'S' : 'PULSE IN ' + Math.max(0, M.period - M.t).toFixed(1) + 'S'; col = M.period - M.t < 1 && Math.sin(time * 14) > 0 ? '#ff6070' : '#c3c3ca'; }
   else if (t.type === 'bramble') { txt = 'VINES ' + F.vines.filter(v => v.hp > 0).length + '  /  THEY ORBIT'; col = '#ff6070'; }
   else if (t.type === 'fungal') { txt = 'MUSHROOMS ' + F.shrooms.filter(m => m.alive).length + (sporeT > 0 ? '  /  SPORED ' + Math.ceil(sporeT) + 'S' : ''); col = '#7cff4f'; }
@@ -8702,6 +8963,11 @@ const ENTRIES = [
   { cat: 'LOG TYPE', name: 'BRAMBLE', type: 'bramble', danger: 0.55, tip: 'The vines move at their own speed. Watch them, not the log.', how: 'Thorn vines ride round the rim at their own speed and direction. Land in one and your knife is snagged: it bounces off and you are stunned for 1.2s. Three snags cut a vine down.', abil: 'Every vine is shredded.' },
   { cat: 'LOG TYPE', name: 'FUNGAL LOG', type: 'fungal', danger: 0.4, tip: 'Spores only last 4s. Hit a mushroom when the rim is clear and wait it out.', how: 'Glowing mushrooms grow in rotten wood. Hit one for double damage, but the spores get in your eyes: for 4s the view swims, doubles and turns green.', abil: 'Every mushroom bursts, +1 damage each, with no spores.' },
   { cat: 'LOG TYPE', name: 'RUNESTONE', type: 'runestone', danger: 0.3, tip: 'Three rune strikes in a row light every rune for 5s.', how: 'Five runes are carved in a ring. One lights at a time and moves on every 2.4s (it flickers just before). Hit the lit rune for double damage and 2 ability charge. Three in a row is a Runic Surge: all runes stay lit for 5s.', abil: 'Every rune lights for 6s, +1 damage.' },
+  { cat: 'LOG TYPE', name: 'SPIRALWOOD', type: 'spiralwood', danger: 0.55, tip: 'Count your hits. On the warning, look at which way each track will go.', how: 'The rim is three colour-coded spiral tracks. Every 3 hits each track slides a different way and carries its knives to new places. A warning shows on the hit before.', abil: 'The tracks seize: no more shifts this stage.' },
+  { cat: 'LOG TYPE', name: 'RESINWOOD', type: 'resinwood', danger: 0.3, tip: 'A knife in resin is still an obstacle. Crack a patch only if you need the room.', how: 'Amber resin covers parts of the rim. A knife that lands in resin sticks but does no damage. A second hit on the same patch cracks it open to plain wood.', abil: 'Every resin patch is cracked open.' },
+  { cat: 'LOG TYPE', name: 'PETRIFIED LOG', type: 'petrified', danger: 0.45, tip: 'The seams glow. Stone that takes three hits crumbles and opens a new seam.', how: 'Most of the rim is stone. Stone just bounces your knife off: no heart, no stun. Only the narrow wooden seams take a knife. Three hits crumble a stone patch.', abil: 'All the stone is blasted off.' },
+  { cat: 'LOG TYPE', name: 'EMBERCORE', type: 'embercore', danger: 0.45, tip: 'Remember where the knives are before you hit a crack.', how: 'Glowing cracks drift round the log. Hitting one makes it flare: for a few seconds the glare hides the knives near it. No countdown, no fire.', abil: 'The cracks go out for good.' },
+  { cat: 'LOG TYPE', name: 'RINGWOOD', type: 'ringwood', danger: 0.5, tip: 'Each knife wears its ring colour. Watch for the colour that is about to rise.', how: 'Three concentric rings, each with its own colour. Each knife you land joins a ring. Every 3 hits one ring rises out of the face for about 3s and its knives slide outward, reaching further into your lane.', abil: 'Every ring is hammered flat and stays down.' },
   { cat: 'BRANCH', name: 'CROW PERCH', sub: 'bird', kind: 'crow', danger: 0.7, tip: 'You have about 4s after scaring it. Break the branch then.', how: 'Scare it like any bird, but the crow flies a lap and lands again. Hitting it still ends the run.', abil: 'Shooed before the branch breaks.' },
   { cat: 'BRANCH', name: 'WOODPECKER PERCH', sub: 'bird', kind: 'pecker', danger: 0.6, tip: 'Leave it alone for a while: it makes weak spots for you.', how: 'Every few seconds it drills a fresh X2 weak spot beside its branch (up to 3). Hitting it ends the run.', abil: 'Shooed before the branch breaks.' },
   { cat: 'BRANCH', name: 'OWL PERCH', sub: 'bird', kind: 'owl', danger: 0.65, tip: 'Break the branch with an ability, or stay well away from it.', how: 'Asleep. Land a knife beside it and it wakes, swoops and stuns you for 2.5s. Hitting it ends the run.', abil: 'Shooed quietly before the branch breaks.' },
@@ -9145,7 +9411,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 44', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 45', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
