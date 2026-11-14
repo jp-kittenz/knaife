@@ -17,6 +17,7 @@
 </style>
 </head>
 <body>
+<script src="assets/pixi.min.js"></script>
 <canvas id="c" aria-label="Knaife game. Tap, click or press Space to throw a knife."></canvas>
 <script>
 'use strict';
@@ -699,6 +700,20 @@ function makeLogTexture(t) {
   }
   // ---- rim bevel ----
   g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, R - 0.4, 0, TAU); g.stroke();
+  // relief and light: an embossed copy of the grain (ridges lit from the upper left), then key, fill and rim
+  {
+    const S2 = c.width, cp = document.createElement('canvas'); cp.width = cp.height = S2; cp.getContext('2d').drawImage(c, 0, 0);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.beginPath(); g.arc(S2 / 2, S2 / 2, R * TEX, 0, TAU); g.clip();
+    g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.32; g.drawImage(cp, 1.3 * TEX, 1.3 * TEX);
+    g.globalCompositeOperation = 'screen'; g.globalAlpha = 0.2; g.drawImage(cp, -1.1 * TEX, -1.1 * TEX);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    const cx0 = S2 / 2, rr = R * TEX;
+    const key = g.createRadialGradient(cx0 - rr * 0.45, cx0 - rr * 0.5, rr * 0.05, cx0 - rr * 0.2, cx0 - rr * 0.2, rr * 1.2); key.addColorStop(0, 'rgba(255,240,215,.22)'); key.addColorStop(0.6, 'rgba(255,240,215,0)'); g.fillStyle = key; g.fillRect(0, 0, S2, S2);
+    const fill = g.createRadialGradient(cx0 + rr * 0.5, cx0 + rr * 0.6, rr * 0.1, cx0 + rr * 0.3, cx0 + rr * 0.3, rr * 1.1); fill.addColorStop(0, 'rgba(120,170,255,.10)'); fill.addColorStop(0.7, 'rgba(120,170,255,0)'); g.fillStyle = fill; g.fillRect(0, 0, S2, S2);
+    g.strokeStyle = 'rgba(255,236,200,.45)'; g.lineWidth = 1.6 * TEX; g.beginPath(); g.arc(cx0, cx0, rr - 1.2 * TEX, Math.PI * 1.02, Math.PI * 1.62); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2.2 * TEX; g.beginPath(); g.arc(cx0, cx0, rr - 1.4 * TEX, Math.PI * 0.05, Math.PI * 0.62); g.stroke();
+    g.restore();
+  }
   return c;
 }
 
@@ -905,7 +920,7 @@ function newStage() {
   const stuck = placeAngles(pre, 0.6, []);
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
-  if (!(boss && isTankStage(stage))) setHD(false);
+  setHD(true);
   const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
@@ -2024,7 +2039,7 @@ function stickNormal(k, t) {
   if (F && F.vines && F.vines.length && vineSnag(k, t, a)) return;
   if (F && F.stone && F.stone.length && stoneHit(k, t, a)) return;
   k.done = true; chargeAbility();
-  const s = { a, wob: 0.09 }; t.stuck.push(s); addMark(t, a);
+  const s = { a, wob: 0.09, pen: 9 }; t.stuck.push(s); addMark(t, a);
   if (t.tire) tireStuck(t, s, a);
   if (t.nest) nestStuck(t, s, a);
   if (t.wire) wireStuck(t, s, a);
@@ -2075,7 +2090,10 @@ function stickNormal(k, t) {
 }
 
 // what a clean hit earns: rapid-fire combos, close calls, and a beat of slow motion on the killing blow
+let microStop = 0;
 function hitJuice(t, s, a) {
+  microStop = Math.max(microStop, combo >= 2 ? 0.07 : 0.045); t.jv = (t.jv || 0) - 320; t.hitch = 1;
+  pfxRing(CX, CY + R - 2, combo >= 2 ? '#ffd23f' : '#fff3c4', 70 + combo * 8, 0.24);
   flare(CX, CY + R - 2, 1, '#ffd23f');
   combo = time - comboAt < 1.15 ? combo + 1 : 1; comboAt = time;
   rings.push({ x: CX, y: CY + R, t: 0, max: 0.2, size: 60 });
@@ -8003,7 +8021,7 @@ function drawTankArrival() {
 }
 // ======================= build 50: HD mode, sound variety, upright tanker, heavier intro =======================
 // HD: a finer pixel size and a bigger pixel budget while a boss that wants it is on screen
-function setHD(on) { const p = on ? 0.6 : PIX_GAME, x = on ? 1.6 : 1; if (PIX !== p || HDX !== x) { PIX = p; HDX = x; resize(); } }
+function setHD(on) { const p = on ? 0.68 : PIX_GAME, x = on ? 1.3 : 1; if (PIX !== p || HDX !== x) { PIX = p; HDX = x; resize(); } }
 
 // ---- sound variety: several recipes per core sound, never the same one twice in a row ----
 const sfxLast = {};
@@ -8618,10 +8636,12 @@ function isHot(c) {
 const WARM = new Set(['#ffffff', '#fff7c2', '#ffd35c', '#ffd23f', '#ffe680', '#fff3c4', '#ffe2a6']);
 function coolOf(c, f) { if (!WARM.has(c)) return c; return f > 0.6 ? c : f > 0.35 ? '#ffd23f' : f > 0.18 ? '#ff7a1a' : '#d8402f'; }
 function drawParts() {
+  PFX.M = ctx.getTransform();
   const groups = new Map();
   for (const p of parts) {
     const f = clamp(p.life / p.max, 0, 1);
     if (isHot(p.c)) {
+      if (PFX.ok) continue;
       const sp = Math.hypot(p.vx, p.vy), L = clamp(sp * 0.026, 2, 26) * (0.4 + 0.6 * f), w = Math.max(1, Math.round(p.s * 0.55 * (0.5 + 0.5 * f)));
       const key = coolOf(p.c, f) + '|' + w; let g = groups.get(key); if (!g) groups.set(key, g = []);
       const ux = sp > 1 ? p.vx / sp : 0, uy = sp > 1 ? p.vy / sp : 1; g.push(p.x, p.y, p.x - ux * L, p.y - uy * L);
@@ -8640,7 +8660,7 @@ let flares = [];
 function flare(x, y, s = 1, c = '#ffd23f') { flares.push({ x, y, s, c, t: 0, max: 0.16 + 0.06 * s }); if (flares.length > 12) flares.shift(); }
 function updateFlares(rdt) { for (const f of flares) f.t += rdt; flares = flares.filter(f => f.t < f.max); }
 function drawFlares() {
-  if (!flares.length) return;
+  if (!flares.length || PFX.ok) return;
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   for (const f of flares) {
     const u = f.t / f.max, a = 1 - u, r = (10 + 16 * f.s) * (0.6 + 0.6 * u);
@@ -8680,6 +8700,81 @@ function drawMillLight(px, py) {
   ctx.restore();
   // dust turning in the beam
   for (let i = 0; i < 26; i++) { const h = hash(i, 9, 44), y = ((h * 900 + time * (8 + h * 10)) % 520) - 40, spread = 30 + (y + 90) / (CY + R + 240) * 160, x = lx + Math.sin(time * 0.5 + i * 2.3) * spread * (hash(i, 9, 45) - 0.5) * 2; ctx.fillStyle = `rgba(255,226,170,${0.25 + 0.45 * Math.abs(Math.sin(time * 1.4 + i))})`; ctx.fillRect(x, y, 1.6, 1.6); }
+}
+
+// ======================= PixiJS GPU effects layer (build 51) =======================
+// A transparent PixiJS canvas over the game, sharing the game camera's matrix, draws the hot, emissive effects at full
+// display resolution: spark streaks cooling white -> red, soft glows, lens-flare crosses, impact rings and knife trails.
+// One texture atlas, one ParticleContainer, one fixed pool reused every frame (dense swap: no allocation per burst).
+const PFX = { ok: false, app: null, layer: null, pool: [], used: 0, T: {}, M: null, ev: [] };
+const hexCache = new Map();
+function hexInt(c) { let v = hexCache.get(c); if (v === undefined) { const m = /^#([0-9a-f]{6})$/i.exec(c || ''); v = m ? parseInt(m[1], 16) : 0xffffff; hexCache.set(c, v); } return v; }
+async function initPixiFX() {
+  if (!window.PIXI || !PIXI.Application || PFX.app) return;
+  try {
+    const app = new PIXI.Application();
+    await app.init({ backgroundAlpha: 0, antialias: false, resolution: 1, autoDensity: true, resizeTo: window, autoStart: false, preference: 'webgl' });
+    app.ticker.stop();
+    app.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3';
+    document.body.appendChild(app.canvas);
+    // atlas: soft dot, ring, streak (bright head at the right), thin flare bar
+    const c = document.createElement('canvas'); c.width = 256; c.height = 192; const g = c.getContext('2d');
+    let gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.22, 'rgba(255,255,255,.85)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = '#fff'; g.lineWidth = 5; g.beginPath(); g.arc(128, 64, 58, 0, TAU); g.stroke();
+    gr = g.createLinearGradient(0, 0, 128, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.8, 'rgba(255,255,255,.85)'); gr.addColorStop(1, '#fff'); g.fillStyle = gr; g.beginPath(); g.ellipse(64, 136, 64, 7, 0, 0, TAU); g.fill();
+    gr = g.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, '#fff'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 166, 256, 4);
+    const src = PIXI.Texture.from(c).source, fr = (x, y, w, h) => new PIXI.Texture({ source: src, frame: new PIXI.Rectangle(x, y, w, h) });
+    Object.assign(PFX.T, { dot: fr(0, 0, 64, 64), ring: fr(64, 0, 128, 128), streak: fr(0, 128, 128, 16), bar: fr(0, 160, 256, 16) });
+    const PC = PIXI.ParticleContainer && PIXI.Particle;
+    const layer = PC ? new PIXI.ParticleContainer({ dynamicProperties: { vertex: true, position: true, rotation: true, uvs: true, color: true }, texture: PFX.T.dot }) : new PIXI.Container();
+    layer.blendMode = 'add'; app.stage.addChild(layer);
+    for (let i = 0; i < 1500; i++) {
+      let p;
+      if (PC) { p = new PIXI.Particle({ texture: PFX.T.dot, anchorX: 0.5, anchorY: 0.5, alpha: 0 }); layer.addParticle(p); }
+      else { p = new PIXI.Sprite(PFX.T.dot); p.anchor.set(0.5); p.alpha = 0; p.blendMode = 'add'; layer.addChild(p); }
+      PFX.pool.push(p);
+    }
+    Object.assign(PFX, { ok: true, app, layer, PC: !!PC });
+  } catch (e) { PFX.ok = false; }
+}
+function pfxRing(x, y, col, size = 90, max = 0.28) { PFX.ev.push({ k: 'ring', x, y, col: hexInt(col), size, t: 0, max }); if (PFX.ev.length > 40) PFX.ev.shift(); }
+function updatePfx(rdt) { for (const e of PFX.ev) e.t += rdt; PFX.ev = PFX.ev.filter(e => e.t < e.max); }
+function pfxFrame() {
+  if (!PFX.ok) return;
+  const { pool, T } = PFX, show = PFX.M && (state === 'play' || state === 'fx' || state === 'clearing') && glMode.fm === 0 && glMode.gy < 0.3 && !(fx && /intro$/.test(fx.type));
+  let i = 0;
+  const put = (tex, x, y, sx, sy, rot, tint, a, ax = 0.5) => {
+    if (i >= pool.length || a <= 0.01) return; const p = pool[i++];
+    p.texture = tex; p.x = x; p.y = y; p.rotation = rot; p.tint = PFX.PC ? ((tint & 255) << 16) | (tint & 0xff00) | (tint >> 16) : tint; p.alpha = a;
+    if (PFX.PC) { p.scaleX = sx; p.scaleY = sy; p.anchorX = ax; p.anchorY = 0.5; } else { p.scale.set(sx, sy); p.anchor.set(ax, 0.5); }
+  };
+  if (show) {
+    const M = PFX.M, k = cv.width / (view.clientWidth || window.innerWidth);
+    PFX.layer.setFromMatrix(new PIXI.Matrix(M.a / k, M.b / k, M.c / k, M.d / k, M.e / k, M.f / k));
+    // knife trails
+    for (const kn of flying) put(T.streak, CX, kn.y + 6, (kn.ability ? 200 : 150) / 128, (kn.ability ? 14 : 9) / 16, -HALF, kn.ability ? 0xffd23f : 0xc8f4ff, 0.55, 1);
+    // sparks: a streak along the velocity plus a soft head glow
+    for (const q of parts) {
+      if (!isHot(q.c)) continue;
+      const f = clamp(q.life / q.max, 0, 1), sp = Math.hypot(q.vx, q.vy), L = clamp(sp * 0.032, 3, 38) * (0.4 + 0.6 * f), col = hexInt(coolOf(q.c, f)), w = (q.s * 0.9 + 1.2) / 16;
+      put(T.streak, q.x, q.y, L / 128, w, Math.atan2(q.vy, q.vx), col, Math.min(1, f * 1.5), 1);
+      const gs = (q.s * 2.6 + 5) / 64; put(T.dot, q.x, q.y, gs, gs, 0, col, 0.5 * f);
+    }
+    // flares: two crossed bars, a hot core, a wide halo
+    for (const fl of flares) {
+      const u = fl.t / fl.max, a = 1 - u, col = hexInt(fl.c), L = (70 + 80 * fl.s) * (1 - 0.35 * u);
+      put(T.bar, fl.x, fl.y, L / 128, 1.2 + fl.s * 0.6, 0, col, a); put(T.bar, fl.x, fl.y, L * 0.45 / 128, 1, HALF, col, a * 0.75);
+      const cs = (18 + 26 * fl.s) / 64 * (0.8 + 0.5 * u); put(T.dot, fl.x, fl.y, cs, cs, 0, 0xffffff, a); const hs = (70 + 70 * fl.s) / 64; put(T.dot, fl.x, fl.y, hs, hs, 0, col, 0.35 * a);
+    }
+    // impact rings
+    for (const e of PFX.ev) { const u = e.t / e.max, s = e.size * (0.25 + 0.75 * ease3(u)) / 58; put(T.ring, e.x, e.y, s, s, 0, e.col, (1 - u) * 0.9); }
+  }
+  for (let j = i; j < PFX.used; j++) pool[j].alpha = 0;
+  const was = PFX.used; PFX.used = i;
+  // nothing to draw: clear once, then hide the layer so the compositor skips it entirely
+  if (i === 0) { if (was) PFX.app.renderer.render(PFX.app.stage); if (PFX.app.canvas.style.visibility !== 'hidden') PFX.app.canvas.style.visibility = 'hidden'; return; }
+  if (PFX.app.canvas.style.visibility === 'hidden') PFX.app.canvas.style.visibility = 'visible';
+  PFX.app.renderer.render(PFX.app.stage);
 }
 
 // ---- EAT: the meal flies to the empty heart slot and the heart re-forms ----
@@ -8970,13 +9065,14 @@ function breakFeatures(t) {
 // ---------- update ----------
 function update(dt) {
   time += dt;
-  updateMusic(dt); updateFlares(dt); updateTankArrival(dt);
+  updateMusic(dt); updateFlares(dt); updateTankArrival(dt); updatePfx(dt);
   if (state === 'tomenu') { updateToMenu(dt); return; }
   if (state === 'menu') { updateMenu(dt); return; }
   heartT = Math.max(0, heartT - dt * 1.5);
   updateAbility(dt);
   lightIn = Math.max(0, lightIn - dt);                    // real time: boss intros freeze game time
   if (updateFx(dt)) return;                               // ability hit-stop freeze
+  if (microStop > 0) { microStop -= dt; dt *= 0.06; }
   dt *= tscale * ixSlow();
   if (state === 'impact') {
     impactT = Math.max(0, impactT - dt);
@@ -9011,7 +9107,9 @@ function update(dt) {
       for (let i = 0; i < 14; i++) splinter(CX + rand(-R, R), CY + R, t, 300);
       sfx.land();
     }
-    t.rot += t.pat(t.t) * dt;
+    t.rot += t.pat(t.t) * dt * (1 - 0.75 * (t.hitch || 0)); t.hitch = Math.max(0, (t.hitch || 0) - dt * 6);
+    t.jv = ((t.jv || 0) + (-520 * (t.jy || 0) - 18 * (t.jv || 0)) * dt); t.jy = (t.jy || 0) + t.jv * dt;
+    for (const k of t.stuck) if (k.pen) { k.penV = (k.penV || 0) + (-1100 * k.pen - 24 * (k.penV || 0)) * dt; k.pen += k.penV * dt; if (Math.abs(k.pen) < 0.05 && Math.abs(k.penV) < 2) k.pen = 0; }
     t.hit = Math.max(0, t.hit - dt * 7);
     for (const k of t.stuck) if (k.wob) k.wob *= Math.exp(-dt * 4);
     emitSmoke(t, dt);
@@ -9174,13 +9272,13 @@ function drawTarget() {
   ctx.save();
   ctx.globalAlpha = se;
   const sw = t.tank ? t.tank.swell : 0, swS = 1 + 0.35 * sw * sw + Math.sin(time * 45) * 0.025 * sw;
-  ctx.translate(CX + (sw ? rand(-3, 3) * sw : 0), CY - 7 * t.hit + drop + (t.tank ? t.tank.introY : 0));
+  ctx.translate(CX + (sw ? rand(-3, 3) * sw : 0), CY - 7 * t.hit + drop + (t.tank ? t.tank.introY : 0) + (t.jy || 0));
   if (t.gear) { ctx.translate(t.gear.ox, t.gear.oy); ctx.scale(t.gear.s, t.gear.s); }
   if (t.tire) { ctx.translate(t.tire.ox, t.tire.oy); ctx.scale(t.tire.s, t.tire.s); }
   if (t.nest) { ctx.translate(t.nest.ox, t.nest.oy); ctx.scale(t.nest.s, t.nest.s); }
   if (t.wire) { ctx.translate(t.wire.ox, t.wire.oy); ctx.scale(t.wire.s, t.wire.s); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
-  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
+  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0) - (k.pen || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
   drawLogSide(t);
   ctx.save(); ctx.translate(plx.x * 0.45, 8 + plx.y * 0.45); ctx.scale(1.12, 1.12);
   blit(bakeSprite('logShadow', -R - 40, -R - 26, 2 * R + 80, 2 * R + 80, g => {
@@ -9922,6 +10020,7 @@ function draw() {
   outFilter(f);
   if (pieces.length) drawPieces();
   pixelate();
+  pfxFrame();
 }
 
 // ---------- pixel look: limited palette + 4x4 ordered dither ----------
@@ -10825,7 +10924,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 50', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 51', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -11143,7 +11242,7 @@ function setAdmin(open) {
   }));
 })();
 
-initGL(); resize();
+initGL(); resize(); initPixiFX();
 enterMenu(true);
 requestAnimationFrame(frame);
 // test hook

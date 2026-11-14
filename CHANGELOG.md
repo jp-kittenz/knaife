@@ -2,6 +2,20 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 51
+- **PixiJS GPU effects layer** (PixiJS 8.6.6, vendored in `assets/`):
+  - A full-resolution overlay that shares the game camera draws all hot effects crisp, over the pixel-art world.
+  - Effects: spark streaks that cool from white to red, soft glows, lens-flare crosses, impact rings and knife flight trails.
+  - Particles come from one texture atlas, one ParticleContainer and a reused pool of 1,500.
+  - The layer hides itself when there is nothing to draw and during black-and-white frames. Without WebGL the old canvas effects are used.
+- **Punchier feel:**
+  - A 45 ms hit-stop on every stick (70 ms in combos).
+  - The log jolts on a spring and its spin hitches on each hit.
+  - Every knife drives past its seat and springs back.
+  - An impact ring pops at the stick point.
+- **Crisper everywhere:** higher-resolution rendering in every stage, with lighter dithering and a smoother palette blend.
+- **Lit log faces:** the end grain is embossed so ridges catch the light, with a warm key light from the upper left, a cool fill from below and a rim highlight.
+
 ## Build 50
 - **Water Tanker intro, round two.**
   - **Music:** the boss track now starts on the very first black frame, from its first note. The intro holds on black until the track is actually playing, then stays locked to it.
