@@ -2,6 +2,28 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 47
+- **The Wire Clump, redesigned**: it is now a real 3D ball of cable. Two dozen insulated wires are wound like a ball of yarn, depth-sorted and lit, and it wobbles as it spins.
+  - A charged core glows through the gaps and swells with the beat and the voltage.
+  - Current crawls along the strands, and cut ends spark.
+  - Braids are thick twisted copper-and-steel rope with brass ferrules.
+  - Heavy ribbed conduits run to junction boxes on the walls.
+  - The wire cutters are giant bolt cutters with red grips and a countdown.
+  - Ground wires hang with a hazard tag.
+- **The Wire Clump, nerfed**:
+  - 22 hits (was 26).
+  - Longer safe spells and shorter dangerous ones. Only DANGEROUS counts now, not RISING.
+  - Bare wire costs 9% stability (was 14%), and braid hits restore 3%.
+  - Cutters snip for 12% (was 18%), arrive less often and give you longer to smash them.
+  - Fewer, shorter-lived ground wires, a 2s stun, rarer random cable snaps.
+- **Boss backgrounds rebuilt, packed with energy and on theme**:
+  - Water Tanker: a flooded pump station with sloshing tank gauges, racing flow arrows and swells.
+  - Gearbox: an engine room with gears stepping a tooth per beat, pistons hammering in turn, a conveyor and furnace embers.
+  - Monster Tire: a midnight arena with a striped synthwave sun, a bouncing crowd, chasing floodlights, a neon grid floor, fireworks and flame jets.
+  - Hornet's Nest: light washing across the comb, dripping honey and rivers of hornets. The Queen gets crimson comb and a turning crown of spikes.
+  - Wire Clump: a storm over pylons, live lines, Tesla coils firing on the beat, sky lightning every bar and a circuit floor.
+- **Every boss intro reworked as a slow cinematic**: four long takes that fade in and out of black, slow camera moves, captions that wipe in, then the arena light comes up as the boss is lowered, rises, rolls or swings in, and the title rises letter by letter.
+
 ## Build 46
 - New stage-5 boss: **The Wire Clump**, with its own music.
   - Braided spots are safe. Bare wire deals x3 damage but drains **Stability**, and at 0 the clump explodes and ends the run.

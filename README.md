@@ -53,3 +53,8 @@ A knife-throwing web game. Open `index.html` in a browser.
 - Beat-synced boss backgrounds. Each track's tempo and first downbeat were measured (Tanker 131, Gearbox 170.1, Tire 199.75, Nest 150.05, Queen 149.8, Wire 104.02 BPM). The beat clock follows the audio clock and wraps on the loop points.
 - Admin panel (bottom-left gear): next log type, next boss, next stage / boss now, refill hearts, charge ability, god mode.
 - 38 ability interactions per knife.
+
+## Build 47
+- Wire Clump redrawn as a live 3D cable ball (great-circle strands, per-frame rotation, depth sort, fixed lighting) and nerfed (22 HP, gentler voltage cycle, smaller stability penalties, braids restore stability).
+- New themed, beat-driven backgrounds for all five bosses, with a shadow pool behind the boss and down the lane to keep the action readable.
+- New cinematic director for boss intros: slow shots with fades, camera drift, wiped captions, a slow reveal under a spotlight and a letter-by-letter title.
