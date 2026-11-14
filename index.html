@@ -278,6 +278,11 @@ const sfx = {
   rubberThud() { tone('sine', 150, 55, 0.2, 0.4, { drive: true }); noise(0.1, 300, 1, 0.3, 'lowpass'); },
   puncture() { noise(0.07, 3000, 1, 0.5, 'highpass'); tone('square', 500, 120, 0.09, 0.14); noise(0.45, 5200, 0.7, 0.22, 'highpass', { curve: 1.6, delay: 0.05 }); },
   deflate() { noise(1.4, 4600, 0.8, 0.4, 'highpass', { curve: 0.8, sweepTo: 1400, wet: 0.4 }); tone('sawtooth', 520, 70, 1.4, 0.05, { wet: 0.5 }); },
+  hornetBuzz() { tone('sawtooth', 148, 156, 0.9, 0.05, { wet: 0.3 }); tone('sawtooth', 152, 147, 0.9, 0.045); tone('square', 296, 300, 0.7, 0.012, { delay: 0.05 }); noise(0.8, 420, 2, 0.12, 'bandpass', { curve: 0.7 }); },
+  sting() { tone('square', 1900, 900, 0.07, 0.09); noise(0.06, 3200, 1, 0.32, 'highpass'); tone('sine', 230, 90, 0.2, 0.22, { drive: true }); },
+  paperRip() { noise(0.22, 1700, 1.2, 0.4, 'bandpass', { sweepTo: 3400 }); noise(0.12, 700, 1, 0.25, 'bandpass', { delay: 0.04 }); },
+  shriek() { tone('sawtooth', 900, 2300, 0.45, 0.06, { wet: 0.6 }); tone('square', 1300, 640, 0.55, 0.035, { delay: 0.08, wet: 0.5 }); noise(0.5, 2600, 4, 0.2, 'bandpass', { sweepTo: 5200 }); },
+  squelch() { tone('sine', 320, 80, 0.2, 0.3, { drive: true }); noise(0.14, 520, 2, 0.3, 'bandpass', { sweepTo: 200 }); },
   boing() { tone('sine', 160, 620, 0.18, 0.25, { wet: 0.4 }); tone('sine', 620, 240, 0.3, 0.15, { delay: 0.16, wet: 0.4 }); tone('triangle', 320, 900, 0.12, 0.08, { delay: 0.05 }); },
   hiss() { noise(0.8, 4200, 0.6, 0.45, 'highpass', { curve: 1.4, wet: 0.4 }); noise(0.5, 900, 1, 0.25, 'bandpass', { curve: 2 }); },
   bees() { tone('sawtooth', 218, 232, 1.3, 0.05, { wet: 0.3 }); tone('sawtooth', 247, 238, 1.3, 0.04); tone('sawtooth', 196, 205, 1.1, 0.03, { delay: 0.1 }); },
@@ -371,7 +376,7 @@ const sfx = {
 };
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3' };
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
   return music.tracks[name] || (music.tracks[name] = { name, el: null, node: null, buf: null, filt: null, gain: null, mix: 0, loading: false, failed: false });
@@ -423,12 +428,14 @@ function updateMusic(rdt) {
   else if (state === 'over') { rate = 0.75; cut = 900; vol = 0.35; }
   else if (state === 'rewind') { rate = rewindT < REW_SWITCH ? 0.7 : 1; cut = rewindT < REW_SWITCH ? 500 : 20000; }
   else if (fx && fx.type === 'tankintro') { rate = 1; cut = fx.t < SHOT.reveal ? 900 + 2600 * clamp(fx.t / SHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'nestintro') { rate = 1; cut = fx.t < NSHOT.reveal ? 600 + 3000 * clamp(fx.t / NSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = fx.t < TSHOT.reveal ? 800 + 2800 * clamp(fx.t / TSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = fx.t < GSHOT.reveal ? 700 + 3200 * clamp(fx.t / GSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
   if (zapT > 0) cut = 900;
   if (music.cur === 'boss') vol *= 1.1;
   if (music.cur === 'gear') vol *= 1.2;
+  if (music.cur === 'tire') vol *= 0.95;
   music.rate += (rate - music.rate) * Math.min(1, rdt * 6); music.cut += (cut - music.cut) * Math.min(1, rdt * 8);
   music.t -= rdt; const tick = music.t <= 0; if (tick) music.t = 0.1;
   for (const name in music.tracks) {
@@ -627,10 +634,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -799,7 +806,7 @@ function menuTarget() {
 }
 
 function newStage() {
-  if (isFirstBossSlot(stage)) firstBoss = forceBoss || ['tank', 'gear', 'tire'][Math.floor(rand(3))];
+  if (isFirstBossSlot(stage)) firstBoss = forceBoss || ['tank', 'gear', 'tire', 'nest'][Math.floor(rand(4))];
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
   knivesLeft = knivesTotal;
@@ -807,10 +814,10 @@ function newStage() {
   const stuck = placeAngles(pre, 0.6, []);
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
-  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage);
-  const pal = boss ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
-  tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss), stuck, appleAngles, boss);
-  const type = tanker || gearB || tireB ? 'plain' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage);
+  const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
+  tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
+  const type = tanker || gearB || tireB ? 'plain' : nestB ? 'branches' : forceType || (stage === 1 ? 'plain' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   fxp = []; pending = []; zapT = 0;
   if (abil.state === 'used' && !fx) { abil.state = 'cooldown'; abil.charge = 0; }
@@ -822,6 +829,14 @@ function newStage() {
   if (tanker) { setupTanker(tgt); knivesTotal = knivesLeft = TANK_HP; banner.t = 0; startTankIntro(tgt); }
   if (gearB) { setupGear(tgt); knivesTotal = knivesLeft = GEAR_HP; banner.t = 0; startGearIntro(tgt); }
   if (tireB) { setupTire(tgt); knivesTotal = knivesLeft = TIRE_HP; banner.t = 0; startTireIntro(tgt); }
+  if (nestB) {   // in disguise: a branched log with one beehive on it
+    const F = tgt.f, taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a));
+    const far = () => { let best = 0, bd = -1; for (let i = 0; i < 72; i++) { const a = i / 72 * TAU, d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } } taken.push(best); return best; };
+    const ha = far(), pa = far();
+    F.branches = [makeBranch(ha, 'hive'), makeBranch(pa, 'plain')]; F.links = [];
+    tgt.nestBait = true; knivesTotal = knivesLeft = Math.min(5 + Math.ceil(stage * 0.6), 10);
+    banner = { text: 'STAGE ' + stage, sub: TYPE_NAME.branches, t: 1.4, color: '#fff' };
+  }
 }
 
 function startGame() {
@@ -873,6 +888,7 @@ function stepKnife(k) {
   if (t.gear) sprocketHit(k, t);
   if (t.gear && gearChainHit(k, t)) return;
   if (t.tire && !k.ability && !k.wood && tireNutHit(k, t)) return;
+  if (t.nest && nestFlightHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -892,6 +908,7 @@ function stepKnife(k) {
           hitWood = true; break;
         }
         if (t.tire && t.tire.ripe && t.tire.layer === 'rubber' && !k.wood) { tireKnockOut(k, t, s, px, py); return; }
+        if (!k.ability && !k.wood && nestKnifeInfested(t, s)) { burst(px, py, 14, ['#ffd23f', '#08080a'], 300, 20, 2.5, 0.3); nestSwarm(k, t, 'INFESTED KNIFE!'); return; }
         if (k.ability) abilityClank(k, s);
         else if (Math.abs(d) >= GRAZE) ricochet(k, s, d, px, py);
         else fail(k);
@@ -995,6 +1012,9 @@ function clearStage() {
   if (t.tank && !t.tank.dead) { t.tank.dead = true; startTankDeath(t); return; }
   if (t.gear && !t.gear.dead) { t.gear.dead = true; startGearDeath(t); return; }
   if (t.tire && !t.tire.dead) { t.tire.dead = true; startTireDeath(t); return; }
+  if (t.nestBait) { if (t.nestGo && !fx) { t.nestPending = false; startNestIntro(t); } return; }
+  if (t.nest && !t.nest.queen) { startQueenRise(t); return; }
+  if (t.nest && !t.nest.dead) { t.nest.dead = true; startNestDeath(t); return; }
   state = 'clearing'; clearT = CLEAR_TOTAL; clearCues = {};
   breakTarget(t);
   if (t.boss) { banner = { text: 'BOSS DOWN!', sub: '+5 bonus', t: 1.1, color: '#ffd35c' }; score += 5; }
@@ -1394,12 +1414,13 @@ function abilityStick(k) {
   const t = tgt;
   let bonus = 0;
   if (!k.hooked) { k.hooked = true; bonus = ABILITY.onImpact(t, normA(HALF - t.rot)); }
-  const extra = (k.dmg === 1 ? 0 : 1) + bonus, remaining = Math.max(0, knivesLeft - extra);
+  const extra = (k.dmg === 1 ? 0 : 1) + bonus, remaining = Math.max(t.nestBait ? 1 : 0, knivesLeft - extra);
   const lethal = remaining === 0;
   if (extra && lethal) { startSlice(k); return; }                       // CASE 2
   k.done = true;
   const a = HALF - t.rot;
   t.stuck.push({ a, ability: true, wob: 0.14 }); addCrater(t, a); addMark(t, a);
+  if (t.nest) nestCount(t, 1 + extra);
   knivesLeft = remaining; score += 1 + extra; t.hit = 1;
   if (t.f && t.f.treehole && inArc(a, t.f.treehole.a, t.f.treehole.w)) t.f.treehole.gulp = 1;
   burst(CX, CY + R, 90, [t.pal.light, t.pal.dark, t.pal.bark, '#222'], 820, 160, 8, 1.1);
@@ -1533,6 +1554,9 @@ function updateFx(rdt) {
     case 'tireintro': updateTireIntro(t); break;
     case 'tiredeath': updateTireDeath(t); break;
     case 'tiredeflate': updateTireDeflate(t); break;
+    case 'nestintro': updateNestIntro(t); break;
+    case 'queenrise': updateQueenRise(t); break;
+    case 'nestdeath': updateNestDeath(t); break;
     case 'catch': updateCatchFx(t); break;
     case 'slice':
       fxFilter = TWO_TONE;
@@ -1827,9 +1851,11 @@ function stickNormal(k, t) {
   let ovTrigger = PASSIVE && PASSIVE.id === 'overvolt' && inChainArc(t, a);
   if (F) for (const z of F.arcs) if (inArc(a, z.a, z.w)) { if (PASSIVE && PASSIVE.id === 'overvolt') { ovTrigger = true; break; } electrocute(k, t); return; }
   if (t.tire && tireRubberHit(k, t, a)) return;
+  if (t.nest && nestSurfaceHit(k, t, a)) return;
   k.done = true; chargeAbility();
   const s = { a, wob: 0.09 }; t.stuck.push(s); addMark(t, a);
   if (t.tire) tireStuck(t, s, a);
+  if (t.nest) nestStuck(t, s, a);
   if (t.gear) {
     const T = t.gear, bi = Math.round(normA(a) / TAU * GEAR_TEETH) % GEAR_TEETH;
     burst(CX, CY + R, 22, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 60, 2.5, 0.45); sfx.clank();
@@ -1901,6 +1927,7 @@ function breakBranch(t, b, byAbility) {
     case 'hive': {
       debris.push({ kind: 'hive', x, y, vx: rand(-80, 80), vy: -120, rot: 0, vr: rand(-4, 4) });
       branchDebris(t, b); sfx.snap();
+      if (t.nestBait && !t.nestGo) { t.nestGo = true; t.nestAt = [x, y]; if (!fx && state === 'play') startNestIntro(t); else t.nestPending = true; break; }
       if (!byAbility) {
         abil.pauseT = 30;
         for (let i = 0; i < 26; i++) fxp.push({ kind: 'bee', x, y, vx: rand(-200, 200), vy: rand(-200, 100), ph: rand(TAU), life: rand(1.2, 2), max: 2 });
@@ -4591,7 +4618,7 @@ const TI_END = TSHOT.reveal + 1.8;
 function startTireIntro(t) {
   fx = { type: 'tireintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
   t.tire.hide = true; cinema(true, 0.9);
-  setMusic('boss'); sfx.heartbeat(); sfx.groanFar();
+  setMusic('tire'); sfx.heartbeat(); sfx.groanFar();
 }
 // shock rings and sparks keep moving in real time while an intro has game time frozen
 function introTick(d) {
@@ -4751,6 +4778,771 @@ function drawTireIntro(t) {
     for (let d = 10; d >= 1; d--) text('MONSTER TIRE', d * 0.7, d * 0.9, 34, d > 6 ? '#08080a' : '#38383f', 'center', 700);
     text('MONSTER TIRE', -2, 0, 34, '#ff7a1a', 'center', 700); text('MONSTER TIRE', 2, 0, 34, '#ff2e45', 'center', 700); text('MONSTER TIRE', 0, 0, 34, '#ffffff', 'center', 700);
     text(typed('RUBBER ' + TIRE_RUBBER + '  /  STEEL ' + TIRE_STEEL + '  /  BURNOUT EVERY ' + TIRE.slow + 'S', 0.15, s0, 50), 0, 32, 9, '#ffffff', 'center', 700);
+    ctx.restore();
+  }
+  if (fx.cutFlash > 0) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${fx.cutFlash})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
+}
+
+// ======================= BOSS: HORNET'S NEST =======================
+// Stage 5 starts as a plain log with a beehive branch. Break the hive and the real boss wakes up.
+// Wasps orbit it on two rings and sting knives that cross them. Infested spots and infested knives jam the
+// ability for 40s (and cost a heart if you are already swarmed). Every 8 hits a breach opens (x2 once),
+// more wasps pour out and more of them crawl over the screen. At 0 the queen hatches and rebuilds it to 10.
+const NEST_PAL = { name: "HORNET'S NEST", style: 'nest', bark: '#5e2e10', barkHi: '#e09a52', barkLo: '#2a1408', sap: '#ffd23f', heart: '#a85e28',
+  ring: 'rgba(0,0,0,.35)', ray: 'rgba(255,255,255,.08)', light: '#ffe2a6', dark: '#874419', knot: '#45210b' };
+const NEST_HP = 24, QUEEN_HP = 10, BREACH_EVERY = 8, NEST_ORB = [R + 26, R + 54], QUEEN_ORB = R + 84;
+const NEST_JAM = 40, WASP_STUN = 4;
+const isNestStage = n => isFirstBossSlot(n) && firstBoss === 'nest';
+const nestBusy = () => !!(fx && (fx.type === 'nestintro' || fx.type === 'queenrise' || fx.type === 'nestdeath'));
+const QUEEN_MOVES = ['guard', 'volley', 'jelly', 'swarm', 'dive'];
+const QUEEN_NAMES = { guard: 'ROYAL GUARD', volley: 'STINGER VOLLEY', jelly: 'ROYAL JELLY', swarm: 'SWARM CALL', dive: 'DIVE BOMB' };
+
+// ---------- art ----------
+// a hornet facing +x. o.queen: bigger crown and orange body; o.crawl: wings folded, legs out; o.dark: near-camera silhouette
+function drawHornet(x, y, s, ang, ph, o = {}) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+  const flap = o.crawl ? 0.1 : 0.5 + 0.5 * Math.sin(ph * 47), dk = o.dark;
+  if (o.crawl || o.legs) {
+    ctx.strokeStyle = '#08080a'; ctx.lineWidth = 0.7; ctx.beginPath();
+    for (let i = -1; i <= 1; i++) for (const sd of [-1, 1]) { const st = Math.sin(ph * 14 + i * 2 + (sd > 0 ? Math.PI : 0)) * 1.2; ctx.moveTo(i * 1.6, sd * 1.5); ctx.lineTo(i * 2.2 + st, sd * 4.4); ctx.lineTo(i * 3 + st, sd * 5.4); }
+    ctx.stroke();
+  }
+  // wings behind the body
+  ctx.fillStyle = dk ? 'rgba(8,8,10,.35)' : 'rgba(220,232,244,.42)';
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-3, sd * (2.4 + 3.4 * flap), 7, 2.2 + 1.4 * flap, sd * (0.3 + 0.45 * flap), 0, TAU); ctx.fill(); }
+  // abdomen with stripes
+  ctx.save(); ctx.beginPath(); ctx.ellipse(-6.2, 0, 6.6, 3.9, 0, 0, TAU); ctx.fillStyle = dk ? '#16161b' : o.queen ? '#ff7a1a' : '#ffd23f'; ctx.fill(); ctx.clip();
+  ctx.fillStyle = dk ? '#08080a' : '#08080a'; for (const sx of [-10.4, -7.4, -4.4]) ctx.fillRect(sx, -4, 1.7, 8);
+  if (!dk) { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-11, -3.3, 9, 1); }
+  ctx.restore();
+  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(-13.4, 0); ctx.lineTo(-11.6, -1); ctx.lineTo(-11.6, 1); ctx.fill();
+  // thorax and head
+  ctx.fillStyle = dk ? '#08080a' : '#45210b'; ctx.beginPath(); ctx.ellipse(0, 0, 3.3, 2.9, 0, 0, TAU); ctx.fill();
+  if (!dk) { ctx.fillStyle = '#ffd23f'; ctx.fillRect(-1.6, -2.2, 1.4, 1); ctx.fillRect(-1.6, 1.2, 1.4, 1); }
+  ctx.fillStyle = dk ? '#16161b' : o.queen ? '#ffa04a' : '#ff7a1a'; ctx.beginPath(); ctx.ellipse(4.3, 0, 2.6, 2.9, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = o.queen && !dk ? '#ff2e45' : '#08080a'; ctx.beginPath(); ctx.ellipse(4.9, -1.7, 1.3, 1.1, 0, 0, TAU); ctx.ellipse(4.9, 1.7, 1.3, 1.1, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#08080a'; ctx.lineWidth = 0.6; ctx.beginPath();
+  for (const sd of [-1, 1]) { const tw = Math.sin(ph * 9 + sd) * 0.6; ctx.moveTo(6.2, sd * 0.8); ctx.quadraticCurveTo(8.6, sd * (2.4 + tw), 9.8, sd * (4.2 + tw)); }
+  ctx.stroke();
+  if (o.queen && !dk) {   // crown and a gold collar
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(2.6, -2.4); ctx.lineTo(2.2, -4.6); ctx.lineTo(3.2, -3.2); ctx.lineTo(3.9, -5.2); ctx.lineTo(4.4, -3.1); ctx.lineTo(5.4, -4.4); ctx.lineTo(5.3, -2.3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffe680'; ctx.fillRect(1.5, -3, 0.8, 6);
+  }
+  ctx.restore();
+}
+// layered paper: scalloped bands from the rim inward, a dark entrance in the middle
+function nestArt(g, r, seed) {
+  const rnd = mulberry(seed || 9);
+  const base = g.createRadialGradient(-r * 0.3, -r * 0.35, 4, 0, 0, r);
+  base.addColorStop(0, '#f2cf94'); base.addColorStop(0.6, '#a85e28'); base.addColorStop(1, '#45210b');
+  g.fillStyle = base; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+  const cols = ['#e09a52', '#c97a35', '#f2cf94', '#a85e28', '#ffe2a6', '#f2b766', '#ffe2a6', '#874419'];
+  let i = 0;
+  for (let q = r; q > r * 0.2; q -= r * (0.085 + rnd() * 0.03), i++) {
+    const n = Math.max(7, Math.round(q / 9)), wob = rnd() * TAU;
+    g.beginPath();
+    for (let j = 0; j <= n; j++) {   // scallops: little outward bulges
+      const a0 = j / n * TAU + wob, a1 = (j + 0.5) / n * TAU + wob, rr = q * (0.97 + 0.03 * Math.sin(j * 1.7 + i));
+      if (!j) g.moveTo(Math.cos(a0) * rr, Math.sin(a0) * rr);
+      g.quadraticCurveTo(Math.cos(a1) * (rr + q * 0.045), Math.sin(a1) * (rr + q * 0.045), Math.cos((j + 1) / n * TAU + wob) * rr, Math.sin((j + 1) / n * TAU + wob) * rr);
+    }
+    g.closePath();
+    const gr = g.createRadialGradient(-q * 0.3, -q * 0.3, 2, 0, 0, q); gr.addColorStop(0, cols[i % cols.length]); gr.addColorStop(1, shadeHex(cols[i % cols.length], 0.62));
+    g.fillStyle = gr; g.fill();
+    g.strokeStyle = 'rgba(42,20,8,.75)'; g.lineWidth = Math.max(0.8, r * 0.012); g.stroke();
+    // fibre streaks along the band
+    g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 0.6;
+    for (let k = 0; k < 7; k++) { const a = rnd() * TAU, rr = q * (0.9 + rnd() * 0.06); g.beginPath(); g.arc(0, 0, rr, a, a + 0.15 + rnd() * 0.3); g.stroke(); }
+  }
+  // entrance
+  g.fillStyle = '#45210b'; g.beginPath(); g.ellipse(0, 0, r * 0.19, r * 0.17, 0, 0, TAU); g.fill();
+  g.fillStyle = '#08080a'; g.beginPath(); g.ellipse(0, r * 0.01, r * 0.14, r * 0.12, 0, 0, TAU); g.fill();
+}
+function shadeHex(h, k) { const n = parseInt(h.slice(1), 16); return `rgb(${Math.round((n >> 16) * k)},${Math.round((n >> 8 & 255) * k)},${Math.round((n & 255) * k)})`; }
+function makeNestTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  nestArt(g, R, t.seed || 9);
+  return c;
+}
+let nestIntroTex = null;
+function hexPath(x, y, r) { ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + Math.PI / 6; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); } ctx.closePath(); }
+function drawNestLive(t) {
+  const T = t.nest;
+  // infested patches: broken paper with comb and crawling wasps
+  for (const sp of T.spots) {
+    ctx.save(); ctx.rotate(sp.a);
+    ctx.fillStyle = '#2a1408'; ctx.beginPath(); ctx.arc(0, 0, R - 1, -0.2, 0.2); ctx.arc(0, 0, R - 26, 0.17, -0.17, true); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#a85e28'; ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) { hexPath(R - 8 - (i % 2) * 10, (i - 1.5) * 5.5, 4); ctx.stroke(); }
+    for (let i = 0; i < 3; i++) { const u = time * (0.7 + i * 0.3) + i * 2.1, rr = R - 13 + Math.sin(u) * 8, yy = Math.sin(u * 1.7 + i) * 9; drawHornet(rr, yy, 0.5, Math.sin(u) > 0 ? 0.2 : -2.9, time + i, { crawl: true }); }
+    const p = 0.5 + 0.5 * Math.sin(time * 6 + sp.a);
+    ctx.strokeStyle = `rgba(255,210,63,${0.35 + 0.45 * p})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R + 3, -0.21, 0.21); ctx.stroke();
+    ctx.restore();
+  }
+  // breaches: torn open to the glowing comb. Fresh ones are worth double once.
+  for (const b of T.breaches) {
+    const age = time - b.born, op = clamp(age / 0.25, 0, 1);
+    ctx.save(); ctx.rotate(b.a);
+    ctx.beginPath(); ctx.moveTo(R + 2, -0.3 * R * op);
+    for (let i = 0; i <= 10; i++) { const u = i / 10, a = (-0.3 + 0.6 * u) * op, rr = R * (0.42 + 0.12 * hash(i, b.seed, 1)); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.lineTo(R + 2, 0.3 * R * op); ctx.closePath();
+    const gl = ctx.createRadialGradient(R * 0.72, 0, 2, R * 0.72, 0, R * 0.5); gl.addColorStop(0, b.spent ? '#874419' : '#ffa04a'); gl.addColorStop(1, '#2a1408');
+    ctx.fillStyle = gl; ctx.fill(); ctx.save(); ctx.clip();
+    ctx.strokeStyle = b.spent ? 'rgba(42,20,8,.8)' : 'rgba(255,230,128,.55)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 14; i++) { const cx = R * (0.5 + (i % 4) * 0.13), cy = (Math.floor(i / 4) - 1.5) * 11 + (i % 2) * 5.5; hexPath(cx, cy, 5.6); ctx.stroke(); if (!b.spent && hash(i, b.seed, 3) < 0.3) { ctx.fillStyle = '#fff0cc'; ctx.beginPath(); ctx.arc(cx, cy, 2, 0.5, 5.5); ctx.fill(); } }
+    ctx.restore();
+    ctx.strokeStyle = '#ffe2a6'; ctx.lineWidth = 2; ctx.stroke();
+    if (!b.spent) {
+      const p = 0.5 + 0.5 * Math.sin(time * 8);
+      ctx.strokeStyle = `rgba(255,210,63,${0.5 + 0.5 * p})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 6 + p * 2, -0.3, 0.3); ctx.stroke();
+      ctx.save(); ctx.translate(R * 0.7, 0); ctx.rotate(-b.a - t.rot); text('x2', 0, 0, 12, '#ffffff', 'center', 700); ctx.restore();
+    }
+    ctx.restore();
+  }
+  // royal jelly arcs: knives bounce off the amber
+  for (const j of T.jelly) {
+    const a = clamp(j.life / 0.4, 0, 1) * clamp((j.max - j.life) / 0.2 + 0.2, 0, 1);
+    ctx.save(); ctx.rotate(j.a); ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(255,160,74,.82)'; ctx.beginPath(); ctx.arc(0, 0, R + 5, -j.w, j.w);
+    for (let i = 8; i >= 0; i--) { const u = i / 8, aa = -j.w + 2 * j.w * u; ctx.lineTo(Math.cos(aa) * (R - 22 - Math.sin(u * 9 + time * 2) * 4), Math.sin(aa) * (R - 22 - Math.sin(u * 9 + time * 2) * 4)); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,230,128,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R + 1, -j.w * 0.8, j.w * 0.2); ctx.stroke();
+    ctx.restore();
+  }
+  // faces in the entrance
+  ctx.save(); ctx.rotate(-t.rot);
+  for (let i = 0; i < 2; i++) { const pk = Math.max(0, Math.sin(time * 1.3 + i * 2.6)); if (pk > 0.2) drawHornet(-5 + i * 10, 3 - pk * 4, 0.55, -HALF, time + i, { crawl: true }); }
+  if (T.queen && T.queen.mode === 'emerge') { const p = 0.6 + 0.4 * Math.sin(time * 20); ctx.fillStyle = `rgba(255,46,69,${p})`; ctx.beginPath(); ctx.arc(-4, 0, 2.5, 0, TAU); ctx.arc(4, 0, 2.5, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  if (T.crack > 0) {   // the queen is coming: red cracks spread from the entrance
+    ctx.strokeStyle = `rgba(255,46,69,${0.5 + 0.5 * T.crack})`; ctx.lineWidth = 1 + T.crack * 2.5;
+    for (let i = 0; i < 9; i++) { const a = i / 9 * TAU + 0.3; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.16, Math.sin(a) * R * 0.16); for (let k = 1; k <= 4; k++) { const rr = R * (0.16 + 0.84 * T.crack * k / 4), aa = a + (hash(i, k, 7) - 0.5) * 0.5; ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); } ctx.stroke(); }
+  }
+}
+// paper bands sweeping round, outermost first. prog 0..1
+function drawPaperWrap(r, prog, rot, alpha = 1) {
+  const n = 11, cols = ['#e09a52', '#c97a35', '#f2cf94', '#a85e28', '#ffe2a6', '#f2b766'];
+  ctx.save(); ctx.rotate(rot); ctx.globalAlpha *= alpha;
+  for (let i = 0; i < n; i++) {
+    const u = clamp(prog * 1.6 - i * 0.06, 0, 1); if (u <= 0) continue;
+    const lw = r / n + 2.5, rr = r + 2 - i * (r / n) - lw / 2, a0 = i * 1.3;
+    ctx.strokeStyle = cols[i % cols.length]; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(0, 0, Math.max(1, rr), a0, a0 + u * TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(42,20,8,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, Math.max(1, rr + lw / 2 - 0.5), a0, a0 + u * TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---------- setup ----------
+function nestAddWasp(T, orb, temp = 0) { T.wasps.push({ orb, a: rand(TAU), sp: orb ? rand(0.45, 0.85) : rand(0.95, 1.5), ph: rand(TAU), wob: rand(2, 6), kb: 0, temp, dart: 0 }); }
+function nestFreeAngle(t, gap, n = 60) {
+  const T = t.nest; let a = 0;
+  for (let i = 0; i < n; i++) {
+    a = rand(TAU);
+    if (t.stuck.every(s => angDiff(s.a, a) > gap) && T.spots.every(s => angDiff(s.a, a) > gap + 0.2) && T.breaches.every(b => angDiff(b.a, a) > gap + 0.3)) return a;
+  }
+  return a;
+}
+function setupNest(t) {
+  t.nest = { dir: 1, dirT: 1, over: null, hide: true, ox: 0, oy: 0, s: 1, wasps: [], spots: [], breaches: [], bcount: 0, bdone: 0, hits: 0, flyers: [], crawlers: [],
+    flyT: 5, crawlT: 7, queen: null, stingers: [], jelly: [], swarmT: 0, exposed: false, flashHP: 0, crack: 0, dead: false };
+  t.nestBait = false; t.boss = true; t.pal = NEST_PAL; t.tex = null; t.type = 'plain'; t.labelT = 0; t.marker = null;
+  t.f = { branches: [], links: [], holes: [], bushes: [], moss: [], plates: [], treehole: null, saws: [], arcs: [] };
+  t.stuck = []; t.apples = []; t.marks = []; t.craters = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pat = tt => nestSpin(t, tt);
+  const T = t.nest;
+  nestAddWasp(T, 0); nestAddWasp(T, 0); nestAddWasp(T, 1); nestAddWasp(T, 1);
+  for (let i = 0; i < 2; i++) T.spots.push({ a: nestFreeAngle(t, 0.8) });
+}
+function nestSpin(t, tt) {
+  const T = t.nest; if (!T) return 0;
+  if (T.over !== null) return T.over;
+  const q = !!T.queen, sw = T.swarmT > 0 ? 1.45 : 1;
+  const v = q ? 1.7 + 1.5 * Math.pow(Math.max(0, Math.sin(tt * 1.25)), 2) : 1.15 + 0.4 * Math.sin(tt * 0.9) + 0.18 * T.bcount;
+  return T.dir * v * sw;
+}
+function nestCenter(t) { return [CX + t.nest.ox, CY + t.nest.oy]; }
+function waspPos(t, w) {
+  const [cx, cy] = nestCenter(t), r = NEST_ORB[w.orb] + Math.sin(time * 3 + w.ph) * w.wob + w.kb;
+  return [cx + Math.cos(w.a) * r, cy + Math.sin(w.a) * r];
+}
+function nestMoveWasps(t, dt) {
+  const T = t.nest, boost = T.swarmT > 0 ? 1.7 : 1;
+  for (const w of T.wasps) { w.a += w.sp * T.dir * boost * dt * (w.dart > 0 ? 0.2 : 1); w.kb *= Math.exp(-dt * 3); w.dart = Math.max(0, w.dart - dt); }
+}
+
+// ---------- the fight ----------
+function updateNest(t, dt) {
+  const T = t.nest; if (!T || nestBusy()) return;
+  T.dir += (T.dirT - T.dir) * Math.min(1, dt * 2.2);
+  T.flashHP = Math.max(0, T.flashHP - dt);
+  nestMoveWasps(t, dt);
+  if (T.swarmT > 0) { T.swarmT -= dt; if (T.swarmT <= 0) T.wasps = T.wasps.filter(w => !w.temp); }
+  for (const s of t.stuck) if (s.inf !== undefined && s.inf < 1) s.inf = Math.min(1, s.inf + dt * 1.1);
+  for (const j of T.jelly) j.life -= dt;
+  T.jelly = T.jelly.filter(j => j.life > 0);
+  // the screen: fly-bys and wasps that land on the glass. Both grow with every breach.
+  const heat = T.bcount + (T.queen ? 1 : 0) + (T.swarmT > 0 ? 2 : 0);
+  if (heat > 0) {
+    T.flyT -= dt;
+    if (T.flyT <= 0) { T.flyT = rand(2.6, 4.4) / (1 + T.swarmT * 0.05); nestFlyby(T, Math.min(9, heat * 2)); }
+    T.crawlT -= dt;
+    if (T.crawlT <= 0) { T.crawlT = rand(3, 5.5); if (T.crawlers.length < Math.min(5, heat)) nestCrawler(T); }
+  }
+  for (const f of T.flyers) { f.t += dt; f.x += f.vx * dt; f.y += f.vy * dt + Math.sin(f.t * 9 + f.ph) * 60 * dt; }
+  T.flyers = T.flyers.filter(f => (f.vx > 0 ? f.x < W + 220 : f.x > -220) && f.t < 4);
+  for (const c of T.crawlers) {
+    c.t += dt;
+    if (c.st === 'in') { const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy); c.ang = Math.atan2(dy, dx); if (d < 6) { c.st = 'stay'; c.t = 0; } else { c.x += dx / d * 170 * dt; c.y += dy / d * 170 * dt; } }
+    else if (c.st === 'stay') { c.ang += Math.sin(c.t * 5) * dt * 1.5; if (c.t > c.dur) { c.st = 'out'; c.t = 0; c.vx = Math.cos(c.ang) * 700; c.vy = Math.sin(c.ang) * 700 - 200; sfx.hornetBuzz(); } }
+    else { c.x += c.vx * dt; c.y += c.vy * dt; }
+  }
+  T.crawlers = T.crawlers.filter(c => c.st !== 'out' || (c.x > -200 && c.x < W + 200 && c.y > -200 && c.y < H + 200));
+  if (T.queen) updateQueen(t, dt);
+  for (const s of T.stingers) {
+    const before = s.t; s.t += dt;
+    if (s.t < 0) continue;
+    if (before < 0) { sfx.sting(); burst(s.x, s.y0, 8, ['#ffd23f', '#ffffff'], 200, 0, 2, 0.3); }
+    const u = s.t / 0.75; s.y = s.y0 + (KNIFE_Y - 4 - s.y0) * u * u;
+    if (u >= 1 && !s.dead) {
+      s.dead = true; stunT = Math.max(stunT, 1.6); stunMax = Math.max(stunMax, 1.6); shake = Math.max(shake, 8);
+      burst(CX, KNIFE_Y, 20, ['#ffd23f', '#ffffff', '#ff7a1a'], 420, 40, 2.5, 0.4); floater('STUNG', CX, KNIFE_Y - 40, '#ffd23f'); sfx.sting(); sfx.stun(); buzz([15, 30, 15]);
+    }
+  }
+  T.stingers = T.stingers.filter(s => !s.dead);
+}
+function nestFlyby(T, n) {
+  const sd = Math.random() < 0.5 ? -1 : 1;
+  for (let i = 0; i < n; i++) T.flyers.push({ x: sd < 0 ? W + 80 + i * rand(40, 90) : -80 - i * rand(40, 90), y: rand(CY - 140, KNIFE_Y - 40), vx: -sd * rand(650, 950), vy: rand(-90, 90), s: rand(3.6, 6.4), t: 0, ph: rand(TAU) });
+  sfx.hornetBuzz();
+}
+function nestCrawler(T) {
+  const sd = Math.floor(rand(4)), x = sd === 0 ? -60 : sd === 1 ? W + 60 : rand(40, W - 40), y = sd === 2 ? H + 60 : sd === 3 ? CY - 200 : rand(CY - 60, KNIFE_Y - 40);
+  T.crawlers.push({ x, y, tx: rand(70, W - 70), ty: rand(CY - 30, KNIFE_Y - 70), s: rand(4.2, 5.6), ang: 0, st: 'in', t: 0, dur: rand(2.6, 4.2), ph: rand(TAU) });
+}
+// something in the air that a flying knife meets before the nest: wasps, the queen, stingers
+function nestFlightHit(k, t) {
+  const T = t.nest; if (!T || T.hide) return false;
+  for (const s of T.stingers) {
+    if (s.dead || s.t < 0 || Math.abs(k.y - s.y) > 18) continue;
+    s.dead = true; k.done = true; knivesLeft++; score++;
+    burst(CX, s.y, 18, ['#ffd23f', '#ffffff', '#08080a'], 380, 20, 2.5, 0.35); floater('PARRIED +1', CX + 50, s.y, '#ffd23f'); sfx.clang(); sfx.ping(); buzz(10);
+    debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-200, 200), vy: rand(-300, -150), rot: 0, vr: rand(-20, 20) });
+    return true;
+  }
+  const Q = T.queen;
+  if (Q && Q.mode !== 'emerge' && Q.mode !== 'dazed' && Q.mode !== 'death' && Math.abs(Q.x - CX) < 17 && Q.y > k.y - 18 && Q.y < k.y + KL * 0.55) {
+    if (k.ability) { nestQueenKnock(t, k, true); return true; }
+    if (Q.mode === 'dive' && Q.st === 'dive') { nestQueenKnock(t, k, false); return true; }
+    if (Q.mode === 'guard' && Q.st === 'hold') {
+      burst(Q.x, Q.y, 30, ['#ffd23f', '#ffffff', '#ff7a1a'], 500, 40, 3, 0.5); shock(Q.x, Q.y, 0.3, 70); floater('REFLECTED!', CX, Q.y + 40, '#ff2e45'); sfx.clang(); sfx.shriek();
+      fail(k); return true;
+    }
+    nestSting(k, t, Q.x, Q.y, null); return true;
+  }
+  if (k.ability) {   // the aura scatters wasps
+    for (const w of T.wasps) { const [x, y] = waspPos(t, w); if (Math.abs(x - CX) < 30 && Math.abs(y - k.y) < 40) w.kb = Math.max(w.kb, 46); }
+    return false;
+  }
+  for (const w of T.wasps) {
+    const [x, y] = waspPos(t, w);
+    if (Math.abs(x - CX) < 9 && y > k.y - 10 && y < k.y + KL * 0.6) { nestSting(k, t, x, y, w); return true; }
+  }
+  return false;
+}
+function nestSting(k, t, x, y, w) {
+  const T = t.nest;
+  deflect(k); stunT = WASP_STUN; stunMax = WASP_STUN; T.dirT = -T.dirT; if (w) w.dart = 0.5;
+  burst(x, y, 16, ['#ffd23f', '#08080a', '#ffffff'], 320, 20, 2.5, 0.35); shock(x, y, 0.25, 40);
+  floater('STUNG! ' + WASP_STUN + 's', CX, KNIFE_Y - 40, '#ffd23f'); floater(T.dirT > 0 ? 'SPIN FLIPS  >' : '<  SPIN FLIPS', CX, CY - R - 34, '#ffffff');
+  shake = Math.max(shake, 8); kick(0.06, 0.03, 0.5); sfx.sting(); sfx.stun(); buzz([15, 40, 15]);
+}
+// wasps pile onto your knife. Already swarmed? Then they take the knife and a heart.
+function nestSwarm(k, t, why) {
+  for (let i = 0; i < 24; i++) fxp.push({ kind: 'bee', x: CX + rand(-20, 20), y: CY + R + rand(0, 30), vx: rand(-200, 200), vy: rand(0, 300), ph: rand(TAU), life: rand(1.2, 2), max: 2 });
+  if (abil.pauseT > 0) { floater('TOO MANY WASPS!', CX, CY + R + 64, '#ff2e45'); sfx.sting(); sfx.bees(); fail(k); return; }
+  deflect(k); abil.pauseT = NEST_JAM; t.nest.flashHP = 0.3;
+  floater(why, CX, CY + R + 56, '#ffd23f'); floater('ABILITY JAMMED ' + NEST_JAM + 's', CX, CY + R + 90, '#ffd23f');
+  shake = Math.max(shake, 6); sfx.bees(); sfx.hornetBuzz(); buzz([20, 20, 20, 20]);
+}
+// the knife reached the paper. Returns true if it did not go in.
+function nestSurfaceHit(k, t, a) {
+  const T = t.nest;
+  const j = T.jelly.find(j => inArc(a, j.a, j.w));
+  if (j) { deflect(k, undefined, 0.8); burst(CX, CY + R, 16, ['#ffa04a', '#ffe680', '#ffd23f'], 260, 40, 3, 0.5); floater('STUCK IN JELLY', CX, CY + R + 56, '#ffa04a'); sfx.squelch(); return true; }
+  if (T.spots.some(sp => inArc(a, sp.a, 0.21))) { nestSwarm(k, t, 'INFESTED SPOT!'); return true; }
+  return false;
+}
+function nestStuck(t, s, a) {
+  const T = t.nest;
+  s.inf = 0.001;
+  let bonus = 0;
+  const b = T.breaches.find(b => !b.spent && inArc(a, b.a, 0.3));
+  if (b) { b.spent = true; bonus++; floater('BREACH x2', CX, CY + R + 56, '#ffd23f'); shocks(CX, CY + R, 2, 90); sfx.markerHit(); kick(0.12, 0.04, 0.8, 0.4); }
+  if (T.exposed) { T.exposed = false; bonus++; floater('ROYAL HIT x2', CX, CY + R + 76, '#ff7a1a'); sfx.markerHit(); }
+  if (bonus) { knivesLeft = Math.max(0, knivesLeft - bonus); score += bonus; T.flashHP = 0.5; }
+  sfx.paperRip();
+  burst(CX, CY + R, 10, ['#ffe2a6', '#e09a52', '#a85e28'], 260, 60, 3, 0.5);
+  nestCount(t, 1 + bonus);
+}
+function nestCount(t, n) {
+  const T = t.nest; T.hits += n;
+  const cap = T.queen ? 1 : 2;
+  while (T.hits >= (T.bdone + 1) * BREACH_EVERY && T.bdone < cap && knivesLeft > 0) { T.bdone++; nestBreach(t); }
+}
+function nestDropKnife(t, s, sp = 520) {
+  const w = t.rot + s.a; t.stuck.splice(t.stuck.indexOf(s), 1);
+  debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 220, rot: w - HALF, vr: rand(-16, 16) });
+}
+function nestBreach(t) {
+  const T = t.nest, a = nestFreeAngle(t, 0.35);
+  T.breaches.push({ a, spent: false, born: time, seed: Math.floor(rand(999)) }); T.bcount++;
+  for (const s of t.stuck.slice()) if (angDiff(s.a, a) < 0.6) nestDropKnife(t, s);
+  for (let i = 0; i < 2 && T.wasps.filter(w => !w.temp).length < 9; i++) nestAddWasp(T, i % 2);
+  if (T.spots.length < 4) T.spots.push({ a: nestFreeAngle(t, 0.6) });
+  const [x, y] = worldAt(t, a, R * 0.8);
+  for (let i = 0; i < 18; i++) debris.push({ kind: 'paper', r: rand(5, 11), x, y, vx: rand(-400, 400), vy: rand(-500, -100), rot: rand(TAU), vr: rand(-14, 14), c: ['#ffe2a6', '#e09a52', '#a85e28'][i % 3] });
+  for (let i = 0; i < 30; i++) fxp.push({ kind: 'bee', x, y, vx: rand(-420, 420), vy: rand(-420, 200), ph: rand(TAU), life: rand(0.8, 1.6), max: 1.6, flee: true });
+  nestFlyby(T, 2 + T.bcount * 2); nestCrawler(T);
+  floater('NEST BREACHED!', CX, CY - R - 34, '#ffd23f'); floater('HIT THE HOLE FOR x2', CX, CY + R + 100, '#ffd23f');
+  shake = Math.max(shake, 16); kick(0.2, 0.06, 1.2, 0.8); shocks(x, y, 2, 120);
+  sfx.paperRip(); sfx.hornetBuzz(); sfx.subDrop(); buzz([40, 20, 60]);
+}
+// a stuck knife the wasps have covered
+function nestKnifeInfested(t, s) { return !!(t.nest && s.inf >= 1); }
+
+// ---------- the queen: five ways to protect the nest ----------
+function updateQueen(t, dt) {
+  const T = t.nest, Q = T.queen, [cx, cy] = nestCenter(t);
+  Q.t += dt; Q.ph += dt;
+  const go = (x, y, k = 5) => { Q.x += (x - Q.x) * Math.min(1, dt * k); Q.y += (y - Q.y) * Math.min(1, dt * k); };
+  const orbit = () => { Q.a += dt * 0.75 * T.dir; go(cx + Math.cos(Q.a) * QUEEN_ORB, cy + Math.sin(Q.a) * QUEEN_ORB * 0.92, 3); Q.hd = Q.a + HALF * Math.sign(T.dir || 1); };
+  const done = () => { Q.mode = 'orbit'; Q.t = 0; Q.st = ''; Q.next = rand(3.2, 4.6); Q.a = Math.atan2(Q.y - cy, Q.x - cx); };
+  switch (Q.mode) {
+    case 'orbit': {
+      orbit(); Q.next -= dt;
+      if (Q.next <= 0) {
+        let pool = QUEEN_MOVES.filter(m => m !== Q.last);
+        if (stunT > 0.4) pool = pool.filter(m => m !== 'dive');
+        const m = pool[Math.floor(rand(pool.length))]; Q.mode = m; Q.last = m; Q.t = 0; Q.st = 'move'; Q.fired = 0;
+        floater(QUEEN_NAMES[m], CX, CY - R - 40, m === 'guard' || m === 'dive' ? '#ff2e45' : '#ffd23f'); sfx.shriek();
+      }
+      break;
+    }
+    case 'guard': {   // she plants herself in your lane. Hold fire.
+      go(CX, cy + R + 44, 7); Q.hd = HALF;
+      if (Q.t > 0.55) Q.st = 'hold';
+      if (Q.t > 3.3) done();
+      break;
+    }
+    case 'volley': {
+      go(CX, cy + R + 40, 7); Q.hd = HALF; Q.st = Q.t > 0.4 ? 'aim' : 'move';
+      for (let i = 0; i < 3; i++) if (Q.t > 0.75 + i * 0.5 && Q.fired === i) { Q.fired++; T.stingers.push({ x: CX, y0: Q.y + 26, y: Q.y + 26, t: -0.25, dead: false }); sfx.heatWarn(); }
+      if (Q.t > 2.6) done();
+      break;
+    }
+    case 'jelly': {   // spits amber over two arcs of the nest
+      go(cx, cy - R - 54, 6); Q.hd = HALF;
+      if (Q.t > 0.75 && !Q.fired) {
+        Q.fired = 1;
+        for (let i = 0; i < 2; i++) { const a = normA(HALF - t.rot + (i ? Math.PI * 0.55 : -0.25) + rand(-0.2, 0.2)); T.jelly.push({ a, w: 0.42, life: 7, max: 7 }); const [x, y] = worldAt(t, a, R); burst(x, y, 20, ['#ffa04a', '#ffe680'], 240, 30, 3, 0.5); }
+        sfx.squelch(); sfx.squelch();
+      }
+      if (Q.t > 1.5) done();
+      break;
+    }
+    case 'swarm': {
+      go(cx, cy - R - 70, 6); Q.hd = -HALF;
+      if (Q.t > 0.5 && !Q.fired) {
+        Q.fired = 1; T.swarmT = 8; for (let i = 0; i < 4; i++) { nestAddWasp(T, i % 2, 1); T.wasps[T.wasps.length - 1].kb = 220; }
+        nestFlyby(T, 7); nestCrawler(T); T.dirT = -T.dirT; shake = Math.max(shake, 12); sfx.shriek(); sfx.hornetBuzz();
+      }
+      if (Q.t > 1.6) done();
+      break;
+    }
+    case 'dive': {   // locks on to your knife, then drops on it. Throw into her as she dives.
+      if (Q.st === 'move' || Q.st === 'lock') { go(CX, cy + R + 64, 6); Q.hd = HALF; }
+      if (Q.st === 'move' && Q.t > 0.6) { Q.st = 'lock'; Q.t = 0; sfx.markerOn(); }
+      if (Q.st === 'lock' && Q.t > 1.3 && stunT <= 0) { Q.st = 'dive'; Q.t = 0; Q.y0 = Q.y; sfx.whoosh(); sfx.shriek(); }
+      if (Q.st === 'dive') {
+        const u = clamp(Q.t / 0.6, 0, 1); Q.y = Q.y0 + (KNIFE_Y + 20 - Q.y0) * u * u; Q.x = CX;
+        if (u >= 1) {
+          if (state === 'play' && knivesLeft > 0) { floater('DIVE BOMBED', CX, KNIFE_Y - 50, '#ff2e45'); fail({ y: KNIFE_Y, wood: true, done: false }); }
+          Q.y = KNIFE_Y - 60; done();
+        }
+      }
+      break;
+    }
+    case 'dazed': {   // knocked onto the nest: no moves, the next hit is double
+      go(cx + 64, cy + R + 8, 4); Q.hd = Q.ph * 6;
+      if (Q.t > 4.2) { done(); floater('THE QUEEN RECOVERS', CX, CY - R - 40, '#ffd23f'); }
+      break;
+    }
+  }
+}
+function nestQueenKnock(t, k, byAbility) {
+  const T = t.nest, Q = T.queen;
+  k.done = true; knivesLeft++; score += 2;
+  debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-260, 260), vy: rand(-420, -260), rot: 0, vr: rand(-20, 20) });
+  Q.mode = 'dazed'; Q.t = 0; Q.st = ''; T.exposed = true; T.stingers = [];
+  burst(Q.x, Q.y, 40, ['#ffd23f', '#ff7a1a', '#ffffff'], 600, 40, 3.5, 0.6); shocks(Q.x, Q.y, 2, 130);
+  floater(byAbility ? 'QUEEN SWATTED!' : 'COUNTERED!', CX, Q.y + 40, '#ffd23f'); floater('NEXT HIT x2', CX, CY + R + 100, '#ff7a1a');
+  shake = Math.max(shake, 18); kick(0.25, 0.07, 1.2, 0.8); sfx.clank(); sfx.shriek(); sfx.markerHit(); buzz([40, 20, 60]);
+}
+
+// ---------- drawing in the world (over the stuck knives) and on the glass ----------
+function drawNestFront(t) {
+  const T = t.nest; if (T.hide) return;
+  // wasps crawling over every knife they have claimed
+  for (const s of t.stuck) {
+    if (s.inf === undefined || s.inf <= 0) continue;
+    const w = t.rot + s.a, [cx, cy] = nestCenter(t), n = s.inf >= 1 ? 3 : 1;
+    for (let i = 0; i < n; i++) {
+      const u = 0.5 + 0.5 * Math.sin(time * (1.1 + i * 0.4) + s.a * 7 + i * 2), rr = R + 16 + u * 62 * Math.min(1, s.inf), off = Math.sin(time * 3 + i) * 3;
+      const x = cx + Math.cos(w) * rr - Math.sin(w) * off, y = cy + Math.sin(w) * rr + Math.cos(w) * off;
+      drawHornet(x, y, 0.62, w + (Math.cos(time * (1.1 + i * 0.4) + s.a * 7 + i * 2) > 0 ? 0 : Math.PI), time * 2 + i, { crawl: true });
+    }
+    if (s.inf >= 1 && t.stuck.length < 14) { ctx.fillStyle = 'rgba(255,210,63,.18)'; const [x, y] = [cx + Math.cos(w) * (R + 50), cy + Math.sin(w) * (R + 50)]; ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU); ctx.fill(); }
+  }
+  // orbit rings, faint, so the two lanes read like a little solar system
+  const [cx, cy] = nestCenter(t);
+  ctx.save(); ctx.setLineDash([3, 7]); ctx.lineDashOffset = -time * 20 * T.dir; ctx.lineWidth = 1;
+  for (const r of NEST_ORB) { ctx.strokeStyle = 'rgba(255,210,63,.13)'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke(); }
+  ctx.restore();
+  for (const w of T.wasps) {
+    const [x, y] = waspPos(t, w), hd = w.a + HALF * Math.sign((T.dir || 1) * w.sp);
+    if (w.dart > 0) { ctx.strokeStyle = 'rgba(255,210,63,.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 12 + w.dart * 10, 0, TAU); ctx.stroke(); }
+    drawHornet(x + (w.dart > 0 ? rand(-1.5, 1.5) : 0), y, w.temp ? 0.78 : 0.9, hd, time + w.ph);
+  }
+  // stingers
+  for (const s of T.stingers) {
+    if (s.t < 0) continue;
+    ctx.fillStyle = 'rgba(255,210,63,.3)'; ctx.fillRect(CX - 1.5, s.y - 40, 3, 34);
+    ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(CX, s.y + 8); ctx.lineTo(CX - 3.5, s.y - 10); ctx.lineTo(CX + 3.5, s.y - 10); ctx.fill();
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(CX - 1, s.y - 9, 2, 10);
+  }
+  const Q = T.queen; if (!Q) return;
+  if (Q.mode === 'volley' && Q.st === 'aim' && Q.fired < 3) { ctx.save(); ctx.strokeStyle = `rgba(255,210,63,${0.35 + 0.35 * Math.sin(time * 30)})`; ctx.lineWidth = 2; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -time * 120; ctx.beginPath(); ctx.moveTo(CX, Q.y + 30); ctx.lineTo(CX, KNIFE_Y - 10); ctx.stroke(); ctx.restore(); }
+  if (Q.mode === 'dive' && (Q.st === 'lock' || Q.st === 'dive')) {   // reticle on your knife
+    const k = Q.st === 'dive', p = 0.5 + 0.5 * Math.sin(time * (k ? 40 : 12)), ky = KNIFE_Y + KL * 0.35, rr = 34 - (k ? 6 : Math.min(1, Q.t / 1.3) * 10);
+    ctx.strokeStyle = k ? `rgba(255,46,69,${0.6 + 0.4 * p})` : `rgba(255,210,63,${0.5 + 0.4 * p})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(CX, ky, rr, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + time * (k ? 6 : 2); ctx.beginPath(); ctx.moveTo(CX + Math.cos(a) * (rr + 4), ky + Math.sin(a) * (rr + 4)); ctx.lineTo(CX + Math.cos(a) * (rr + 13), ky + Math.sin(a) * (rr + 13)); ctx.stroke(); }
+    text(k ? 'THROW NOW!' : 'DIVE INCOMING', CX + 76, ky - 30, 10, k ? '#ff2e45' : '#ffd23f', 'center', 700);
+  }
+  if (Q.mode === 'guard' && Q.st === 'hold') {   // a wall of wings
+    const p = 0.5 + 0.5 * Math.sin(time * 10);
+    ctx.fillStyle = `rgba(255,210,63,${0.12 + 0.1 * p})`; ctx.beginPath(); ctx.ellipse(Q.x, Q.y, 46, 26, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(255,210,63,${0.6 + 0.4 * p})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(Q.x, Q.y, 46, 26, 0, Math.PI * 0.1, Math.PI * 0.9); ctx.stroke();
+    text('HOLD FIRE', CX + 82, Q.y, 10, '#ff2e45', 'center', 700);
+  }
+  if (Q.mode === 'dive' && Q.st === 'dive') { ctx.fillStyle = 'rgba(255,122,26,.25)'; ctx.fillRect(Q.x - 9, Q.y - 70, 18, 60); }
+  drawHornet(Q.x, Q.y, Q.s || 3, Q.hd || 0, time + 3, { queen: true, legs: Q.mode === 'guard' });
+  if (Q.mode === 'dazed') for (let i = 0; i < 3; i++) { const a = time * 4 + i / 3 * TAU; ctx.fillStyle = i % 2 ? '#ffffff' : '#ffd23f'; ctx.fillRect(Q.x + Math.cos(a) * 22 - 2, Q.y - 22 + Math.sin(a) * 6 - 2, 4, 4); }
+}
+// close to the lens: big, soft, they block what is behind them
+function drawNestScreen(t) {
+  const T = t.nest; if (!T || T.hide) return;
+  for (const f of T.flyers) {
+    const hd = Math.atan2(f.vy, f.vx);
+    ctx.save(); ctx.globalAlpha = 0.25; drawHornet(f.x - f.vx * 0.03, f.y - f.vy * 0.03, f.s, hd, time + f.ph, { dark: true }); ctx.globalAlpha = 0.85; drawHornet(f.x, f.y, f.s, hd, time + f.ph, { dark: true }); ctx.restore();
+  }
+  for (const c of T.crawlers) {
+    ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.ellipse(c.x + 6, c.y + 8, c.s * 9, c.s * 4, c.ang, 0, TAU); ctx.fill(); ctx.restore();
+    drawHornet(c.x, c.y, c.s, c.ang, time + c.ph, { crawl: c.st !== 'out', dark: true });
+  }
+}
+function drawNestHUD() {
+  const t = tgt; if (!t || !t.nest || t.nest.hide) return;
+  const T = t.nest, Q = T.queen, max = Q ? QUEEN_HP : NEST_HP, x0 = CX - 100, y = 104, cw = 200 / max;
+  let fill = 1;
+  if (fx && fx.type === 'nestintro') fill = clamp((fx.t - NSHOT.reveal - 0.5) / 0.9, 0, 1);
+  if (fx && fx.type === 'queenrise') fill = clamp((fx.t - 2.2) / 0.8, 0, 1);
+  const hp = fx && fx.type === 'queenrise' && fx.t < 2.2 ? 0 : knivesLeft, flash = T.flashHP > 0 && Math.sin(time * 30) > 0;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  for (let i = 0; i < max; i++) { const on = i < Math.min(hp, Math.floor(max * fill)); ctx.fillStyle = on ? (flash ? '#ffffff' : Q ? (i % 2 ? '#ff7a1a' : '#ffa04a') : (i % 2 ? '#ffd23f' : '#ffe680')) : '#1e1e24'; ctx.fillRect(x0 + i * cw, y, cw - 2, 8); }
+  if (!Q) for (let b = 1; b <= 2; b++) { const x = x0 + (max - b * BREACH_EVERY) * cw - 1; ctx.fillStyle = b <= T.bdone ? '#5c5c66' : '#ffffff'; ctx.fillRect(x, y - 3, 2, 14); }
+  else { const x = x0 + (max - BREACH_EVERY) * cw - 1; ctx.fillStyle = T.bdone ? '#5c5c66' : '#ffffff'; ctx.fillRect(x, y - 3, 2, 14); }
+  text(Q ? 'QUEEN' : 'NEST', x0 - 24, y + 4, 8, Q ? '#ff7a1a' : '#ffd23f', 'center', 700);
+  let msg = 'DODGE THE WASPS  /  AVOID INFESTED SPOTS', col = '#8d8d97';
+  if (Q && Q.mode !== 'orbit' && QUEEN_NAMES[Q.mode]) {
+    const m = { guard: 'ROYAL GUARD - HOLD YOUR FIRE', volley: 'STINGER VOLLEY - THROW TO PARRY', jelly: 'ROYAL JELLY - AMBER BOUNCES KNIVES', swarm: 'SWARM CALL', dive: Q.st === 'dive' ? 'DIVE BOMB - THROW NOW!' : 'DIVE BOMB - WAIT FOR IT...' };
+    msg = m[Q.mode]; col = Q.mode === 'guard' || Q.mode === 'dive' ? (Math.sin(time * 16) > 0 ? '#ff2e45' : '#ffffff') : '#ffd23f';
+  }
+  else if (Q && Q.mode === 'dazed') { msg = 'QUEEN DOWN - NEXT HIT x2'; col = '#7cff4f'; }
+  else if (abil.pauseT > 0) { msg = 'SWARMED - ONE MORE INFESTED HIT COSTS A HEART'; col = Math.sin(time * 10) > 0 ? '#ff2e45' : '#ffd23f'; }
+  else if (T.breaches.some(b => !b.spent)) { msg = 'HIT THE BREACH FOR x2'; col = '#ffd23f'; }
+  text(msg, CX, y + 22, 9, col, 'center', 700);
+  const cap = Q ? 1 : 2;
+  if (T.bdone < cap) { const into = T.hits - T.bdone * BREACH_EVERY, u = clamp(into / BREACH_EVERY, 0, 1); ctx.fillStyle = '#1e1e24'; ctx.fillRect(CX - 50, y + 31, 100, 3); ctx.fillStyle = '#ffd23f'; ctx.fillRect(CX - 50, y + 31, 100 * u, 3); text('BREACH', CX - 72, y + 33, 6, '#8d8d97', 'center', 700); }
+}
+function drawNestDebris(d) {
+  if (d.kind === 'paper') { ctx.fillStyle = d.c || '#e09a52'; ctx.beginPath(); ctx.moveTo(-d.r, -d.r * 0.4); ctx.quadraticCurveTo(0, -d.r * 0.9, d.r, -d.r * 0.3); ctx.lineTo(d.r * 0.7, d.r * 0.5); ctx.quadraticCurveTo(0, d.r * 0.1, -d.r * 0.8, d.r * 0.5); ctx.fill(); ctx.strokeStyle = 'rgba(42,20,8,.7)'; ctx.lineWidth = 1; ctx.stroke(); return true; }
+  if (d.kind === 'comb') { ctx.fillStyle = '#c97a35'; ctx.strokeStyle = '#ffe680'; ctx.lineWidth = 1; for (let i = 0; i < 3; i++) { hexPath((i - 1) * 7, (i % 2) * 6, 4.4); ctx.fill(); ctx.stroke(); } return true; }
+  if (d.kind === 'queen') { drawHornet(0, 0, 2.4, 0, time, { queen: true }); return true; }
+  return false;
+}
+
+// ---------- the queen hatches: the nest rebuilds to 10 ----------
+function startQueenRise(t) {
+  const T = t.nest; T.stingers = []; T.jelly = []; T.flyers = []; T.over = T.dir * 1.2;
+  fx = { type: 'queenrise', t: 0, lt: 0, freeze: 0.25, x: CX, y: CY, lines: impactLinesFor(28, 1000), tg: t };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.22); kick(0.3, 0.08, 1.4, 0.8);
+  sfx.subDrop(); sfx.hornetBuzz(); buzz([60, 30, 120]);
+}
+function updateQueenRise(t) {
+  const tg = fx.tg, T = tg.nest, dt = t - fx.lt; fx.lt = t;
+  tscale = t < 1.4 ? 0.35 : 0.6;
+  nestMoveWasps(tg, dt * 2.2);
+  if (t < 1.4) { T.crack = clamp((t - 0.3) / 1.0, 0, 1); shake = Math.max(shake, 3 + T.crack * 10); T.over = T.dir * (1.2 - T.crack); if (Math.floor(t * 6) !== fx.bz) { fx.bz = Math.floor(t * 6); sfx.hornetBuzz(); } }
+  if (t > 0.5 && !fx.pop) { fx.pop = true; for (const s of tg.stuck.slice()) nestDropKnife(tg, s, rand(380, 640)); sfx.popOut(); }
+  if (t >= 1.4 && !fx.hatch) {
+    fx.hatch = true; T.crack = 0; T.over = 0; T.breaches = [];
+    T.queen = { x: CX, y: CY, s: 0.5, mode: 'emerge', t: 0, ph: 0, a: -HALF, hd: -HALF, next: 2.5, last: null, st: '', fired: 0 };
+    for (let i = 0; i < 26; i++) { const a = rand(TAU), sp = rand(300, 800); debris.push({ kind: 'paper', r: rand(6, 13), x: CX + Math.cos(a) * 30, y: CY + Math.sin(a) * 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 240, rot: rand(TAU), vr: rand(-14, 14), c: ['#ffe2a6', '#e09a52', '#a85e28'][i % 3] }); }
+    burst(CX, CY, 60, ['#ffd23f', '#ff7a1a', '#ffe2a6', '#ff2e45'], 760, 60, 4, 0.7); shocks(CX, CY, 3, 260); shake = 30; kick(0.45, 0.1, 1.8, 1.2);
+    sfx.shriek(); sfx.logExplode(); sfx.paperRip(); buzz([100, 40, 100]);
+  }
+  const Q = T.queen;
+  if (Q) {
+    const u = clamp((t - 1.4) / 0.8, 0, 1), e = easeOutBack(u), v = clamp((t - 2.7) / 0.8, 0, 1);
+    Q.x = CX; Q.y = CY - (R + 48) * e - v * 20; Q.s = 0.5 + 3.3 * e - 0.8 * easeIO(v); Q.hd = -HALF + Math.sin(t * 3) * 0.1; Q.ph += dt;
+  }
+  if (t > 2.2 && !fx.regrow) { fx.regrow = true; knivesTotal = knivesLeft = QUEEN_HP; T.hits = 0; T.bdone = 0; T.spots = []; for (let i = 0; i < 3; i++) T.spots.push({ a: nestFreeAngle(tg, 0.8) }); tg.marks = []; tg.tex = null; sfx.paperRip(); sfx.servo(); }
+  if (t > 3.6) { T.over = null; T.dirT = T.dir = 1; Q.mode = 'orbit'; Q.t = 0; Q.a = -HALF; Q.next = 2.6; Q.s = 3; T.flyT = 1.5; endFx('play'); floater('BREAK THE NEST!', CX, CY + R + 90, '#ff7a1a'); }
+}
+function drawQueenRise(t) {
+  const T = fx.tg.nest;
+  if (t > 2.2 && t < 3.1) { ctx.save(); ctx.translate(CX + T.ox, CY + T.oy); drawPaperWrap(R, clamp((t - 2.2) / 0.8, 0, 1), fx.tg.rot, clamp((3.1 - t) / 0.3, 0, 1)); ctx.restore(); }
+  if (t > 1.55 && t < 3.6) {
+    const s0 = t - 1.55, a = clamp(s0 / 0.06, 0, 1) * clamp((2.05 - s0) / 0.35, 0, 1), sl = clamp(s0 / 0.2, 0, 1), sc = 1 + 1.6 * Math.pow(1 - sl, 3);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(CX, CY + R + 96); ctx.scale(sc, sc);
+    for (let d = 8; d >= 1; d--) text('THE QUEEN', d * 0.7, d * 0.9, 32, d > 5 ? '#08080a' : '#45210b', 'center', 700);
+    text('THE QUEEN', 0, 0, 32, '#ff7a1a', 'center', 700); text('THE QUEEN', 0, -2, 32, '#ffd23f', 'center', 700);
+    text(typed('THE NEST REBUILDS  /  ' + QUEEN_HP + ' HITS  /  5 ROYAL MOVES', 0.2, s0, 50), 0, 30, 8, '#ffffff', 'center', 700);
+    ctx.restore();
+  }
+}
+
+// ---------- death: she shrieks, the nest bursts, the swarm scatters ----------
+function startNestDeath(t) {
+  const T = t.nest; T.stingers = []; T.jelly = []; T.flyers = []; T.crawlers = [];
+  if (T.queen) T.queen.mode = 'death';
+  fx = { type: 'nestdeath', t: 0, lt: 0, freeze: 0.22, x: CX, y: CY, lines: impactLinesFor(30, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.2); sfx.shriek(); sfx.subDrop();
+}
+function updateNestDeath(t) {
+  const tg = fx.tg, T = tg.nest, dt = t - fx.lt; fx.lt = t;
+  tscale = t < 1.4 ? 0.45 : 0.6;
+  const Q = T.queen;
+  if (t < 1.4) {
+    const u = clamp((t - 0.22) / 1.18, 0, 1);
+    T.s = 1 + 0.1 * u + Math.sin(t * 60) * 0.015 * u; T.ox = rand(-3, 3) * u; shake = Math.max(shake, 3 + u * 14); T.crack = u;
+    nestMoveWasps(tg, dt * (2 + u * 6));
+    if (Q) { Q.ph += dt; const a = t * 7; Q.x = CX + Math.cos(a) * (QUEEN_ORB - u * 30); Q.y = CY + Math.sin(a) * (QUEEN_ORB - u * 30) * 0.9; Q.hd = a + HALF; }
+    if (Math.floor(t * 5) !== fx.sh) { fx.sh = Math.floor(t * 5); sfx.hornetBuzz(); if (fx.sh % 2) sfx.shriek(); }
+  }
+  if (t >= 1.4 && !fx.boom) {
+    fx.boom = true; T.ox = 0; T.s = 1; T.crack = 0;
+    for (const w of T.wasps) { const [x, y] = waspPos(tg, w); fxp.push({ kind: 'bee', x, y, vx: (x - CX) * 6, vy: (y - CY) * 6, ph: rand(TAU), life: 1.4, max: 1.4, flee: true }); }
+    if (Q) debris.push({ kind: 'queen', x: Q.x, y: Q.y, vx: (Q.x - CX) * 2, vy: -420, rot: 0, vr: rand(-10, 10) });
+    breakTarget(tg, 2.6); tgt = null;
+    for (let i = 0; i < 30; i++) { const a = rand(TAU), sp = rand(300, 1000); debris.push({ kind: i % 3 ? 'paper' : 'comb', r: rand(6, 14), x: CX + Math.cos(a) * 30, y: CY + Math.sin(a) * 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 300, rot: rand(TAU), vr: rand(-16, 16), c: ['#ffe2a6', '#e09a52', '#a85e28'][i % 3] }); }
+    for (let i = 0; i < 50; i++) fxp.push({ kind: 'bee', x: CX, y: CY, vx: rand(-700, 700), vy: rand(-700, 500), ph: rand(TAU), life: rand(0.9, 1.6), max: 1.6, flee: true });
+    scheduleScreenHits(10, ['#ffe2a6', '#a85e28', '#ffd23f', '#16161b'], 0.7);
+    shocks(CX, CY, 4, 320); kick(0.7, 0.14, 2.2, 2); shake = 48;
+    floater("HORNET'S NEST DOWN", CX, CY - R - 30, '#ffd23f'); setMusic('main');
+    sfx.logExplode(); sfx.paperRip(); sfx.shriek(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 1.65 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 2.9) endFx('clearing');
+}
+
+// ======================= HORNET'S NEST cinematic =======================
+const NSHOT = { macro: 1.4, swarm: 2.9, comb: 4.7, rise: 6.2, reveal: 7.2 };
+const NI_END = NSHOT.reveal + 1.9;
+function startNestIntro(t) {
+  const [px, py] = t.nestAt || [CX, CY + R];
+  fx = { type: 'nestintro', t: 0, freeze: 0, tg: t, cuts: {}, px, py, logTex: t.tex, rot: t.rot };
+  state = 'fx'; cinema(true, 0.9); camFocus(px, py, 1.45);
+  setMusic('boss'); sfx.bees(); sfx.hornetBuzz(); buzz([20, 40, 20]);
+}
+function skipNestIntro() { if (fx && fx.type === 'nestintro' && fx.t < NSHOT.reveal) { fx.t = NSHOT.reveal - 0.01; fx.skipped = true; } }
+function updateNestIntro(t) {
+  const tg = fx.tg, d = t - (fx.clt || 0);
+  introTick(d);
+  tscale = t < NSHOT.macro ? 0.12 : 0;
+  fx.cutFlash = Math.max(0, (fx.cutFlash || 0) - d * 7); fx.clt = t;
+  const at = (k, tt) => { if (t >= tt && !fx[k]) { fx[k] = true; return true; } return false; };
+  if (t < NSHOT.macro && Math.floor(t * 3) !== fx.bz) { fx.bz = Math.floor(t * 3); sfx.hornetBuzz(); }
+  if (t >= NSHOT.macro && !fx.conv) {   // behind the cut, the log becomes the nest
+    fx.conv = true; fx.logTex = fx.logTex || tg.tex; flying = []; banner.t = 0; setupNest(tg); knivesTotal = knivesLeft = NEST_HP; camFocus(CX, CY, 1);
+  }
+  if (cutAt('macro', NSHOT.macro)) { sfx.servo(); sfx.heartbeat(); }
+  if (at('snap', NSHOT.macro + 1.05)) { sfx.snap(); sfx.clank(); shake = 10; }
+  if (cutAt('swarm', NSHOT.swarm)) { sfx.hornetBuzz(); sfx.riser(); }
+  if (t > NSHOT.swarm && t < NSHOT.comb && Math.floor(t * 4) !== fx.bz2) { fx.bz2 = Math.floor(t * 4); sfx.hornetBuzz(); if (fx.bz2 % 2) sfx.paperRip(); }
+  if (cutAt('comb', NSHOT.comb)) { sfx.groanFar(); sfx.heartbeat(); }
+  if (at('crack', NSHOT.comb + 1.15)) { sfx.shriek(); shake = 8; }
+  if (cutAt('rise', NSHOT.rise)) { sfx.rumble(); sfx.hornetBuzz(); }
+  const T = tg.nest;
+  if (T && t >= NSHOT.reveal && !fx.revealed) {
+    fx.revealed = true; T.hide = false; fx.cutFlash = 0; T.oy = -560; for (const w of T.wasps) w.kb = 320; sfx.whoosh();
+  }
+  if (T && fx.revealed) {
+    const u = clamp((t - NSHOT.reveal) / 0.55, 0, 1); T.oy = -560 * Math.pow(1 - u, 3);
+    nestMoveWasps(tg, d * 1.5);
+    if (at('land', NSHOT.reveal + 0.55)) {
+      shake = 26; kick(0.35, 0.06, 1.6, 1); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.land(); sfx.paperRip(); sfx.hornetBuzz(); buzz([60, 30, 90]);
+      for (let i = 0; i < 16; i++) { const a = rand(TAU); debris.push({ kind: 'paper', r: rand(4, 9), x: CX + Math.cos(a) * R, y: CY + Math.sin(a) * R, vx: Math.cos(a) * rand(200, 500), vy: Math.sin(a) * rand(200, 500) - 200, rot: rand(TAU), vr: rand(-12, 12), c: ['#ffe2a6', '#e09a52', '#a85e28'][i % 3] }); }
+    }
+    T.s = 1 - Math.max(0, 1 - Math.abs(t - NSHOT.reveal - 0.6) * 9) * 0.1;
+  }
+  fxFilter = null;
+  if (t > NI_END) { T.oy = 0; T.s = 1; endFx('play'); floater('WATCH THE WASPS', CX, CY + R + 80, '#ffd23f'); }
+}
+function drawHornetFace(cx, cy, k, t) {
+  const bg = ctx.createRadialGradient(cx, cy, 30, cx, cy, 520); bg.addColorStop(0, '#45210b'); bg.addColorStop(1, '#030305'); ctx.fillStyle = bg; ctx.fillRect(-W, -H, W * 3, H * 3);
+  // antennae
+  ctx.strokeStyle = '#08080a'; ctx.lineWidth = 9 * k; ctx.lineCap = 'round';
+  for (const sd of [-1, 1]) { const tw = Math.sin(t * 7 + sd) * 18 * k; ctx.beginPath(); ctx.moveTo(cx + sd * 26 * k, cy - 150 * k); ctx.quadraticCurveTo(cx + sd * (60 * k + tw), cy - 260 * k, cx + sd * (140 * k + tw * 2), cy - 330 * k); ctx.stroke(); }
+  ctx.lineCap = 'butt';
+  // head
+  const hg = ctx.createLinearGradient(cx, cy - 180 * k, cx, cy + 180 * k); hg.addColorStop(0, '#ffe680'); hg.addColorStop(0.45, '#ffd23f'); hg.addColorStop(0.8, '#ff7a1a'); hg.addColorStop(1, '#874419');
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.ellipse(cx, cy, 150 * k, 180 * k, 0, 0, TAU); ctx.fill();
+  // face marking
+  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(cx - 34 * k, cy - 168 * k); ctx.lineTo(cx + 34 * k, cy - 168 * k); ctx.lineTo(cx + 12 * k, cy - 40 * k); ctx.lineTo(cx + 26 * k, cy + 4 * k); ctx.lineTo(cx - 26 * k, cy + 4 * k); ctx.lineTo(cx - 12 * k, cy - 40 * k); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffe680'; for (const [dx, dy] of [[0, -150], [-14, -134], [14, -134]]) { ctx.beginPath(); ctx.arc(cx + dx * k, cy + dy * k, 5 * k, 0, TAU); ctx.fill(); }
+  // compound eyes, a knife reflected in each
+  for (const sd of [-1, 1]) {
+    ctx.save(); ctx.translate(cx + sd * 104 * k, cy - 22 * k); ctx.rotate(sd * 0.22);
+    ctx.beginPath(); ctx.ellipse(0, 0, 58 * k, 118 * k, 0, 0, TAU);
+    const eg = ctx.createRadialGradient(-sd * 14 * k, -40 * k, 4, 0, 0, 118 * k); eg.addColorStop(0, '#5e2e10'); eg.addColorStop(1, '#08080a'); ctx.fillStyle = eg; ctx.fill();
+    ctx.save(); ctx.clip(); ctx.strokeStyle = 'rgba(255,160,74,.22)'; ctx.lineWidth = 1;
+    for (let gx = -6; gx <= 6; gx++) for (let gy = -12; gy <= 12; gy++) { hexPath(gx * 12 * k + (gy % 2) * 6 * k, gy * 10.4 * k, 6 * k); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(-sd * 16 * k, -54 * k, 12 * k, 22 * k, -sd * 0.3, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#c3c3ca'; ctx.fillRect(-sd * 6 * k - 1.5 * k, 12 * k, 3 * k, 22 * k); ctx.fillStyle = '#ff2e45'; ctx.fillRect(-sd * 6 * k - 2 * k, 34 * k, 4 * k, 12 * k);
+    ctx.restore(); ctx.strokeStyle = '#08080a'; ctx.lineWidth = 4 * k; ctx.stroke(); ctx.restore();
+  }
+  // mandibles: open, open, snap
+  const shut = clamp((t - NSHOT.macro - 1.0) / 0.06, 0, 1), op = (0.35 + 0.2 * Math.sin(t * 10)) * (1 - shut);
+  for (const sd of [-1, 1]) {
+    ctx.save(); ctx.translate(cx + sd * 46 * k, cy + 140 * k); ctx.rotate(sd * op);
+    ctx.fillStyle = '#874419'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(sd * 30 * k, 40 * k, -sd * 30 * k, 76 * k); ctx.lineTo(-sd * 40 * k, 70 * k); ctx.quadraticCurveTo(-sd * 4 * k, 40 * k, -sd * 18 * k, 4 * k); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#08080a'; ctx.lineWidth = 3 * k; ctx.stroke();
+    ctx.fillStyle = '#08080a'; for (let i = 0; i < 3; i++) { const yy = (24 + i * 16) * k; ctx.beginPath(); ctx.moveTo(-sd * (8 + i * 7) * k, yy); ctx.lineTo(-sd * (20 + i * 7) * k, yy + 6 * k); ctx.lineTo(-sd * (6 + i * 7) * k, yy + 9 * k); ctx.fill(); }
+    ctx.restore();
+  }
+  // bristles round the edge
+  ctx.strokeStyle = 'rgba(242,207,148,.5)'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 46; i++) { const a = i / 46 * TAU, x = cx + Math.cos(a) * 150 * k, y = cy + Math.sin(a) * 180 * k; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a + 0.3) * 12 * k, y + Math.sin(a + 0.3) * 12 * k); ctx.stroke(); }
+}
+function drawNestIntro(t) {
+  const tg = fx.tg;
+  if (t < NSHOT.macro) {
+    // SHOT 0: in the game. The hive splits and the first hornets peel out, the buzz climbs.
+    const u = t / NSHOT.macro;
+    ctx.save(); ctx.fillStyle = `rgba(3,3,5,${0.55 * u})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore();
+    for (let i = 0; i < 46; i++) {
+      const t0 = hash(i, 4, 1) * 0.9, s0 = t - t0; if (s0 < 0) continue;
+      const a = hash(i, 4, 2) * TAU, sp = 40 + hash(i, 4, 3) * 140, sw = Math.sin(s0 * 6 + i) * 18;
+      const x = fx.px + Math.cos(a) * sp * s0 + Math.cos(a + HALF) * sw, y = fx.py + Math.sin(a) * sp * s0 + Math.sin(a + HALF) * sw - s0 * 20;
+      drawHornet(x, y, 0.7 + hash(i, 4, 4) * 0.4, a + Math.cos(s0 * 6 + i) * 0.6, time + i);
+    }
+    text(typed('...', 0.3, t, 6), CX, CY - R - 40, 14, '#ffd23f', 'center', 700);
+  } else if (t < NSHOT.reveal) {
+    ctx.save();
+    if (t < NSHOT.swarm) {
+      // SHOT 1: macro on a hornet's face. Its eyes hold your knife.
+      const s0 = t - NSHOT.macro, k = 1 + s0 * 0.06 + (s0 > 1.05 ? 0.05 : 0);
+      drawHornetFace(CX + Math.sin(t * 40) * (s0 > 1.05 ? 3 : 0.6), 400, k, t);
+      text(typed('YOU KICKED THE NEST.', NSHOT.macro + 0.25, t, 28), CX, 120, 12, '#ffe680', 'center', 700);
+    } else if (t < NSHOT.comb) {
+      // SHOT 2: the swarm spirals in and wraps the log in paper
+      const s0 = t - NSHOT.swarm, u = clamp(s0 / (NSHOT.comb - NSHOT.swarm), 0, 1);
+      const bg = ctx.createRadialGradient(CX, CY + 20, 20, CX, CY + 20, 460); bg.addColorStop(0, '#2a1408'); bg.addColorStop(1, '#030305'); ctx.fillStyle = bg; ctx.fillRect(-W, -H, W * 3, H * 3);
+      const cy = CY + 30, sc = 1.05 + 0.12 * u;
+      ctx.save(); ctx.translate(CX, cy); ctx.scale(sc, sc); ctx.rotate(fx.rot + s0 * 0.4);
+      if (fx.logTex) { const h = R + 4; ctx.drawImage(fx.logTex, -h, -h, h * 2, h * 2); }
+      ctx.fillStyle = `rgba(3,3,5,${0.25 + 0.3 * u})`; ctx.beginPath(); ctx.arc(0, 0, R + 2, 0, TAU); ctx.fill();
+      drawPaperWrap(R + 2, clamp((s0 - 0.2) / 1.3, 0, 1), 0);
+      if (u > 0.8) { ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.ellipse(0, 0, R * 0.14 * (u - 0.8) * 5, R * 0.12 * (u - 0.8) * 5, 0, 0, TAU); ctx.fill(); }
+      ctx.restore();
+      for (let i = 0; i < 240; i++) {   // the vortex
+        const base = hash(i, 7, 1) * TAU, r0 = 140 + hash(i, 7, 2) * 280, r = r0 * (1 - 0.42 * u) + Math.sin(s0 * 3 + i) * 8, sp = 2.2 + hash(i, 7, 3) * 2.4, a = base + s0 * sp;
+        const x = CX + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.86;
+        if (i % 5 === 0) drawHornet(x, y, 0.8, a + HALF, time + i);
+        else { ctx.strokeStyle = i % 2 ? 'rgba(255,210,63,.55)' : 'rgba(8,8,10,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sin(a) * 9, y - Math.cos(a) * 8); ctx.stroke(); }
+      }
+      for (let i = 0; i < 3; i++) { const ph = (s0 * 0.9 + i / 3) % 1, x = -200 + ph * (W + 400), y = 160 + i * 230 + Math.sin(ph * 6) * 40; ctx.save(); ctx.globalAlpha = 0.75; drawHornet(x, y, 7 + i, 0.15, time + i * 3, { dark: true }); ctx.restore(); }
+      text(typed('THEY BUILD FAST.', NSHOT.swarm + 0.25, t, 28), CX, 110, 12, '#ffe2a6', 'center', 700);
+    } else if (t < NSHOT.rise) {
+      // SHOT 3: inside. Comb, larvae, and one cell far bigger than the rest.
+      const s0 = t - NSHOT.comb, u = clamp(s0 / (NSHOT.rise - NSHOT.comb), 0, 1);
+      ctx.fillStyle = '#1e1008'; ctx.fillRect(-W, -H, W * 3, H * 3);
+      const hr = 30, dx = hr * Math.sqrt(3), off = -s0 * 70;
+      for (let row = -1; row < 18; row++) for (let col = -2; col < 9; col++) {
+        const x = col * dx + (row % 2) * dx / 2 + ((off % dx) + dx) % dx - dx, y = row * hr * 1.5 - 20, id = Math.floor(col - Math.floor(off / dx)) * 31 + row * 7, h = hash(id, 2, 9);
+        hexPath(x, y, hr - 2); ctx.fillStyle = h < 0.45 ? (h < 0.2 ? '#c97a35' : '#e09a52') : '#2a1408'; ctx.fill(); ctx.strokeStyle = '#874419'; ctx.lineWidth = 3; ctx.stroke();
+        if (h >= 0.45 && h < 0.75) { ctx.strokeStyle = '#f2cf94'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x, y, 9, 0.6 + Math.sin(t * 2 + id) * 0.2, 5.4); ctx.stroke(); }
+        else if (h >= 0.75 && h < 0.86) drawHornet(x, y + 2, 1.1, -HALF + Math.sin(t * 3 + id) * 0.3, time + id, { crawl: true });
+        else if (h < 0.45) { ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x - 10, y - 12, 8, 3); }
+      }
+      // the royal cell drifts to centre
+      const rx = CX + (1 - easeIO(u)) * 150, ry = CY + 70, rr = 92, glow = 0.5 + 0.5 * Math.sin(t * 6);
+      const rg = ctx.createRadialGradient(rx, ry, 4, rx, ry, rr * 1.7); rg.addColorStop(0, `rgba(255,46,69,${0.5 + 0.3 * glow})`); rg.addColorStop(1, 'rgba(255,46,69,0)'); ctx.fillStyle = rg; ctx.fillRect(rx - rr * 2, ry - rr * 2, rr * 4, rr * 4);
+      hexPath(rx, ry, rr); ctx.fillStyle = '#45210b'; ctx.fill(); ctx.strokeStyle = '#c97a35'; ctx.lineWidth = 6; ctx.stroke();
+      ctx.save(); hexPath(rx, ry, rr - 6); ctx.clip();
+      ctx.fillStyle = 'rgba(8,8,10,.85)'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(rx + Math.sin(t * 1.5 + i) * 6, ry - 40 + i * 20, 30 - i * 3, 9, Math.sin(t + i) * 0.1, 0, TAU); ctx.fill(); }
+      if (u > 0.72) { ctx.strokeStyle = `rgba(255,46,69,${clamp((u - 0.72) * 6, 0, 1)})`; ctx.lineWidth = 2.5; for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + Math.cos(a) * rr * (u - 0.6) * 2.4, ry + Math.sin(a) * rr * (u - 0.6) * 2.4); ctx.stroke(); } }
+      if (u > 0.82) { ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(rx - 12, ry - 6, 5, 0, TAU); ctx.arc(rx + 12, ry - 6, 5, 0, TAU); ctx.fill(); }
+      ctx.restore();
+      const lg = ctx.createLinearGradient(0, H, 0, 0); lg.addColorStop(0, 'rgba(255,160,74,.28)'); lg.addColorStop(1, 'rgba(255,160,74,0)'); ctx.fillStyle = lg; ctx.fillRect(-W, -H, W * 3, H * 3);
+      text(typed('SOMETHING IS GUARDING IT.', NSHOT.comb + 0.25, t, 28), CX, 110, 12, '#ff7a1a', 'center', 700);
+    } else {
+      // SHOT 4: from below. The finished nest, two rings of hornets circling it like planets.
+      const s0 = t - NSHOT.rise, u = clamp(s0 / (NSHOT.reveal - NSHOT.rise), 0, 1);
+      const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#030305'); sky.addColorStop(0.7, '#2a1408'); sky.addColorStop(1, '#45210b'); ctx.fillStyle = sky; ctx.fillRect(-W, -H, W * 3, H * 3);
+      if (!nestIntroTex) nestIntroTex = makeNestTexture({ seed: 9 });
+      const ny = 330, sc = 1.25 + 0.25 * easeIO(u);
+      for (let ring = 0; ring < 2; ring++) for (let i = 0; i < 9; i++) {   // the far half of each ring first
+        const a = i / 9 * TAU + s0 * (ring ? 0.9 : 1.6), rx = (ring ? 260 : 190) * sc * 0.7, ry = (ring ? 70 : 52) * sc * 0.7, x = CX + Math.cos(a) * rx, y = ny + Math.sin(a) * ry - 10;
+        if (Math.sin(a) < 0) drawHornet(x, y, 1.2, a + HALF, time + i + ring * 9);
+      }
+      ctx.save(); ctx.translate(CX, ny); ctx.scale(sc, sc * 0.96); ctx.rotate(s0 * 0.3);
+      ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, TAU); ctx.fill();
+      const h = R + 4; ctx.drawImage(nestIntroTex, -h, -h, h * 2, h * 2);
+      const sh = ctx.createRadialGradient(-R * 0.3, -R * 0.4, 5, 0, 0, R + 6); sh.addColorStop(0, 'rgba(255,230,128,.12)'); sh.addColorStop(0.6, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.5)'); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, TAU); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.setLineDash([4, 8]); ctx.strokeStyle = 'rgba(255,210,63,.25)'; ctx.lineWidth = 1.5;
+      for (let ring = 0; ring < 2; ring++) { ctx.beginPath(); ctx.ellipse(CX, ny - 10, (ring ? 260 : 190) * sc * 0.7, (ring ? 70 : 52) * sc * 0.7, 0, 0, TAU); ctx.stroke(); }
+      ctx.restore();
+      for (let ring = 0; ring < 2; ring++) for (let i = 0; i < 9; i++) {
+        const a = i / 9 * TAU + s0 * (ring ? 0.9 : 1.6), rx = (ring ? 260 : 190) * sc * 0.7, ry = (ring ? 70 : 52) * sc * 0.7, x = CX + Math.cos(a) * rx, y = ny + Math.sin(a) * ry - 10;
+        if (Math.sin(a) >= 0) drawHornet(x, y, 1.5, a + HALF, time + i + ring * 9);
+      }
+      text(typed("DON'T LET THEM SWARM YOU.", NSHOT.rise + 0.15, t, 30), CX, 600, 12, '#ffe2a6', 'center', 700);
+      if (u > 0.75) { ctx.fillStyle = `rgba(3,3,5,${clamp((u - 0.75) / 0.25, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); }
+    }
+    const vg = ctx.createRadialGradient(CX, CY + 60, 200, CX, CY + 60, 620); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.5)');
+    ctx.fillStyle = vg; ctx.fillRect(-W, -H, W * 3, H * 3);
+    ctx.fillStyle = 'rgba(255,255,255,.07)'; for (let i = 0; i < 90; i++) ctx.fillRect(rand(-60, W + 60), rand(0, H), 1.2, 1.2);
+    ctx.restore();
+  } else {
+    ctx.save(); ctx.fillStyle = `rgba(3,3,5,${clamp(1 - (t - NSHOT.reveal) / 0.4, 0, 1)})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore();
+  }
+  if (t > NSHOT.macro - 0.01 && t < NSHOT.reveal) text('TAP TO SKIP', W - 50, H - 14, 8, 'rgba(255,255,255,.45)', 'center', 700);
+  // title: hazard stripes and a stinger-sharp slam
+  if (t > NSHOT.reveal + 0.55 && t < NSHOT.reveal + 2.5) {
+    const s0 = t - NSHOT.reveal - 0.55, a = clamp(s0 / 0.06, 0, 1) * clamp((1.95 - s0) / 0.35, 0, 1), sl = clamp(s0 / 0.22, 0, 1), sc = 1 + 1.8 * Math.pow(1 - sl, 3);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(CX, CY + R + 124);
+    const sw = clamp(s0 / 0.3, 0, 1); ctx.save(); ctx.beginPath(); ctx.rect(-180 * sw, -20, 360 * sw, 40); ctx.clip();
+    ctx.fillStyle = '#08080a'; ctx.fillRect(-180, -20, 360, 40); ctx.fillStyle = '#ffd23f'; for (let i = -10; i < 12; i++) { ctx.beginPath(); ctx.moveTo(i * 24, -20); ctx.lineTo(i * 24 + 12, -20); ctx.lineTo(i * 24 - 8, 20); ctx.lineTo(i * 24 - 20, 20); ctx.fill(); }
+    ctx.restore();
+    ctx.scale(sc, sc); ctx.rotate(-0.04 * (1 - sl));
+    for (let d = 10; d >= 1; d--) text("HORNET'S NEST", d * 0.7, d * 0.9, 32, d > 6 ? '#08080a' : '#45210b', 'center', 700);
+    text("HORNET'S NEST", -2, 0, 32, '#ff7a1a', 'center', 700); text("HORNET'S NEST", 2, 0, 32, '#08080a', 'center', 700); text("HORNET'S NEST", 0, 0, 32, '#ffd23f', 'center', 700);
+    text(typed(NEST_HP + ' HITS  /  WASPS STING  /  INFESTED SPOTS JAM', 0.15, s0, 50), 0, 34, 8, '#ffffff', 'center', 700);
     ctx.restore();
   }
   if (fx.cutFlash > 0) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${fx.cutFlash})`; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.restore(); }
@@ -5139,6 +5931,7 @@ function drawFeatureDebris(d) {
     case 'link': ctx.strokeStyle = '#c3c3ca'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(0, 0, 3.6, 2.2, 0, 0, TAU); ctx.stroke(); return true;
     case 'cog': case 'coil': return drawGearDebris(d);
     case 'nut': case 'rubber': case 'rimshard': case 'wheelcap': return drawTireDebris(d);
+    case 'paper': case 'comb': case 'queen': return drawNestDebris(d);
     case 'tooth': ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(0, -5); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill(); return true;
     case 'hub': ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.fillStyle = '#38383f'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); return true;
     case 'woodhalf': ctx.save(); ctx.beginPath(); ctx.rect(d.side < 0 ? -12 : 0, -2, 12, KL + 4); ctx.clip(); ctx.translate(0, -KL / 2); drawWoodKnife(); ctx.restore(); ctx.fillStyle = '#fff0cc'; ctx.fillRect(d.side < 0 ? -1 : 0, -KL / 2, 1, KL); return true;
@@ -5280,6 +6073,8 @@ function update(dt) {
     if (t.tank) updateTank(t, dt);
     if (t.gear) updateGear(t, dt);
     if (t.tire) updateTire(t, dt);
+    if (t.nest) updateNest(t, dt);
+    if (t.nestPending && state === 'play' && !fx) { t.nestPending = false; startNestIntro(t); }
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
   updateSmoke(dt);
@@ -5424,7 +6219,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide)) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide)) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -5434,6 +6229,7 @@ function drawTarget() {
   ctx.translate(CX + (sw ? rand(-3, 3) * sw : 0), CY - 7 * t.hit + drop + (t.tank ? t.tank.introY : 0));
   if (t.gear) { ctx.translate(t.gear.ox, t.gear.oy); ctx.scale(t.gear.s, t.gear.s); }
   if (t.tire) { ctx.translate(t.tire.ox, t.tire.oy); ctx.scale(t.tire.s, t.tire.s); }
+  if (t.nest) { ctx.translate(t.nest.ox, t.nest.oy); ctx.scale(t.nest.s, t.nest.s); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
   drawLogSide(t);
@@ -5534,12 +6330,12 @@ function drawHUD() {
     else ctx.arc(x, y, s === stage ? 7 : 5.5, 0, TAU);
     ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 56, 14, bossName ? '#ff8a95' : 'rgba(255,255,255,.7)', 'center', 700);
   drawTypeMeter();
-  drawTankHUD(); drawGearHUD(); drawTireHUD();
+  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire))) for (let i = 0; i < knivesTotal; i++) {
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest))) for (let i = 0; i < knivesTotal; i++) {
     ctx.save(); ctx.translate(22, H - 52 - i * 22); ctx.rotate(-Math.PI / 4); ctx.scale(0.32, 0.32);
     ctx.globalAlpha = i < knivesLeft ? 1 : 0.2;
     drawKnife(); ctx.restore();
@@ -5986,6 +6782,7 @@ function drawScene() {
   if (tgt) drawTarget();
   if (tgt && tgt.gear) { drawGearRig(tgt); drawSprockets(tgt); }
   if (tgt && tgt.tire) drawTireLoose(tgt);
+  if (tgt && tgt.nest) drawNestFront(tgt);
   drawSawmill(tgt);
   if (tgt) drawLeakStreams(tgt);
   drawSmoke();
@@ -6015,6 +6812,8 @@ function drawScene() {
   if (fx && fx.type === 'gearintro') drawGearIntro(fx.t);
   if (fx && fx.type === 'tireintro') drawTireIntro(fx.t);
   if (fx && fx.type === 'tiredeflate') drawTireDeflate(fx.t);
+  if (fx && fx.type === 'nestintro') drawNestIntro(fx.t);
+  if (fx && fx.type === 'queenrise') drawQueenRise(fx.t);
   if (((state === 'play' || state === 'rewind') && knivesLeft > 0) || state === 'menu') {
     const off = state === 'play' ? (readyT / 0.12) * 40 : 0, ky = KNIFE_Y + Math.min(off, 60);
     if (abil.state === 'armed') drawKnifeAura(ky, 1);
@@ -6034,8 +6833,9 @@ function drawScene() {
   drawZap();
 
   ctx.restore();
+  if (tgt && tgt.nest && state !== 'menu') drawNestScreen(tgt);
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal)))) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal)))) { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -6409,9 +7209,10 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of three bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of three bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of three bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of four bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of four bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
+  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of four bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of four bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -6436,6 +7237,7 @@ function demoFor(e) {
   if (e.apple) t.apples = [{ a: 0, cut: false }, { a: 2.1, cut: false }, { a: 4.2, cut: false }];
   if (e.graze) t.stuck = [{ a: HALF, tilt: 0.3 }];
   if (e.gear) setupGear(t);
+  if (e.nest) { setupNest(t); t.nest.hide = false; t.stuck = [{ a: 0.4, inf: 1 }, { a: 2.6, inf: 1 }]; t.nest.breaches.push({ a: 4.4, spent: false, born: -9, seed: 3 }); }
   if (e.tire) { setupTire(t); t.tire.dents = [{ a: 1.2, life: 6, born: 0 }, { a: 3.0, life: 8, born: 0 }]; t.stuck = [{ a: 0.3 }, { a: 2.1 }, { a: 5.2 }]; }
   if (e.tanker) { setupTanker(t); t.tank.leaks = [{ a: 1, age: 9 }, { a: 3.6, age: 2 }]; t.tank.flood = 40; }
   return t;
@@ -6811,7 +7613,7 @@ function drawEncyScreen() {
 function drawDemoLog(t, x, y, s) {
   const saved = tgt; tgt = t;
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.translate(-CX, -CY);
-  drawTarget(); if (t.f && t.f.saws.length) drawSawmill(t);
+  drawTarget(); if (t.nest) drawNestFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
   if (ENTRIES[ui.idx].apple) { ctx.save(); ctx.translate(CX, CY); ctx.scale(2.4, 2.4); drawApple(); ctx.restore(); }
   ctx.restore(); tgt = saved;
 }
@@ -6829,7 +7631,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 36', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 37', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -7022,6 +7824,7 @@ view.addEventListener('pointerdown', e => {
   if (fx && fx.type === 'tankintro') { skipTankIntro(); return; }
   if (fx && fx.type === 'gearintro') { skipGearIntro(); return; }
   if (fx && fx.type === 'tireintro') { skipTireIntro(); return; }
+  if (fx && fx.type === 'nestintro') { skipNestIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -7029,7 +7832,7 @@ view.addEventListener('pointerdown', e => {
 view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (state === 'menu') menuMove(x, y); });
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
-  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipNestIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
