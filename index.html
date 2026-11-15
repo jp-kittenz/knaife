@@ -507,7 +507,7 @@ function updateMusic(rdt) {
   else if (fx && fx.type === 'nestintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'queenrise' && fx.t < 1.4) { const u = clamp((fx.t - 0.2) / 1.12, 0, 1); rate = 1 - 0.68 * Math.pow(u, 1.5); cut = 20000 * Math.pow(0.013, u); vol = fx.t > 1.3 ? 0 : 0.55; }
   else if (fx && fx.type === 'queenrise') { rate = 1; cut = 20000; vol = 0.66; }
-  else if (fx && fx.type === 'wireintro') { rate = 1; cut = fx.t < WSHOT.reveal ? 700 + 3000 * clamp(fx.t / WSHOT.reveal, 0, 1) : 20000; vol = 0.6; }
+  else if (fx && fx.type === 'wireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
@@ -6290,6 +6290,7 @@ function beatInfo(name) {
   return { b, k, u, pulse: Math.exp(-u * 5.5), half: Math.exp(-((b * 2) % 1) * 6), down: (((k % 4) + 4) % 4) === 0 ? Math.exp(-u * 4) : 0, bar: Math.floor(b / 4), barU: (((b % 4) + 4) % 4) / 4, phrase: Math.floor(b / 16) };
 }
 function bossBgKey(t) {
+  if (t && t.wire && fx && fx.type === 'wireintro' && fx.t >= TW.out) return 'wire';
   if (t && t.nest && fx && fx.type === 'nestintro' && fx.t >= NM.macro + TN.down) return 'nest';
   if (t && t.tire && fx && fx.type === 'tireintro' && fx.t >= TT.air) return 'tire';
   if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
@@ -6362,57 +6363,6 @@ function towerSprite() {
     g.stroke();
   });
 }
-BG.wire = (B, px, py) => {
-  const T = tgt && tgt.wire, dark = T && T.blackout > 0, dz = T && voltDanger(T), acc = dz ? '#ff2e45' : '#2ad8ff';
-  bgFill('wire', [[0, '#020818'], [0.28, '#0a2a52'], [0.45, '#14567a'], [0.62, '#06222e'], [1, '#020a0c']]);
-  // the charge in the air: a band of glow on the horizon breathing with the beat
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const hg = 0.12 + 0.18 * B.pulse + 0.15 * B.down; ctx.fillStyle = dark ? `rgba(255,46,69,${hg * 0.5})` : dz ? `rgba(255,46,69,${hg})` : `rgba(42,216,255,${hg})`; ctx.beginPath(); ctx.ellipse(CX + px * 0.2, 330 + py * 0.2, 340, 70, 0, 0, TAU); ctx.fill(); ctx.restore();
-  // storm clouds lit from inside; a sky bolt on every bar
-  const fl = Math.exp(-B.barU * 9);
-  ctx.save(); ctx.translate(px * 0.1, py * 0.1);
-  for (let i = 0; i < 9; i++) { const x = ((i * 70 + time * (6 + i)) % (W + 160)) - 80, y = 30 + (i % 3) * 22; ctx.fillStyle = `rgba(${20 + fl * 60},${40 + fl * 110},${70 + fl * 140},${0.5 + 0.2 * fl})`; ctx.beginPath(); ctx.ellipse(x, y, 90, 30, 0, 0, TAU); ctx.fill(); }
-  if (fl > 0.05 && !dark) { const bx = 60 + hash(B.bar, 9, 1) * (W - 120); ctx.globalAlpha = fl; zapBolt(bx, 30, bx + (hash(B.bar, 9, 2) - 0.5) * 120, 300, B.bar, { amp: 30, w: 1.6, forks: 3, col: '#9ff0ff' }); ctx.globalAlpha = 1; }
-  ctx.restore();
-  // pylons and sagging high-tension lines, charge racing along on every beat
-  ctx.save(); ctx.translate(px * 0.25, py * 0.25);
-  const sp = towerSprite();
-  for (const [x, y, s] of TOWERS) { ctx.save(); ctx.translate(x, y + 260 * s - 40); ctx.scale(s, s); blit(sp); ctx.restore(); }
-  for (let l = 0; l < 3; l++) for (let k = 0; k < 2; k++) {
-    const [x0, y0, s0] = TOWERS[k], [x1, y1, s1] = TOWERS[k + 1], ya = y0 + 260 * s0 - 40 - [170, 205, 235][l] * s0, yb = y1 + 260 * s1 - 40 - [170, 205, 235][l] * s1, sag = 30 + l * 6;
-    ctx.strokeStyle = '#01040a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0, ya); ctx.quadraticCurveTo((x0 + x1) / 2, (ya + yb) / 2 + sag, x1, yb); ctx.stroke();
-    if (!dark) { const u = ((B.b + l * 0.33 + k * 0.5) % 1 + 1) % 1, x = (1 - u) * (1 - u) * x0 + 2 * u * (1 - u) * (x0 + x1) / 2 + u * u * x1, y = (1 - u) * (1 - u) * ya + 2 * u * (1 - u) * ((ya + yb) / 2 + sag) + u * u * yb; ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(x, y, 2.5 + 2 * B.pulse, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(42,216,255,.25)'; ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill(); }
-  }
-  ctx.restore();
-  // rain
-  ctx.strokeStyle = 'rgba(120,180,220,.28)'; ctx.lineWidth = 1; ctx.beginPath();
-  for (let i = 0; i < 60; i++) { const x = ((hash(i, 10, 1) * (W + 100) + time * 120) % (W + 100)) - 50, y = ((hash(i, 10, 2) * H + time * (700 + hash(i, 10, 3) * 300)) % (H + 40)) - 20; ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 18); }
-  ctx.stroke();
-  // circuit floor with charge pulses, and the oscilloscope
-  if (!circuit) circuit = makeCircuit();
-  ctx.save(); ctx.translate(px * 0.5, py * 0.5);
-  ctx.strokeStyle = dark ? 'rgba(80,10,20,.6)' : `rgba(47,154,31,${0.4 + 0.25 * B.down})`; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
-  ctx.beginPath(); for (const P of circuit) P.pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke();
-  ctx.fillStyle = ctx.strokeStyle; for (const P of circuit) { const e = P.pts[P.pts.length - 1]; ctx.fillRect(e[0] - 4, e[1] - 4, 8, 8); }
-  if (!dark) { const pos = circuit.map((P, i) => alongPath(P, (((B.b * 0.5 + i * 0.37) % 1 + 1) % 1) * P.L)); ctx.fillStyle = 'rgba(124,255,79,.22)'; ctx.beginPath(); for (const [x, y] of pos) { ctx.moveTo(x + 9, y); ctx.arc(x, y, 9, 0, TAU); } ctx.fill(); ctx.fillStyle = '#7cff4f'; ctx.beginPath(); for (const [x, y] of pos) { ctx.moveTo(x + 3, y); ctx.arc(x, y, 2.5 + B.pulse * 2.5, 0, TAU); } ctx.fill(); }
-  ctx.restore();
-  const oy = H - 120 + py * 0.6;
-  ctx.strokeStyle = dark ? 'rgba(255,46,69,.5)' : `rgba(124,255,79,${0.6 + 0.35 * B.pulse})`; ctx.lineWidth = 2.5; ctx.beginPath();
-  for (let x = -20; x <= W + 20; x += 4) { const ph = x / 60 - B.b, v = Math.sign(Math.sin(ph * Math.PI)) * (10 + 30 * B.pulse) + Math.sin(ph * 9) * 3; ctx[x > -20 ? 'lineTo' : 'moveTo'](x + px * 0.3, oy + v); }
-  ctx.stroke();
-  // Tesla coils either side, discharging on every beat and roaring on the downbeat
-  ctx.save(); ctx.translate(px * 0.6, py * 0.6);
-  for (const [x, sd] of [[34, 1], [W - 34, -1]]) {
-    const top = 400;
-    ctx.fillStyle = '#0a1824'; ctx.fillRect(x - 12, top, 24, 150); ctx.fillStyle = '#c97a35'; for (let i = 0; i < 14; i++) ctx.fillRect(x - 12, top + 8 + i * 10, 24, 3);
-    ctx.fillStyle = '#16161b'; ctx.fillRect(x - 22, top + 150, 44, 18);
-    ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.ellipse(x, top - 4, 26, 11, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.ellipse(x, top - 7, 20, 6, 0, 0, TAU); ctx.fill();
-    if (!dark && B.pulse > 0.25) { const n = B.down > 0.3 ? 4 : 2; ctx.globalAlpha = Math.min(1, B.pulse * 1.3); for (let i = 0; i < n; i++) { const a = -HALF + sd * (0.3 + hash(B.k, i, x) * 1.2), L = 60 + hash(B.k, i + 3, x) * 90 + B.down * 60; zapBolt(x, top - 6, x + Math.cos(a) * L, top - 6 + Math.sin(a) * L, B.k * 7 + i, { amp: 16, w: 1.2, forks: 2, col: dz ? '#ff8a9a' : '#9ff0ff' }); } ctx.globalAlpha = 1; }
-  }
-  ctx.restore();
-  drawWireWindow(dark, px, py);
-  if (!dark) bgFlash(acc, 0.1 * B.down);
-  bgStage();
-};
 function drawWireWindow(dark, px, py) {
   const wx = W - 158 + px * 0.4, wy = 412 + py * 0.4, ww = 132, wh = 60;
   ctx.fillStyle = '#08080a'; ctx.fillRect(wx - 6, wy - 6, ww + 12, wh + 12);
@@ -6485,106 +6435,6 @@ function cineEnd(q) { cineVignette(); drawGrain(0.13); cineBlack(cineDip(q.s, q.
 // ======================= MONSTER TIRE =======================
 // ======================= HORNET'S NEST =======================
 // ======================= THE WIRE CLUMP =======================
-const WIRE_SHOTS = [2.8, 2.6, 2.6, 2.6];
-const WSHOT = { reveal: 10.6 };
-const WI_END = WSHOT.reveal + 4.2;
-function startWireIntro(t) {
-  fx = { type: 'wireintro', t: 0, freeze: 0, tg: t, cuts: {} }; state = 'fx';
-  t.wire.hide = true; cinema(true, 0.9); setMusic('wire'); sfx.rumble();
-}
-function skipWireIntro() { if (fx && fx.type === 'wireintro' && fx.t < WSHOT.reveal) { fx.t = WSHOT.reveal - 0.01; fx.skipped = true; } }
-function updateWireIntro(t) {
-  tscale = 0; const tg = fx.tg, T = tg.wire, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
-  const S0 = cineStarts(WIRE_SHOTS);
-  if (cineCue('th0', 1.1)) sfx.thunder(); if (t < S0[1] && Math.floor(t * 2) !== fx.zz) { fx.zz = Math.floor(t * 2); sfx.zap(0.15); }
-  if (cineCue('s1', S0[1])) sfx.voltRise(); if (cineCue('al', S0[1] + 1.4)) sfx.alarm();
-  if (cineCue('s2', S0[2])) sfx.rumble(); if (t > S0[2] && t < S0[3] && Math.floor(t * 4) !== fx.cz) { fx.cz = Math.floor(t * 4); sfx.zap(0.2); }
-  if (cineCue('s3', S0[3])) sfx.voltRise(); if (t > S0[3] && t < WSHOT.reveal - 0.6 && Math.floor(t * 6) !== fx.cz2) { fx.cz2 = Math.floor(t * 6); sfx.zap(0.3); }
-  if (cineCue('out', WSHOT.reveal - 0.55)) { sfx.cableSnap(); sfx.lightsOff(); }
-  if (t >= WSHOT.reveal && !fx.revealed) { fx.revealed = true; T.hide = false; T.oy = -300; sfx.alarm(); }
-  if (fx.revealed) {
-    const s = t - WSHOT.reveal, u = clamp(s / 1.6, 0, 1); T.oy = -300 * (1 - easeIO(u));
-    if (s < 1.6 && Math.floor(s * 5) !== fx.zr) { fx.zr = Math.floor(s * 5); sfx.zap(0.3); }
-    if (cineCue('land', WSHOT.reveal + 1.6)) { T.oy = 0; shake = 22; kick(0.35, 0.06, 1.6, 1); shocks(CX, CY, 3, 260); sfx.stamp(); sfx.subDrop(); sfx.cableSnap(); sfx.breaker(); zapT = 0.6; buzz([60, 30, 90]); for (let i = 0; i < 8; i++) fxp.push({ kind: 'bolt', x: CX, y: CY, x2: CX + rand(-260, 260), y2: CY + rand(-260, 260), life: 0.5, max: 0.5 }); }
-  }
-  fxFilter = null;
-  if (t > WI_END) { T.oy = 0; endFx('play'); floater('HIT THE BRAIDS. WATCH THE VOLTS.', CX, CY + R + 80, '#2ad8ff'); }
-}
-function drawWireIntro(t) {
-  const tg = fx.tg, T = tg.wire;
-  if (t < WSHOT.reveal) {
-    const q = cineSeq(WIRE_SHOTS, t), s = q.s, u = q.u;
-    ctx.save(); ctx.fillStyle = '#010308'; fillView();
-    if (q.i === 0) {
-      // SHOT 1: the substation in a storm: pylons marching into the dark, charge racing along the lines, lightning far off
-      ctx.save(); ctx.translate(-40 + 80 * easeIO(u), 0);
-      const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#020818'); sky.addColorStop(0.5, '#0c2a48'); sky.addColorStop(1, '#020508'); ctx.fillStyle = sky; fillView();
-      const fl = Math.max(0, 1 - Math.abs(s - 1.1) * 6); if (fl > 0) { ctx.fillStyle = `rgba(90,140,200,${0.25 * fl})`; fillView(); zapBolt(320, -20, 280, 330, 7, { amp: 30, w: 1.6, forks: 3, col: '#9ff0ff' }); }
-      const sp = towerSprite();
-      for (const [x, y, sc] of [[-20, 520, 0.7], [150, 560, 1.0], [330, 620, 1.5]]) { ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); blit(sp); ctx.restore(); }
-      for (let l = 0; l < 3; l++) { const y0 = 520 - [170, 205, 235][l] * 0.7, y1 = 560 - [170, 205, 235][l], y2 = 620 - [170, 205, 235][l] * 1.5; ctx.strokeStyle = '#01040a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-20, y0); ctx.quadraticCurveTo(65, y0 + 30, 150, y1); ctx.quadraticCurveTo(240, y1 + 40, 330, y2); ctx.stroke();
-        const k = ((s * 0.8 + l * 0.3) % 1), x = -20 + k * 350, yy = k < 0.5 ? y0 + (y1 - y0) * k * 2 + 20 : y1 + (y2 - y1) * (k - 0.5) * 2 + 25; ctx.fillStyle = '#2ad8ff'; ctx.beginPath(); ctx.arc(x, yy, 3, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(42,216,255,.25)'; ctx.beginPath(); ctx.arc(x, yy, 10, 0, TAU); ctx.fill(); }
-      ctx.fillStyle = '#04080c'; ctx.fillRect(-W, 640, W * 3, H); drawWireWindow(false, -260, 560);
-      ctx.restore();
-      ctx.strokeStyle = 'rgba(120,180,220,.3)'; ctx.lineWidth = 1; ctx.beginPath(); for (let i = 0; i < 60; i++) { const x = hash(i, 12, 1) * (W + 60), y = (hash(i, 12, 2) * H + s * 600) % H; ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 16); } ctx.stroke();
-      cineCaption('SUBSTATION 9  .  02:14', s, 610, '#9ff0ff', 10, 0.6);
-    } else if (q.i === 1) {
-      // SHOT 2: the control room: one meter, pushed in on, the needle leaning into the red; the alarm light starts to turn
-      const z = 1 + 0.18 * easeIO(u), nv = clamp(0.3 + u * 0.78, 0, 1.02);
-      ctx.fillStyle = '#07090c'; fillView();
-      drawWireWindow(s > 1.4, -560, -800);
-      ctx.save(); ctx.translate(CX, 360); ctx.scale(z, z);
-      ctx.fillStyle = '#16161b'; ctx.fillRect(-150, -130, 300, 260); ctx.strokeStyle = '#38383f'; ctx.lineWidth = 4; ctx.strokeRect(-150, -130, 300, 260);
-      ctx.fillStyle = '#e8e4d8'; ctx.fillRect(-130, -110, 260, 200);
-      for (const [a0, a1, c] of [[0, 0.55, '#2f9a1f'], [0.55, 0.78, '#c89a1a'], [0.78, 1, '#c4122a']]) { ctx.strokeStyle = c; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(0, 60, 130, Math.PI * (1.15 + 0.7 * a0), Math.PI * (1.15 + 0.7 * a1)); ctx.stroke(); }
-      for (let i = 0; i <= 20; i++) { const a = Math.PI * (1.15 + 0.7 * i / 20); ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 5 ? 1 : 2.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 118, 60 + Math.sin(a) * 118); ctx.lineTo(Math.cos(a) * (i % 5 ? 110 : 104), 60 + Math.sin(a) * (i % 5 ? 110 : 104)); ctx.stroke(); }
-      text('KV', 0, 30, 14, '#16161b', 'center', 700);
-      const na = Math.PI * (1.15 + 0.7 * nv) + (u > 0.85 ? Math.sin(time * 60) * 0.02 : 0); ctx.strokeStyle = '#08080a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(Math.cos(na) * 125, 60 + Math.sin(na) * 125); ctx.stroke();
-      ctx.restore();
-      if (s > 1.4) { const a = (s - 1.4) * 4; ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (const o of [0, Math.PI]) beam(W - 40, 60, a + o, 700, 4, 110, 'rgba(255,46,69,.16)'); ctx.restore(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(W - 40, 60, 10, Math.PI, 0); ctx.fill(); }
-      cineCaption('LOAD: CRITICAL', s, 620, u > 0.6 && Math.sin(time * 10) > 0 ? '#ff2e45' : '#ffffff', 12, 0.7);
-    } else if (q.i === 2) {
-      // SHOT 3: at floor level, cables slither past the camera toward one point in the dark
-      ctx.fillStyle = '#04070a'; fillView();
-      const vy = 280; ctx.strokeStyle = 'rgba(47,154,31,.18)'; ctx.lineWidth = 1; for (let i = -12; i <= 12; i++) { ctx.beginPath(); ctx.moveTo(CX + i * 6, vy); ctx.lineTo(CX + i * 90, H + 40); ctx.stroke(); }
-      for (let i = 0; i < 9; i++) {
-        const sx = hash(i, 13, 1) * (W + 300) - 150, col = WIRE_COLS[i % WIRE_COLS.length], pts = [];
-        for (let k = 0; k <= 30; k++) { const qk = k / 30, prog = clamp(s * 0.45 + qk * 0.55 - hash(i, 13, 2) * 0.2, 0, 1); const x = sx + (CX - sx) * prog + Math.sin(prog * 14 - s * 4 + i) * 40 * (1 - prog), y = H + 40 + (vy + 20 - H - 40) * prog; pts.push([x, y, 1 - prog]); }
-        ctx.lineCap = 'round'; for (const [c, w] of [['#030305', 16], [col, 10]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke(); }
-        ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2; ctx.beginPath(); pts.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x - 2, y - 3)); ctx.stroke();
-        const hd = pts[pts.length - 1]; if (hash(i, Math.floor(s * 8), 5) > 0.6) zapRing(hd[0], hd[1], 6, 1, i);
-      }
-      const g = ctx.createRadialGradient(CX, vy, 2, CX, vy, 120); g.addColorStop(0, `rgba(42,216,255,${0.4 + 0.3 * u})`); g.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = g; ctx.fillRect(CX - 120, vy - 120, 240, 240);
-      cineCaption('EVERYTHING IS BEING PULLED IN', s, 620, '#9ff0ff', 9, 0.6);
-    } else {
-      // SHOT 4: it winds itself into a knot, strand by strand, lightning lashing out of the core... and the lights die
-      ctx.fillStyle = '#030508'; fillView();
-      if (!wireStrands) wireStrands = makeWireStrands();
-      const ay = s * 1.6, ax = 0.5, ca = Math.cos(ay), sa = Math.sin(ay), cb = Math.cos(ax), sb = Math.sin(ax), sc = 1.35 + 0.2 * easeIO(u), cy0 = 330;
-      const g = ctx.createRadialGradient(CX, cy0, 4, CX, cy0, 150); g.addColorStop(0, 'rgba(220,250,255,.9)'); g.addColorStop(0.3, 'rgba(42,216,255,.5)'); g.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = g; ctx.fillRect(CX - 150, cy0 - 150, 300, 300);
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      wireStrands.forEach((st, i) => {
-        const f = clamp(u * 1.5 - i / wireStrands.length * 0.6, 0, 1); if (f <= 0) return;
-        const n = Math.max(2, Math.ceil(st.pts.length * f)), pull = (1 - f) * 2.2;
-        ctx.beginPath();
-        for (let j = 0; j < n; j++) { const p = st.pts[j], x1 = p[0] * ca + p[2] * sa, z1 = -p[0] * sa + p[2] * ca, y1 = p[1] * cb - z1 * sb; const k = 1 + pull * (1 - j / n); ctx[j ? 'lineTo' : 'moveTo'](CX + x1 * sc * k, cy0 + y1 * sc * k); }
-        ctx.strokeStyle = '#030305'; ctx.lineWidth = st.w * sc + 3; ctx.stroke(); ctx.strokeStyle = st.col; ctx.lineWidth = st.w * sc; ctx.stroke();
-      });
-      for (let i = 0; i < 4; i++) { const a = hash(i, Math.floor(s * 8), 14) * TAU; zapBolt(CX, cy0, CX + Math.cos(a) * 260, cy0 + Math.sin(a) * 260, i + Math.floor(s * 8), { amp: 28, w: 1.4, forks: 3 }); }
-      const out = clamp((s - (q.d - 0.55)) / 0.12, 0, 1);
-      if (out > 0) { ctx.fillStyle = `rgba(0,0,0,${out})`; fillView(); }
-      cineCaption('IT IS ALIVE', s, 640, '#2ad8ff', 12, 0.6);
-    }
-    cineEnd(q); ctx.restore(); cineSkipHint();
-  } else {
-    const s = t - WSHOT.reveal, cy = CY + T.oy;
-    if (s < 1.7) { ctx.strokeStyle = '#030305'; ctx.lineWidth = 10; for (const dx of [-30, 30]) { ctx.beginPath(); ctx.moveTo(CX + dx * 3, -40); ctx.quadraticCurveTo(CX + dx * 2, cy - 160, CX + dx, cy - R + 8); ctx.stroke(); } }
-    const flick = s < 1.6 ? (Math.sin(s * 37) > 0.6 ? 0.35 : 0) : 0;
-    cineRevealLight(s, CX, cy, 'rgba(255,46,69,.14)');
-    if (flick) { ctx.fillStyle = `rgba(0,0,0,${flick})`; fillView(); }
-    cineTitle('THE WIRE CLUMP', WIRE_HP + ' HITS  /  BRAIDS ARE SAFE  /  MIND THE VOLTAGE', s - 1.0, '#2ad8ff', '#ff2e45');
-  }
-}
 // ======================= MUSIC STRUCTURE (build 49) =======================
 // Per-beat energy / bass / highs measured from the track file (base-36, one char per beat), so the backgrounds know
 // what section they are in and what is coming 8 beats ahead; a live AnalyserNode on the music bus adds the transients.
@@ -6593,6 +6443,7 @@ MUSIC_MAP.gear = {"e":"02314245658622570464744667b9b9ghpuwryxuyxzzywntwtsyszwxxz
 MUSIC_MAP.tire = {"e":"dhffgdgfegddfffghdddgefeehecfhegmllrqgmpqipvrkqwwkqrphostjosnipswqxuxoxtvsyzzsxyzqyyzpywytzyzuzzzuuuxrxuttuyutwuztytxqtsuuuwwsvsnfdhifighffffkfilfcehghfiekiiegghededgjgljghgllgiieedhiinighggdenplkkmrpplmnoorqtsnttkkjkijkjkmmnhkkmhknljmnllmnmilmllomkimlmiljihheieifhfihjfgghhgdigigigfgkhkje89897aaccbcc98bdab99aba88acb89bpomooiospmrsqqpwrlqpplrtrppqsmpstyvusvwrqyvwuywyvzzztwwxtywytzxzxxuvstsqsvxzswvywvtwuuvtvutxvuvwyxuvstsspuvvsywzzwuvtuwutwuwsuwxvwvwtuvtsvxyuuvywxvytuvuwwuxvutu842110","b":"789978a77876589788a778a688746786rasusastuatztgyxxdtttcrtubuusasuwvvuwsyuywzxywzxztvywutwytutxtvvuvusrxqvrysxtxxzrtvtwxuvqxrvrusqib58je87j87b7i87ke66kd86j9ea6ia7ii5i9j6jii7ial9ili7i8j7jji6i9i6ixlmkpeoklajjiaoovmmpoikij6jjjaklj8lkl9kjj6iikbkkj9lijcjjj9iil8kjec99eaa8b787d8a89a87aa989688988782111111111111112112121111111111ststustuusxxtvwwtssttsuutsstsstuvwvvuvutzyyxwzyyxvyxuxwxuxstuyvvrstzsvttoytwpwtzrsuttwszruttuvtvrswvtxovtvtxptvzwwsxvtuusvtwtrtuqtuusxwrtvvuqusytupuvrruswsvstst721000","h":"a8f8d9dgee89f8fedaee8fd88ee68e9ffddccecegddgf8efc9cfcbgaf9dgcjgiumupplptpksorlrpumosskmtrirppkqwyzuzpsovksnprtmszzuqqoorjuqtussspdfa8h7884574e7984688d75958aabe787f558g765g666h986g467j875f686i6bj7jfhclekcjbe8i9i9i8h8lejejajgiehcmagdi9haiaifhhjah9h9jgg8lbj6i643434434445544444444445545665666121124142223226222324422121211299ca988999a9a889bab9c8cabaaac9dcsrnprpttrqnmsqnmspmpntmvqqprnqrwzzrupsptjrorlrosuznxpsktkuptptuxzzsurpqwjssqluorvzptnrtrlposkxtyzzptqqzwqsoslqpvvxoqrslqluptuvqs810000"};
 MUSIC_MAP.nest = {"e":"hhkiknnkkgkhjklhgjkiklpmlgkglvvwuuuwyigfvgquvhfeupxtvgfeugqvuhfevuxvvyxxwyxwxyxxwyzwvxwwvxxxyxxwwyxxvvvvvvxxvvvvvhmvvxvtuvuvuutwuvuttvtuutsvvusuuuvvtyxvuvuwwwuvwxxxwxwwxvxwxyyzyxxywyyzyxwwytrxxvquxwrvyurwwurwxupvvvpwxzyyxwswxwruxvswywwyywvptwxrvwzsyvwuvwwvxzyyyyzyzzzzzzxy","b":"1111111111111111111111111111hopligipvm34qkrowl00qtvwzk22qksqqj12rppoqwvstwwqqywsstxrqwwrpwusswyqsvusqprqqrwsrtvurjxzwwwtzsuystqwvwxzvtsvzspxtvqttttwqvuwztrurtttsuvtrrprtrssuvuxutszrtvussuvxr3qsr3qrt5nup4trm4nuq4tpt4qwtqqts9pqs8qrs7pprkvvorjpszspnxqppqeiisgppomnkmlnptrqrpl","h":"ddeedacbefehhfbfddeedfvrlmjekrsnlnltwr9bxqtrvpa8sqtruoa9wpsqvq98utsrzvuuvtssvuvstwquxuvuwsuuwuusstprxvtrrspqvutqpcqrzwssqrrqqpssnnqowsptqqqpqsrrqnqqxrrtrptuqpsqpqusvssqltqszvsrtwvtvvuvqutsxtwtqppurruuqrosxuorsnktspotuuuzxxzzqsqpqnrxspsrvvupswsrxxwrtutskmpowvzwwwwxyuvuzyrz"};
 MUSIC_MAP.queen = {"e":"vxytvwytyuwuvvvvyyxwxxxxxyzxyyyxxyxxxxxxxxzxwww","b":"srzvrpzsrqrfiiuiqqokjnnjmqssrqonrpomlnlmmrrompr","h":"vvusvvvtsussllolwwyvuvvtvsstvwxzuusuuvyzuxtspvt"};
+MUSIC_MAP.wire = {"e":"ca988rqlhd89jrrjfb979jlhecaadsqkijiejtrnmjhknsrlkljgipommhhqquurpsvyztqnmoqtuvyzzwrnmmosuvtsstvzxutuwtttqqqsstvzyzxxtia7454nprtsooprtwvutsqpquwvustuvutttvvvtsts","b":"10110111011011111101111110111r1a1rqbqn19lnppan191qmb1n19n44tspmvuyuyumnssyuznpmutyuzupnrrxuyopkrtwvyurmnryvznpkuuzvzvq22144xvqmpqtsrunoomottlnppqttrtpknosqsoqmx","h":"12111223121dd223121113231227qn8gsmljlk7ijlkkkjcf9jok9nagplcosplqsouptoioqpsoymjpqqtnuolloqsnynjnrqtounosqprpsnkqsqsptl984j9qyozprsuzpnsmkpyztmultntzqqsmsrvzxpxp"};
 const musicDec = {};
 function musicArr(name) {
   let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
@@ -7291,6 +7142,508 @@ function updateTankArrival(dt) {
   if (tankArrive.on) { const t0 = tankArrive.t; tankArrive.t += dt; if (t0 < 0.9 && tankArrive.t >= 0.9) { for (const [x, y] of [[70, 36], [CX, 24], [W - 70, 34], [24, H - 120], [W - 70, H - 90]]) flare(x, y, 0.9, '#ffd23f'); bloomBoost = Math.max(bloomBoost, 0.8); sfx.ready(); } if (tankArrive.t > 3) tankArrive.on = false; }
   knifeRiseT = Math.max(0, knifeRiseT - dt);
 }
+// ======================= THE WIRE CLUMP, redrawn (build 55) =======================
+// Visual retouch only: every rule, timer and hit test is unchanged.
+
+// ---------- the 3D ball of cable: now with hardware on the cables and a reactor core ----------
+let wireStrands = null;
+function makeWireStrands() {
+  const rnd = mulberry(4471), S = [];
+  const COLS = ['#ff2e45', '#ffd23f', '#2ad8ff', '#7cff4f', '#f0f0f4', '#ff7a1a', '#3a7bff', '#ff2e88'];
+  for (let i = 0; i < 26; i++) {
+    const u = n3([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5]), v = n3(x3(u, n3([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5])));
+    const heavy = i < 9, open = !heavy && rnd() < 0.5, span = open ? TAU * (0.4 + rnd() * 0.35) : TAU, a0 = rnd() * TAU;
+    const k1 = 2 + Math.floor(rnd() * 3), ph = rnd() * TAU, amp = 0.04 + rnd() * 0.07, n = open ? 16 : 30, pts = [];
+    for (let j = 0; j <= n; j++) { const th = a0 + span * j / n, r = R * ((heavy ? 0.9 : 0.84 + rnd() * 0.02) + amp * Math.sin(k1 * th + ph)); pts.push([(Math.cos(th) * u[0] + Math.sin(th) * v[0]) * r, (Math.cos(th) * u[1] + Math.sin(th) * v[1]) * r, (Math.cos(th) * u[2] + Math.sin(th) * v[2]) * r]); }
+    // hardware riding the cable: ceramic insulators and clamps on the heavy ones, zip ties and tags on the thin ones
+    const beads = []; const nb = heavy ? 3 : rnd() < 0.6 ? 2 : 1;
+    for (let b = 0; b < nb; b++) beads.push({ j: 2 + Math.floor(rnd() * (n - 4)), k: heavy ? (rnd() < 0.55 ? 'ins' : 'clamp') : (rnd() < 0.6 ? 'tie' : 'tag') });
+    S.push({ pts, q: new Float32Array(pts.length * 3), col: heavy ? ['#2a2a31', '#38383f', '#1e1e24'][i % 3] : COLS[Math.floor(rnd() * COLS.length)], w: heavy ? 7.5 : 4, heavy, open, z: 0, stripe: !heavy && rnd() < 0.3, beads, rev: 1 });
+  }
+  for (let i = 0; i < 9; i++) {   // loose loops bulging past the rim give it the knotted, cloud-like outline
+    const a = i / 9 * TAU + rnd() * 0.3, half = 0.18 + rnd() * 0.12, out = 0.1 + rnd() * 0.1, pts = [];
+    for (let j = 0; j <= 10; j++) { const u = j / 10, ang = a - half + 2 * half * u, r = R * (0.86 + out * Math.sin(Math.PI * u)), z = R * (0.05 + 0.35 * Math.sin(Math.PI * u)) * (i % 2 ? 1 : -0.4); pts.push([Math.cos(ang) * r, Math.sin(ang) * r, z]); }
+    S.push({ pts, q: new Float32Array(pts.length * 3), col: i % 3 ? '#2a2a31' : COLS[i % COLS.length], w: i % 3 ? 6.5 : 4, heavy: !!(i % 3), open: false, z: 0, loop: true, beads: i % 3 === 1 ? [{ j: 5, k: 'ins' }] : [], rev: 1 });
+  }
+  return S;
+}
+function wireRuns(s, front, keep) {   // the parts of a strand on one side of the sphere, as one path
+  const q = s.q, n = Math.floor(q.length / 3 * (s.rev === undefined ? 1 : s.rev)); let on = false;
+  if (!keep) ctx.beginPath();
+  for (let j = 0; j < n; j++) {
+    const z = q[j * 3 + 2], vis = front ? z >= -3 : z < 3;
+    if (vis) { if (!on) { ctx.moveTo(q[j * 3], q[j * 3 + 1]); on = true; } else ctx.lineTo(q[j * 3], q[j * 3 + 1]); } else on = false;
+  }
+}
+function wireBead(s, b) {
+  const q = s.q, j = b.j; if (q[j * 3 + 2] < 4) return;
+  const x = q[j * 3], y = q[j * 3 + 1], a = Math.atan2(q[j * 3 + 4] - q[j * 3 - 2], q[j * 3 + 3] - q[j * 3 - 3]), w = s.w;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  if (b.k === 'ins') {   // a stack of glazed ceramic discs
+    for (let i = -1; i <= 1; i++) { ctx.fillStyle = '#050506'; ctx.fillRect(i * 4.2 - 2, -w / 2 - 4, 4, w + 8); ctx.fillStyle = '#e8e4d8'; ctx.fillRect(i * 4.2 - 1.3, -w / 2 - 3, 2.6, w + 6); ctx.fillStyle = '#ffffff'; ctx.fillRect(i * 4.2 - 1.3, -w / 2 - 3, 2.6, 2); ctx.fillStyle = '#8d8a7c'; ctx.fillRect(i * 4.2 - 1.3, w / 2 + 1, 2.6, 2); }
+  } else if (b.k === 'clamp') {   // a bolted steel saddle
+    ctx.fillStyle = '#050506'; ctx.fillRect(-4, -w / 2 - 2.5, 8, w + 5); ctx.fillStyle = '#8d8d97'; ctx.fillRect(-3, -w / 2 - 1.5, 6, w + 3); ctx.fillStyle = '#dcdce2'; ctx.fillRect(-3, -w / 2 - 1.5, 6, 1.5); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-1.2, -1.2, 2.4, 2.4);
+  } else if (b.k === 'tie') {   // a zip tie with its tail
+    ctx.fillStyle = '#050506'; ctx.fillRect(-1.2, -w / 2 - 1, 2.4, w + 2); ctx.fillRect(-0.6, -w / 2 - 6, 1.2, 6); ctx.fillStyle = '#4a4a53'; ctx.fillRect(-0.6, -w / 2 - 1, 1.2, w + 2);
+  } else {   // a hazard tag
+    ctx.fillStyle = '#050506'; ctx.fillRect(-0.5, w / 2, 1, 4); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-3.5, w / 2 + 3, 7, 8); ctx.fillStyle = '#08080a'; ctx.fillRect(-0.7, w / 2 + 5, 1.4, 3); ctx.fillRect(-0.7, w / 2 + 9, 1.4, 1.2);
+  }
+  ctx.restore();
+}
+function drawWireLive(t) {
+  const T = t.wire; if (!wireStrands) wireStrands = makeWireStrands();
+  const M = wireMatrix(t), dz = voltDanger(T), V = T.volt, B = beatInfo('wire');
+  const hot = dz ? '#ff2e45' : '#2ad8ff';
+  for (const s of wireStrands) {
+    let zs = 0; const P = s.pts, q = s.q;
+    for (let j = 0; j < P.length; j++) { const p = P[j], x = M[0][0] * p[0] + M[0][1] * p[1] + M[0][2] * p[2], y = M[1][0] * p[0] + M[1][1] * p[1] + M[1][2] * p[2], z = M[2][0] * p[0] + M[2][1] * p[1] + M[2][2] * p[2]; q[j * 3] = x; q[j * 3 + 1] = y; q[j * 3 + 2] = z; if (z > 0) zs += z; }
+    s.z = zs / P.length;
+  }
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // back half: dim, thin, seen through the gaps
+  ctx.beginPath(); for (const s of wireStrands) wireRuns(s, false, true);
+  ctx.strokeStyle = '#030305'; ctx.lineWidth = 6.5; ctx.stroke(); ctx.strokeStyle = '#1a1a20'; ctx.lineWidth = 3.5; ctx.stroke();
+  // the reactor core: copper rings orbiting a ball of plasma that swells on the beat and with the voltage
+  const cr = R * (0.52 + 0.12 * B.pulse + 0.15 * V);
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(140,80,30,.6)'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(0, 0, R * 0.52, R * 0.17, time * (0.5 + i * 0.22) * (1 + V) + i * 2.1, 0, TAU); ctx.stroke(); }
+  const cg = ctx.createRadialGradient(0, 0, 2, 0, 0, cr);
+  cg.addColorStop(0, dz ? 'rgba(255,230,210,.98)' : 'rgba(230,252,255,.95)'); cg.addColorStop(0.22, dz ? 'rgba(255,46,69,.8)' : `rgba(42,216,255,${0.5 + 0.4 * V})`); cg.addColorStop(0.6, dz ? 'rgba(160,10,40,.3)' : 'rgba(31,95,209,.28)'); cg.addColorStop(1, 'rgba(31,95,209,0)');
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, cr, 0, TAU); ctx.fill();
+  for (let i = 0; i < 2 + Math.floor(V * 4); i++) { const q2 = Math.floor(time * 14) + i * 5, a = hash(i, q2, 7) * TAU; zapBolt(0, 0, Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6, q2, { amp: 10, w: 0.5 + V, forks: 1, pulse: false, col: hot }); }
+  for (let i = 0; i < 3; i++) { const ang = time * (0.5 + i * 0.22) * (1 + V) + i * 2.1; ctx.strokeStyle = '#c97a35'; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.ellipse(0, 0, R * 0.52, R * 0.17, ang, 0, Math.PI); ctx.stroke(); ctx.strokeStyle = 'rgba(255,236,190,.75)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(0, 0, R * 0.52, R * 0.17, ang, 0.3, 1.5); ctx.stroke(); }
+  // front half, back to front, lit from the upper left of the screen whatever the spin
+  const lx = -1.3, ly = -1.5, cs = Math.cos(-t.rot), sn = Math.sin(-t.rot), hx = cs * lx - sn * ly, hy = sn * lx + cs * ly;
+  const order = wireStrands.slice().sort((a, b) => a.z - b.z);
+  for (const s of order) {
+    if (s.rev <= 0) continue;
+    wireRuns(s, true);
+    ctx.strokeStyle = '#030305'; ctx.lineWidth = s.w + 3; ctx.stroke();
+    ctx.strokeStyle = s.col; ctx.lineWidth = s.w; ctx.stroke();
+    if (s.stripe) { ctx.setLineDash([3, 5]); ctx.strokeStyle = '#08080a'; ctx.lineWidth = s.w * 0.7; ctx.stroke(); ctx.setLineDash([]); }
+    if (s.heavy) { ctx.save(); ctx.translate(-hx * s.w * 0.2, -hy * s.w * 0.2); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = Math.max(1, s.w * 0.32); ctx.stroke(); ctx.restore(); }
+    ctx.save(); ctx.translate(hx * s.w * 0.18, hy * s.w * 0.18); ctx.strokeStyle = dz ? 'rgba(255,170,120,.6)' : 'rgba(255,255,255,.48)'; ctx.lineWidth = Math.max(1, s.w * 0.26); ctx.stroke(); ctx.restore();
+    if (s.rev >= 1) for (const b of s.beads) wireBead(s, b);
+    if (s.open && s.rev >= 1) for (const j of [0, s.q.length / 3 - 1]) {   // cut ends: bare copper, sparking when the volts climb
+      const z = s.q[j * 3 + 2]; if (z < 0) continue; const x = s.q[j * 3], y = s.q[j * 3 + 1];
+      ctx.strokeStyle = '#c97a35'; ctx.lineWidth = 1.1; ctx.beginPath(); for (let k = 0; k < 5; k++) { const a = Math.atan2(y, x) + (k - 2) * 0.35 + Math.sin(time * 9 + k) * 0.08; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); } ctx.stroke();
+      if (V > 0.45 && hash(j, Math.floor(time * 20), s.w) < V * 0.5) zapBolt(x, y, x + rand(-14, 14), y + rand(-14, 14), Math.floor(rand(99)), { amp: 4, w: 0.6, forks: 0, pulse: false, col: hot });
+    }
+  }
+  // current crawling along the cables: the faster and brighter, the closer to the red
+  const nSp = 3 + Math.floor(V * 7);
+  for (let i = 0; i < nSp; i++) {
+    const s = wireStrands[(i * 7 + Math.floor(time * 0.4 + i * 0.3)) % wireStrands.length], n = Math.floor(s.q.length / 3 * s.rev), u = (time * (0.35 + V * 0.8) + i * 0.37) % 1, j = Math.min(n - 2, Math.floor(u * (n - 1)));
+    if (j < 0 || s.q[j * 3 + 2] < 0) continue;
+    const x = s.q[j * 3], y = s.q[j * 3 + 1], x2 = s.q[j * 3 + 3], y2 = s.q[j * 3 + 4], g = ctx.createRadialGradient(x, y, 0, x, y, 9 + V * 6);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.3, hot); g.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = g; ctx.fillRect(x - 16, y - 16, 32, 32);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  // the braids: a woven copper sleeve round the rim, heat-shrink cuffs, a green SAFE lamp, a gold halo
+  for (const b of T.braids) {
+    const rr = R - 7, a0 = b.a - b.w, a1 = b.a + b.w;
+    ctx.save(); ctx.lineCap = 'butt';
+    ctx.strokeStyle = `rgba(255,210,63,${Math.min(1, 0.35 + 0.35 * Math.sin(time * 4 + b.a * 3) + 0.3 * B.pulse)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 8, a0, a1); ctx.stroke();
+    ctx.strokeStyle = '#030305'; ctx.lineWidth = 17; ctx.beginPath(); ctx.arc(0, 0, rr, a0 - 0.02, a1 + 0.02); ctx.stroke();
+    ctx.strokeStyle = '#7a4418'; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(0, 0, rr, a0, a1); ctx.stroke();
+    ctx.setLineDash([3.2, 3.2]);
+    ctx.strokeStyle = '#e0a050'; ctx.lineWidth = 5.4; ctx.beginPath(); ctx.arc(0, 0, rr + 2.8, a0, a1); ctx.stroke();
+    ctx.lineDashOffset = 3.2; ctx.strokeStyle = '#d08a40'; ctx.beginPath(); ctx.arc(0, 0, rr - 2.8, a0, a1); ctx.stroke();
+    ctx.lineDashOffset = 0; ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,240,204,.55)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, rr + 5.4, a0, a1); ctx.stroke();
+    for (const sd of [-1, 1]) { const a = b.a + sd * b.w; ctx.save(); ctx.translate(Math.cos(a) * rr, Math.sin(a) * rr); ctx.rotate(a); ctx.fillStyle = '#050506'; ctx.fillRect(-10, -4.5, 20, 9); ctx.fillStyle = '#1e1e24'; ctx.fillRect(-9, -3.5, 18, 7); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-9, -3.5 + (sd > 0 ? 4.5 : 0), 18, 2.5); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(4, -3.5, 2, 7); ctx.restore(); }
+    const lx2 = Math.cos(b.a) * (R + 8), ly2 = Math.sin(b.a) * (R + 8), lg = ctx.createRadialGradient(lx2, ly2, 0.5, lx2, ly2, 9); lg.addColorStop(0, 'rgba(200,255,180,.9)'); lg.addColorStop(0.3, 'rgba(124,255,79,.6)'); lg.addColorStop(1, 'rgba(124,255,79,0)'); ctx.fillStyle = lg; ctx.fillRect(lx2 - 9, ly2 - 9, 18, 18);
+    ctx.restore();
+  }
+  // St Elmo's fire crawling round the silhouette as the volts climb
+  if (V > 0.5 && T.braids.length) { const n = dz ? 4 : 2; for (let i = 0; i < n; i++) { const q2 = Math.floor(time * 16) + i * 3, a = hash(i, q2, 11) * TAU, b2 = a + 0.25 + hash(i, q2, 12) * 0.4; zapBolt(Math.cos(a) * (R + 2), Math.sin(a) * (R + 2), Math.cos(b2) * (R + 8), Math.sin(b2) * (R + 8), q2 + i, { amp: 7, w: 0.6, forks: 0, pulse: false, col: hot }); } }
+  if (dz) { const p = 0.5 + 0.5 * Math.sin(time * 24); ctx.fillStyle = `rgba(255,46,69,${0.1 + 0.12 * p})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+  ctx.lineCap = 'butt';
+}
+
+// ---------- in the world: the voltage telegraph, arcs, ground wires, cutters ----------
+function drawCutters(x, y, w, open, inn, u) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(w);
+  for (const sd of [-1, 1]) {
+    // handle: a forged steel arm, then a hazard-striped grip with a red end
+    ctx.save(); ctx.rotate(-sd * open * 0.45);
+    const y0 = sd > 0 ? 1 : -9;
+    ctx.fillStyle = '#030305'; ctx.fillRect(8, y0 - 1, 106 * inn, 10);
+    const ag = ctx.createLinearGradient(0, y0, 0, y0 + 8); ag.addColorStop(0, '#dcdce2'); ag.addColorStop(0.5, '#8d8d97'); ag.addColorStop(1, '#4a4a53'); ctx.fillStyle = ag; ctx.fillRect(10, y0 + 1, 46 * inn, 6);
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(56 * inn, y0, 48 * inn, 8); ctx.fillStyle = '#08080a'; for (let i = 0; i < 6; i++) { const gx = (58 + i * 8) * inn; ctx.beginPath(); ctx.moveTo(gx, y0 + 8); ctx.lineTo(gx + 4 * inn, y0); ctx.lineTo(gx + 7 * inn, y0); ctx.lineTo(gx + 3 * inn, y0 + 8); ctx.fill(); }
+    ctx.fillStyle = '#ff2e45'; ctx.fillRect(104 * inn, y0, 8 * inn, 8); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(56 * inn, y0, 56 * inn, 1.6);
+    ctx.restore();
+    // jaw: thick, bevelled, a bright ground edge with a notch
+    ctx.save(); ctx.rotate(sd * open);
+    ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-26, sd * 0.5); ctx.lineTo(-22, sd * 12); ctx.lineTo(11, sd * 13); ctx.closePath(); ctx.fill();
+    const jg = ctx.createLinearGradient(0, 0, 0, sd * 12); jg.addColorStop(0, '#f4f4f8'); jg.addColorStop(0.25, '#a8a8b2'); jg.addColorStop(1, '#4a4a53'); ctx.fillStyle = jg; ctx.beginPath(); ctx.moveTo(8, sd * 1.5); ctx.lineTo(-23, sd * 1.5); ctx.lineTo(-19.5, sd * 10); ctx.lineTo(8, sd * 11); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(-22, sd > 0 ? 1.2 : -2.6, 28, 1.4);
+    ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.arc(-9, sd * 1.2, 2.6, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.arc(10, 0, 7.5, 0, TAU); ctx.fill();
+  const pg = ctx.createRadialGradient(8.5, -1.5, 0.5, 10, 0, 6.5); pg.addColorStop(0, '#fff3b0'); pg.addColorStop(1, '#a8640a'); ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(10, 0, 6, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#5e2e10'; ctx.beginPath(); for (let k = 0; k < 6; k++) ctx.lineTo(10 + Math.cos(k / 6 * TAU) * 2.8, Math.sin(k / 6 * TAU) * 2.8); ctx.fill();
+  if (u > 0.75) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(time * 40)})`; ctx.fillRect(-24, -1, 30, 2); }
+  ctx.restore();
+}
+function drawWireFront(t) {
+  const T = t.wire; if (T.hide) return;
+  const [cx, cy] = [CX + T.ox, CY + T.oy], dz = voltDanger(T), C = VCYCLE[T.phase] || VCYCLE[1];
+  // the voltage telegraph: charge rings closing in as it rises, a red cage while it is live, a ring thrown off as it falls
+  if (T.vp === 'rise') { const u = clamp(T.vt / C.rise, 0, 1); for (let i = 0; i < 3; i++) { const k = (u * 2.5 + i / 3) % 1; ctx.strokeStyle = `rgba(255,${Math.round(210 - 150 * u)},63,${0.55 * k})`; ctx.lineWidth = 1.5 + 2.5 * k; ctx.beginPath(); ctx.arc(cx, cy, R + 14 + 110 * (1 - k), 0, TAU); ctx.stroke(); } }
+  else if (dz) {
+    const p = 0.5 + 0.5 * Math.sin(time * 18);
+    ctx.save(); ctx.setLineDash([12, 9]); ctx.lineDashOffset = -time * 70; ctx.strokeStyle = `rgba(255,46,69,${0.55 + 0.35 * p})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, R + 22, 0, TAU); ctx.stroke(); ctx.restore();
+    for (let i = 0; i < 4; i++) { const a = time * 0.9 + i * HALF; ctx.save(); ctx.translate(cx + Math.cos(a) * (R + 40), cy + Math.sin(a) * (R + 40)); ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(9, 7); ctx.lineTo(-9, 7); ctx.closePath(); ctx.fill(); ctx.fillStyle = p > 0.5 ? '#ffd23f' : '#ff2e45'; ctx.beginPath(); ctx.moveTo(0, -6.5); ctx.lineTo(6.6, 5.5); ctx.lineTo(-6.6, 5.5); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.moveTo(1.2, -3.5); ctx.lineTo(-2, 1.2); ctx.lineTo(0.2, 1.2); ctx.lineTo(-1.2, 4.5); ctx.lineTo(2.2, -0.2); ctx.lineTo(0, -0.2); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    for (let i = 0; i < 2; i++) { const q2 = Math.floor(time * 14) + i * 9, a = hash(i, q2, 3) * TAU, b = a + 0.5 + hash(i, q2, 4) * 0.6; zapBolt(cx + Math.cos(a) * (R + 22), cy + Math.sin(a) * (R + 22), cx + Math.cos(b) * (R + 22), cy + Math.sin(b) * (R + 22), q2, { amp: 12, w: 0.8, forks: 1, pulse: false, col: '#ff2e45' }); }
+  }
+  else if (T.vp === 'fall') { const u = clamp(T.vt / C.fall, 0, 1); ctx.strokeStyle = `rgba(42,216,255,${0.7 * (1 - u)})`; ctx.lineWidth = 4 * (1 - u) + 1; ctx.beginPath(); ctx.arc(cx, cy, R + 20 + ease3(u) * 110, 0, TAU); ctx.stroke(); }
+  // arcs reaching out of the clump from a ceramic stand-off
+  for (const A of T.arcs) {
+    const u = A.t / A.life, grow = Math.min(1, A.t / 0.2), w = t.rot + A.a, x0 = cx + Math.cos(w) * R, y0 = cy + Math.sin(w) * R, x1 = cx + Math.cos(w) * (R + A.len * grow), y1 = cy + Math.sin(w) * (R + A.len * grow);
+    ctx.save(); ctx.globalAlpha = 1 - Math.max(0, u - 0.8) / 0.2;
+    ctx.save(); ctx.translate(x0, y0); ctx.rotate(w); for (let i = 0; i < 3; i++) { ctx.fillStyle = '#050506'; ctx.fillRect(-2 + i * 4.5, -6.5 + i, 4, 13 - i * 2); ctx.fillStyle = '#e8e4d8'; ctx.fillRect(-1.2 + i * 4.5, -5.5 + i, 2.6, 11 - i * 2); } ctx.fillStyle = '#c97a35'; ctx.fillRect(12, -1.5, 5, 3); ctx.restore();
+    zapBolt(x0 + Math.cos(w) * 14, y0 + Math.sin(w) * 14, x1, y1, A.seed, { amp: 14, w: 1.2, forks: 2 }); zapRing(x1, y1, 9, 1, A.seed); ctx.restore();
+  }
+  // ground wires: a live cable hanging off the clump, a toothed clamp on the end; its glow tracks the voltage
+  for (const G of T.grounds) {
+    const w = t.rot + G.a, L = 70 * G.grow, sway = Math.sin(time * 2.4 + G.seed) * 0.18, x0 = cx + Math.cos(w) * (R - 4), y0 = cy + Math.sin(w) * (R - 4), ex = x0 + Math.cos(w + sway) * L, ey = y0 + Math.sin(w + sway) * L + 18 * G.grow;
+    const mx = (x0 + ex) / 2 - Math.sin(w) * 8, my = (y0 + ey) / 2 + 16;
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#030305'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+    ctx.strokeStyle = '#2f9a1f'; ctx.lineWidth = 5.5; ctx.stroke(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0 - 1.5, y0 - 1.5); ctx.quadraticCurveTo(mx - 1.5, my - 1.5, ex - 1.5, ey - 1.5); ctx.stroke(); ctx.lineCap = 'butt';
+    const glow = T.volt, gr = ctx.createRadialGradient(ex, ey, 1, ex, ey, 18 + glow * 30); gr.addColorStop(0, `rgba(255,236,150,${0.4 + 0.6 * glow})`); gr.addColorStop(0.4, `rgba(255,122,26,${0.25 + 0.4 * glow})`); gr.addColorStop(1, 'rgba(255,122,26,0)'); ctx.fillStyle = gr; ctx.fillRect(ex - 50, ey - 50, 100, 100);
+    const ea = Math.atan2(ey - my, ex - mx), bite = 0.28 + 0.12 * Math.sin(time * 5 + G.seed);
+    ctx.save(); ctx.translate(ex, ey); ctx.rotate(ea); ctx.fillStyle = '#050506'; ctx.fillRect(-7, -4.5, 9, 9); ctx.fillStyle = '#ff2e45'; ctx.fillRect(-6, -3.5, 7, 7);
+    for (const sd of [-1, 1]) { ctx.save(); ctx.rotate(sd * bite); ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.moveTo(0, sd * 0.5); ctx.lineTo(15, sd * 1); ctx.lineTo(13, sd * 5.5); ctx.lineTo(0, sd * 4.5); ctx.fill(); ctx.fillStyle = '#c97a35'; ctx.beginPath(); ctx.moveTo(1, sd * 1.2); ctx.lineTo(13.5, sd * 1.6); ctx.lineTo(12, sd * 4.4); ctx.lineTo(1, sd * 3.6); ctx.fill(); ctx.fillStyle = '#ffe2a6'; for (let k = 0; k < 3; k++) ctx.fillRect(4 + k * 3.2, sd > 0 ? 0.6 : -1.8, 1.4, 1.2); ctx.restore(); }
+    ctx.restore();
+    // a hazard tag on a zip tie
+    const tx = (x0 + mx) / 2, ty = (y0 + my) / 2; ctx.save(); ctx.translate(tx, ty); ctx.rotate(Math.sin(time * 3 + G.seed) * 0.3); ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(10, 18); ctx.lineTo(-10, 18); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(0, 3); ctx.lineTo(7.6, 16.5); ctx.lineTo(-7.6, 16.5); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#08080a'; ctx.fillRect(-1, 8, 2, 4.5); ctx.fillRect(-1, 13.5, 2, 1.8); ctx.restore();
+    if (Math.random() < 0.3 + glow * 0.6) zapBolt(ex + Math.cos(ea) * 12, ey + Math.sin(ea) * 12, ex + rand(-28, 28), ey + rand(-8, 34), Math.floor(rand(99)), { amp: 7, w: 0.6, forks: 1, pulse: false, col: '#ffd23f' });
+    if (G.life - G.t < 2 && Math.sin(time * 16) > 0) { ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(ex, ey, 15, 0, TAU); ctx.stroke(); }
+  }
+  // wire cutters: bolt cutters biting at the rim, hazard grips reaching out toward you
+  for (const Cu of T.cutters) {
+    const u = clamp(Cu.t / Cu.dur, 0, 1), w = t.rot + Cu.a, open = 0.42 * (1 - u * u) + 0.03 * Math.sin(time * 9) * (1 - u), rr = R + 4 + 22 * Cu.in, x = cx + Math.cos(w) * rr, y = cy + Math.sin(w) * rr, jit = u > 0.75 ? Math.sin(time * 50) * 2 : 0;
+    drawCutters(x + jit, y, w, open, Cu.in, u);
+    // countdown: a hex dial that drains, flashing once the jaws are nearly shut
+    const lx2 = cx + Math.cos(w) * (rr + 62), ly2 = cy + Math.sin(w) * (rr + 62), late = u > 0.7 && Math.sin(time * 20) > 0;
+    ctx.fillStyle = 'rgba(5,3,10,.75)'; ctx.beginPath(); ctx.arc(lx2, ly2, 26, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#2a2a31'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(lx2, ly2, 22, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = late ? '#ffffff' : '#ff2e45'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(lx2, ly2, 22, -HALF, -HALF + TAU * (1 - u)); ctx.stroke();
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(lx2 + Math.cos(a) * 27.5 - 0.8, ly2 + Math.sin(a) * 27.5 - 0.8, 1.6, 1.6); }
+    text(Math.max(0, Cu.dur - Cu.t).toFixed(1), lx2, ly2 + 1, 10, late ? '#ff2e45' : '#ffffff', 'center', 700);
+  }
+}
+function drawWireDebris(d) {
+  if (d.kind === 'cutter') {
+    ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.moveTo(-13, -4); ctx.quadraticCurveTo(0, -9.5, 15, -3); ctx.lineTo(15, 4); ctx.quadraticCurveTo(0, -1, -13, 4); ctx.fill();
+    ctx.fillStyle = d.half ? '#ffd23f' : '#a8a8b2'; ctx.beginPath(); ctx.moveTo(-12, -3); ctx.quadraticCurveTo(0, -8, 14, -2); ctx.lineTo(14, 3); ctx.quadraticCurveTo(0, -2, -12, 3); ctx.fill();
+    if (d.half) { ctx.fillStyle = '#08080a'; for (let i = -2; i <= 2; i++) ctx.fillRect(i * 5, -5.5 - Math.abs(i) * -0.6, 2, 4.5); } else { ctx.fillStyle = '#ffffff'; ctx.fillRect(-10, -5, 20, 1); }
+    return true;
+  }
+  if (d.kind === 'cable') {
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#030305'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-12, 0); ctx.quadraticCurveTo(0, -8, 12, 2); ctx.stroke(); ctx.strokeStyle = d.c || '#ff2e45'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-11, -1.5); ctx.quadraticCurveTo(0, -9.5, 11, 0.5); ctx.stroke(); ctx.lineCap = 'butt';
+    ctx.strokeStyle = '#c97a35'; ctx.lineWidth = 1; ctx.beginPath(); for (let k = -1; k <= 1; k++) { ctx.moveTo(12, 2); ctx.lineTo(17, 2 + k * 2.5); } ctx.stroke(); return true;
+  }
+  return false;
+}
+// HUD: health, stability, and the voltmeter (dead during a blackout)
+function drawWireHUD() {
+  const t = tgt; if (!t || !t.wire || t.wire.hide) return;
+  const T = t.wire, x0 = CX - 100, y = 104, cw = 200 / WIRE_HP;
+  let fill = 1; if (fx && fx.type === 'wireintro') fill = clamp((fx.t - WSHOT.reveal - 0.4) / 0.9, 0, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  for (let i = 0; i < WIRE_HP; i++) { const on = i < Math.min(knivesLeft, Math.floor(WIRE_HP * fill)); ctx.fillStyle = on ? (T.flash > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i % 2 ? '#2ad8ff' : '#1f5fd1') : '#1e1e24'; ctx.fillRect(x0 + i * cw, y, cw - 1.5, 8); }
+  for (const f of [1 / 3, 2 / 3]) ctx.fillRect(x0 + WIRE_HP * f * cw - 1, y - 3, 2, 14);
+  text('P' + T.phase, x0 - 18, y + 4, 8, '#2ad8ff', 'center', 700);
+  // stability
+  const sy = y + 20, sc = T.stab > 50 ? '#7cff4f' : T.stab > 25 ? '#ffd23f' : '#ff2e45';
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, sy - 3, 208, 11); ctx.fillStyle = '#1e1e24'; ctx.fillRect(x0, sy, 200, 5); ctx.fillStyle = T.stabT > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : sc; ctx.fillRect(x0, sy, 200 * T.stab / 100, 5);
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; for (let i = 1; i < 10; i++) ctx.fillRect(x0 + i * 20 - 0.5, sy, 1, 5);
+  text('STABILITY ' + Math.ceil(T.stab) + '%', CX, sy + 14, 7, sc, 'center', 700);
+  // voltmeter: a chromed panel gauge
+  const gx = W - 52, gy = 196, r = 30, off = T.blackout > 0, dz = voltDanger(T);
+  const bz = ctx.createRadialGradient(gx - 9, gy - 11, 2, gx, gy, r + 8); bz.addColorStop(0, '#f4f4f8'); bz.addColorStop(0.6, '#8d8d97'); bz.addColorStop(1, '#2a2a31');
+  ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.arc(gx + 1, gy + 2, r + 8, 0, TAU); ctx.fill();
+  ctx.fillStyle = bz; ctx.beginPath(); ctx.arc(gx, gy, r + 7, 0, TAU); ctx.fill();
+  ctx.fillStyle = off ? '#050506' : dz ? '#1a0408' : '#06101a'; ctx.beginPath(); ctx.arc(gx, gy, r + 3, 0, TAU); ctx.fill();
+  if (off) { text('NO', gx, gy - 5, 8, '#38383f', 'center', 700); text('SIGNAL', gx, gy + 6, 7, '#38383f', 'center', 700); }
+  else {
+    for (const [a0, a1, c] of [[0, 0.55, '#7cff4f'], [0.55, 0.78, '#ffd23f'], [0.78, 1, '#ff2e45']]) { ctx.strokeStyle = c; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(gx, gy, r - 3, Math.PI * (0.8 + 1.4 * a0), Math.PI * (0.8 + 1.4 * a1)); ctx.stroke(); }
+    for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + 1.4 * i / 10); ctx.fillStyle = '#dcdce2'; ctx.fillRect(gx + Math.cos(a) * (r - 9) - 0.8, gy + Math.sin(a) * (r - 9) - 0.8, 1.6, 1.6); }
+    const na = Math.PI * (0.8 + 1.4 * clamp(T.volt + (dz ? Math.sin(time * 40) * 0.02 : 0), 0, 1));
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = dz ? 'rgba(255,46,69,.5)' : 'rgba(42,216,255,.4)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(na) * (r - 6), gy + Math.sin(na) * (r - 6)); ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(gx - Math.cos(na) * 5, gy - Math.sin(na) * 5); ctx.lineTo(gx + Math.cos(na) * (r - 5), gy + Math.sin(na) * (r - 5)); ctx.stroke(); ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(gx, gy, 3.2, 0, TAU); ctx.fill();
+    text(Math.round(40 + T.volt * 400) + 'V', gx, gy + 14, 9, dz ? '#ff2e45' : '#ffffff', 'center', 700);
+    ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.beginPath(); ctx.ellipse(gx - 7, gy - 11, 16, 6, -0.5, 0, TAU); ctx.fill();
+    text(dz ? 'DANGEROUS' : T.vp === 'rise' ? 'RISING' : 'SAFE', gx, gy + r + 16, 8, dz ? (Math.sin(time * 16) > 0 ? '#ff2e45' : '#ffffff') : T.vp === 'rise' ? '#ffd23f' : '#7cff4f', 'center', 700);
+    text('VOLTAGE', gx, gy + r + 26, 6, '#8d8d97', 'center', 700);
+  }
+  let msg = 'HIT THE BRAIDS  /  BARE WIRE X3 BUT UNSTABLE', col = '#8d8d97';
+  if (T.cutters.length) { msg = 'SMASH THE WIRE CUTTERS!'; col = Math.sin(time * 14) > 0 ? '#ff2e45' : '#ffffff'; }
+  else if (dz) { msg = 'DANGEROUS VOLTAGE: DO NOT TOUCH'; col = '#ff2e45'; }
+  else if (T.blackout > 0) { msg = 'BLACKOUT: READ THE GROUND WIRES'; col = '#ff7a1a'; }
+  text(msg, CX, sy + 26, 8, col, 'center', 700);
+}
+
+// ======== WIRE CLUMP background: a substation in a storm, run by the song ========
+// Quiet parts: thin rain, a dim grid, the coils idle. As the song builds the rain thickens, the VU wall climbs, charge
+// races the lines faster and the Tesla coils fire on every beat; in the loud parts they arc to each other on the
+// downbeat and lightning walks the sky every bar. Drops bring a lightning barrage. A blackout kills it all to red.
+function wireHeat(F) { return { hot: clamp((F.sec - 0.35) / 0.42, 0, 1), cold: clamp((0.32 - F.sec) / 0.14, 0, 1) }; }
+function drawCoil(x, top, on) {
+  ctx.fillStyle = '#050506'; ctx.fillRect(x - 24, top + 148, 48, 24);
+  const bg = ctx.createLinearGradient(x - 22, 0, x + 22, 0); bg.addColorStop(0, '#38383f'); bg.addColorStop(0.5, '#16161b'); bg.addColorStop(1, '#2a2a31'); ctx.fillStyle = bg; ctx.fillRect(x - 22, top + 150, 44, 20);
+  ctx.fillStyle = '#ffd23f'; for (let i = 0; i < 5; i++) ctx.fillRect(x - 22 + i * 10, top + 165, 5, 5);
+  // the secondary: a tall copper winding
+  bakeSprite('coilWind', -14, 0, 28, 150, g => { const cg = g.createLinearGradient(-13, 0, 13, 0); cg.addColorStop(0, '#5e2e10'); cg.addColorStop(0.35, '#f2b766'); cg.addColorStop(0.55, '#c97a35'); cg.addColorStop(1, '#45210b'); g.fillStyle = '#050506'; g.fillRect(-14, 0, 28, 150); g.fillStyle = cg; g.fillRect(-12, 0, 24, 150); g.fillStyle = 'rgba(0,0,0,.45)'; for (let y = 2; y < 150; y += 4) g.fillRect(-12, y, 24, 1.3); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(-6, 0, 2, 150); });
+  ctx.save(); ctx.translate(x, top); blit(sprites.coilWind); ctx.restore();
+  // the top load: a polished toroid
+  const tg = ctx.createRadialGradient(x - 9, top - 10, 2, x, top - 4, 30); tg.addColorStop(0, '#ffffff'); tg.addColorStop(0.4, '#a8a8b2'); tg.addColorStop(1, '#2a2a31');
+  ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.ellipse(x, top - 3, 29, 13, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = tg; ctx.beginPath(); ctx.ellipse(x, top - 4, 27, 11.5, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.ellipse(x, top - 4, 9, 3.5, 0, 0, TAU); ctx.fill();
+  if (on > 0.05) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(x, top - 4, 2, x, top - 4, 46); g.addColorStop(0, `rgba(160,236,255,${0.5 * on})`); g.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = g; ctx.fillRect(x - 46, top - 50, 92, 92); ctx.restore(); }
+}
+BG.wire = (B, px, py) => {
+  const T = tgt && tgt.wire, dark = T && T.blackout > 0, dz = T && voltDanger(T), acc = dz ? '#ff2e45' : '#2ad8ff', accRGB = dz ? '255,46,69' : '42,216,255';
+  const F = musicFeel('wire'), { hot, cold } = wireHeat(F), live = dark ? 0 : 1;
+  bgFill('wire55', [[0, '#01050f'], [0.28, '#082346'], [0.45, '#124a6c'], [0.62, '#06202c'], [1, '#020a0c']]);
+  // the charge in the air: a band of glow on the horizon breathing with the song
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const hg = (0.08 + 0.14 * B.pulse + 0.12 * B.down) * (0.5 + 0.8 * hot); ctx.fillStyle = dark ? `rgba(255,46,69,${hg * 0.5})` : `rgba(${accRGB},${hg})`; ctx.beginPath(); ctx.ellipse(CX + px * 0.2, 330 + py * 0.2, 340, 70, 0, 0, TAU); ctx.fill(); ctx.restore();
+  // a far city, its windows dying in a blackout
+  ctx.save(); ctx.translate(px * 0.08, py * 0.08);
+  blit(bakeSprite('wireCity', -20, 250, W + 40, 92, g => { const rnd = mulberry(311); let x = -20; while (x < W + 20) { const w = 12 + rnd() * 22, h = 18 + rnd() * 62; g.fillStyle = '#020a14'; g.fillRect(x, 340 - h, w, h + 2); for (let yy = 340 - h + 4; yy < 336; yy += 6) for (let xx = x + 3; xx < x + w - 3; xx += 5) if (rnd() < 0.28) { g.fillStyle = rnd() < 0.7 ? 'rgba(255,226,166,.6)' : 'rgba(42,216,255,.6)'; g.fillRect(xx, yy, 2, 2); } x += w + 1 + rnd() * 4; } }));
+  if (dark) { ctx.fillStyle = 'rgba(2,6,12,.85)'; ctx.fillRect(-20, 250, W + 40, 92); }
+  ctx.restore();
+  blit(bakeSprite('wireGround', -60, 338, W + 120, 200, g => { const gg = g.createLinearGradient(0, 338, 0, 538); gg.addColorStop(0, 'rgba(2,10,18,.95)'); gg.addColorStop(0.4, 'rgba(3,14,22,.8)'); gg.addColorStop(1, 'rgba(2,10,12,0)'); g.fillStyle = gg; g.fillRect(-60, 338, W + 120, 200); }));
+  // storm clouds lit from inside; lightning walks the sky every bar once the song is up, a barrage on the drops
+  const fl = Math.exp(-B.barU * 9) * (0.25 + 0.75 * hot);
+  ctx.save(); ctx.translate(px * 0.1, py * 0.1);
+  const cs = bakeSprite('wireCloud', -100, -40, 200, 80, g => { const cg = g.createRadialGradient(0, 0, 4, 0, 0, 96); cg.addColorStop(0, 'rgba(60,96,140,.9)'); cg.addColorStop(0.6, 'rgba(26,48,80,.7)'); cg.addColorStop(1, 'rgba(10,20,40,0)'); g.fillStyle = cg; g.save(); g.scale(1, 0.4); g.beginPath(); g.arc(0, 0, 98, 0, TAU); g.fill(); g.restore(); });
+  for (let i = 0; i < 6; i++) { const x = ((i * 105 + time * (6 + i) * (0.6 + hot)) % (W + 200)) - 100, y = 26 + (i % 3) * 24; ctx.globalAlpha = 0.75; ctx.drawImage(cs.c, x - 100, y - 40, 200, 80); }
+  ctx.globalAlpha = 1;
+  if (fl > 0.05 && live) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(120,190,255,${0.16 * fl})`; ctx.fillRect(-W, -60, W * 3, 190); ctx.restore(); }
+  const nb = !live ? 0 : F.drop > 0.3 ? 3 : hot > 0.3 ? 1 : 0;
+  for (let k = 0; k < nb; k++) { const u = (B.barU + k * 0.33) % 1, a = Math.exp(-u * 9); if (a < 0.06) continue; const sd = B.bar * 3 + k, bx = 50 + hash(sd, 9, 1) * (W - 100); ctx.globalAlpha = a; zapBolt(bx, 30, bx + (hash(sd, 9, 2) - 0.5) * 130, 300, sd, { amp: 30, w: 1.6, forks: 3, col: '#9ff0ff' }); ctx.globalAlpha = 1; }
+  ctx.restore();
+  // pylons and sagging high-tension lines; charge races along faster as the song builds
+  ctx.save(); ctx.translate(px * 0.25, py * 0.25);
+  const sp = towerSprite();
+  for (const [x, y, s] of TOWERS) { ctx.save(); ctx.translate(x, y + 260 * s - 40); ctx.scale(s, s); blit(sp); ctx.restore(); if (live && B.pulse > 0.5) { ctx.fillStyle = '#ff2e45'; ctx.fillRect(x - 1.5, y + 260 * s - 40 - 240 * s, 3, 3); } }
+  const ns = hot > 0.6 ? 2 : 1;
+  for (let l = 0; l < 3; l++) for (let k = 0; k < 2; k++) {
+    const [x0, y0, s0] = TOWERS[k], [x1, y1, s1] = TOWERS[k + 1], ya = y0 + 260 * s0 - 40 - [170, 205, 235][l] * s0, yb = y1 + 260 * s1 - 40 - [170, 205, 235][l] * s1, sag = 30 + l * 6;
+    ctx.strokeStyle = '#01040a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0, ya); ctx.quadraticCurveTo((x0 + x1) / 2, (ya + yb) / 2 + sag, x1, yb); ctx.stroke();
+    if (live) for (let q = 0; q < ns; q++) { const u = ((B.b * (0.5 + 0.5 * hot) + l * 0.33 + k * 0.5 + q * 0.5) % 1 + 1) % 1, x = (1 - u) * (1 - u) * x0 + 2 * u * (1 - u) * (x0 + x1) / 2 + u * u * x1, y = (1 - u) * (1 - u) * ya + 2 * u * (1 - u) * ((ya + yb) / 2 + sag) + u * u * yb; ctx.fillStyle = `rgba(${accRGB},.3)`; ctx.beginPath(); ctx.arc(x, y, 7 + 3 * B.pulse, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 2 + 1.5 * B.pulse, 0, TAU); ctx.fill(); }
+  }
+  ctx.restore();
+  // rain, thicker and steeper with the song
+  const nr = Math.round(30 + 40 * hot);
+  ctx.strokeStyle = `rgba(130,190,230,${0.2 + 0.14 * hot})`; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < nr; i++) { const x = ((hash(i, 10, 1) * (W + 100) + time * 120) % (W + 100)) - 50, y = ((hash(i, 10, 2) * H + time * (700 + hash(i, 10, 3) * 300)) % (H + 40)) - 20; ctx.moveTo(x, y); ctx.lineTo(x - 6 - 3 * hot, y + 18); }
+  ctx.stroke();
+  // circuit floor with charge pulses
+  if (!circuit) circuit = makeCircuit();
+  ctx.save(); ctx.translate(px * 0.5, py * 0.5);
+  ctx.strokeStyle = dark ? 'rgba(80,10,20,.6)' : `rgba(47,154,31,${0.3 + 0.2 * hot + 0.25 * B.down})`; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); for (const P of circuit) P.pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke();
+  ctx.fillStyle = ctx.strokeStyle; for (const P of circuit) { const e = P.pts[P.pts.length - 1]; ctx.fillRect(e[0] - 4, e[1] - 4, 8, 8); }
+  if (live) { const pos = circuit.map((P, i) => alongPath(P, (((B.b * (0.4 + 0.4 * hot) + i * 0.37) % 1 + 1) % 1) * P.L)); ctx.fillStyle = 'rgba(124,255,79,.22)'; ctx.beginPath(); for (const [x, y] of pos) { ctx.moveTo(x + 9, y); ctx.arc(x, y, 9, 0, TAU); } ctx.fill(); ctx.fillStyle = '#7cff4f'; ctx.beginPath(); for (const [x, y] of pos) { ctx.moveTo(x + 3, y); ctx.arc(x, y, 3, 0, TAU); } ctx.fill(); }
+  ctx.restore();
+  // the VU wall: a row of LED columns that climbs with the song, peaks hanging
+  const vy = H - 96 + py * 0.6, NB = 21, bw = (W + 20) / NB, vn = [];
+  for (let i = 0; i < NB; i++) { const mid = 1 - Math.abs(i - (NB - 1) / 2) / ((NB - 1) / 2); vn.push(live ? Math.round(clamp((0.15 + 0.85 * F.sec) * (0.35 + 0.65 * hash(i, B.k, 5)) * (0.45 + 0.55 * B.pulse) + 0.35 * F.bass * mid + 0.25 * F.high * (1 - mid), 0, 1) * 9) : 1); }
+  ctx.fillStyle = dark ? 'rgba(40,6,12,.5)' : 'rgba(20,50,70,.5)'; for (let s = 0; s < 9; s++) ctx.fillRect(-10 + px * 0.3, vy - s * 7, W + 20, 5);
+  for (const [lo, hi, c] of [[0, 5, dark ? 'rgba(255,46,69,.5)' : dz ? '#ff7a1a' : '#2ad8ff'], [5, 7, dark ? 'rgba(255,46,69,.5)' : '#ffd23f'], [7, 9, dark ? 'rgba(255,46,69,.5)' : '#ff2e45']]) { ctx.fillStyle = c; for (let i = 0; i < NB; i++) { const n = Math.min(vn[i], hi); if (n > lo) ctx.fillRect(-10 + i * bw + 1 + px * 0.3, vy - (n - 1) * 7, bw - 3, (n - lo) * 7 - 2); } }
+  ctx.fillStyle = 'rgba(2,8,12,.9)'; for (let s = 1; s < 9; s++) ctx.fillRect(-10 + px * 0.3, vy - s * 7 + 5, W + 20, 2);
+  // Tesla coils either side: a beat's worth of discharge, roaring on the downbeat, arcing across when it is loud
+  ctx.save(); ctx.translate(px * 0.6, py * 0.6);
+  const top = 400, fire = live ? Math.max(B.pulse * (0.25 + 0.75 * hot), F.drop * B.half) : 0;
+  for (const [x, sd] of [[34, 1], [W - 34, -1]]) {
+    drawCoil(x, top, fire);
+    if (fire > 0.25) { const n = B.down > 0.3 && hot > 0.4 ? 3 : hot > 0.5 ? 2 : 1; ctx.globalAlpha = Math.min(1, fire * 1.3); for (let i = 0; i < n; i++) { const a = -HALF + sd * (0.3 + hash(B.k, i, x) * 1.2), L = 50 + hash(B.k, i + 3, x) * 80 + B.down * 60 * hot; zapBolt(x, top - 8, x + Math.cos(a) * L, top - 8 + Math.sin(a) * L, B.k * 7 + i, { amp: 16, w: 1, forks: 1, col: acc }); } ctx.globalAlpha = 1; }
+  }
+  if (live && hot > 0.6 && B.down > 0.35) { ctx.globalAlpha = Math.min(1, B.down * 1.2); zapBolt(34, top - 8, W - 34, top - 8, B.k, { amp: 46, w: 1.3, forks: 3, col: acc }); ctx.globalAlpha = 1; }
+  ctx.restore();
+  drawWireWindow(dark, px, py);
+  if (cold > 0.02 && live) { ctx.fillStyle = `rgba(1,4,10,${0.4 * cold})`; fillView(); }
+  if (live) bgFlash(acc, 0.1 * B.down * (0.3 + 0.7 * hot));
+  if (live && B.u < 0.1 && hot > 0.5) bloomBoost = Math.max(bloomBoost, 0.1 + 0.2 * hot * B.pulse);
+  bgStage();
+};
+
+// ======================= WIRE CLUMP intro, cut to wire.mp3 =======================
+// The track breathes in slow swells (0.5, 5.1, 9.8, 14.5) with two hard hits at 8.16 / 8.74, then the drums:
+// 18.54, 19.70 and the drop at 20.27.
+// 0.5 the star; 2.8 the substation in the storm, lightning takes the pylon on the swell; 8.16 the breaker is thrown and
+// 8.74 the meter kicks, then climbs; 13.6 the clump winds itself strand by strand; 18.54 the lights die on the live
+// room, 19.70 a bolt finds the clump, and the power comes back on the drop at 20.27.
+const TW = { star: 0.5, yard: 2.8, strike: 5.1, sw1: 8.156, sw2: 8.737, wind: 13.6, out: 18.541, arc: 19.696, land: 20.271 };
+const WSHOT = { reveal: TW.land };
+const TW_CUES = ['star', 'yard', 'strike', 'sw1', 'sw2', 'rise', 'wind', 'out', 'arc'];
+function startWireIntro(t) {
+  fx = { type: 'wireintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0 }; state = 'fx';
+  const T = t.wire; T.hide = true; T.ox = T.oy = 0; T.s = 1; cinema(true, 1); setHD(true);
+  cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+  slamMusic('wire');
+}
+function skipWireIntro() { if (fx && fx.type === 'wireintro' && fx.t < TW.land - 0.35) { fx.t = TW.land - 0.35; fx.skipped = true; for (const k of TW_CUES) fx.cuts[k] = true; fx.tg.wire.hide = false; } }
+function updateWireIntro(t) {
+  tscale = 0; const tg = fx.tg, T = tg.wire, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  const mp = introMusicClock('wire');
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.35) { fx.wait += d; fx.t = 0; fx.lt = 0; return; }
+  if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
+  const at = k => cineCue(k, TW[k]);
+  if (at('star')) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.2, 0.5); shocks(CX, CY + 40, 2, 300); }
+  if (at('yard')) sfx.rumble();
+  if (at('strike')) { sfx.thunder(); sfx.zap(1); shake = 12; bloomBoost = 0.6; }
+  if (at('sw1')) { sfx.breaker(); sfx.clank(); shake = 14; kick(0.14, 0.04, 0.8, 0.5); buzz(30); burst(CX - 6, 560, 26, ['#ffffff', '#ffd23f', '#2ad8ff'], 460, 40, 2.5, 0.45); flare(CX - 6, 560, 0.7, '#9ff0ff'); }
+  if (at('sw2')) { sfx.gaugeSlam(); sfx.alarm(); shake = 12; buzz(30); }
+  if (cineCue('rise', TW.sw2 + 0.5)) sfx.voltRise();
+  if (t > TW.sw2 + 2 && t < TW.wind && Math.floor(t / 1.1) !== fx.al) { fx.al = Math.floor(t / 1.1); sfx.heatWarn(); }
+  if (at('wind')) { sfx.rumble(); sfx.voltRise(); }
+  if (t > TW.wind && t < TW.out && Math.floor((t - TW.wind) * (2 + (t - TW.wind))) !== fx.cz) { fx.cz = Math.floor((t - TW.wind) * (2 + (t - TW.wind))); sfx.zap(0.2 + 0.1 * (t - TW.wind)); }
+  if (at('out')) { T.hide = false; T.s = 0.55; sfx.cableSnap(); sfx.lightsOff(); shake = 16; kick(0.15, 0.04, 0.8, 0.6); buzz([30, 20, 30]); }
+  if (at('arc')) { T.jolt = 1; tg.hit = 1; sfx.thunder(); sfx.zap(1.1); sfx.spark(); shake = 18; bloomBoost = 0.6; burst(CX, CY - R * 0.8, 30, ['#ffffff', '#9ff0ff', '#2ad8ff'], 520, 30, 2.5, 0.45); pfxRing(CX, CY, '#2ad8ff', 200, 0.35); }
+  if (t >= TW.out && t < TW.land) {
+    T.hide = false; T.jolt = Math.max(0, (T.jolt || 0) - d * 3);
+    T.s = t < TW.arc ? 0.55 + 0.17 * ease3(clamp((t - TW.out) / 0.5, 0, 1)) : 0.72 + 0.16 * easeOutBack(clamp((t - TW.arc) / 0.25, 0, 1));
+    T.volt = 0.3 + 0.6 * clamp((t - TW.out) / (TW.land - TW.out), 0, 1);
+  }
+  if (t >= TW.land && !fx.landed) {
+    fx.landed = true; T.hide = false; T.s = 1; T.ox = T.oy = 0; T.volt = 0.2; T.vp = 'safe'; T.vt = 0; T.jolt = 1;
+    cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+    tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.25;
+    shake = 24; kick(0.25, 0.05, 0.5, 0.4); shocks(CX, CY, 1, 300); pfxRing(CX, CY, '#2ad8ff', 280, 0.45);
+    sfx.breaker(); sfx.stamp(); sfx.subDrop(); sfx.spotOn(); sfx.zap(0.8); sfx.knifeRise(); buzz([60, 30, 90]);
+    for (let i = 0; i < 10; i++) fxp.push({ kind: 'bolt', x: CX, y: CY, x2: CX + Math.cos(i / 10 * TAU + 0.3) * rand(150, 260), y2: CY + Math.sin(i / 10 * TAU + 0.3) * rand(150, 260), life: rand(0.3, 0.55), max: 0.55 });
+    for (let i = 0; i < 40; i++) { const a = rand(TAU), sp = rand(240, 640); parts.push({ x: CX + Math.cos(a) * (R + 8), y: CY + Math.sin(a) * (R + 8), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.3, 0.6), max: 0.6, c: ['#ffffff', '#2ad8ff', '#ffd23f'][i % 3], s: 3, rot: 0, vr: 0 }); }
+    endFx('play'); floater('HIT THE BRAIDS. WATCH THE VOLTS.', CX, CY + R + 80, '#2ad8ff');
+  }
+  fxFilter = null;
+}
+function wiRain(s, n, a) { ctx.strokeStyle = `rgba(130,190,230,${a})`; ctx.lineWidth = 1; ctx.beginPath(); for (let i = 0; i < n; i++) { const x = hash(i, 12, 1) * (W + 80) - 20, y = (hash(i, 12, 2) * H + s * (600 + hash(i, 12, 3) * 300)) % H; ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 18); } ctx.stroke(); }
+function wiYard(t) {
+  const s = t - TW.yard, D = TW.sw1 - TW.yard, u = s / D, hit = t >= TW.strike, hs = t - TW.strike, z = 1 + 0.1 * easeIO(u);
+  ctx.save(); ctx.translate(CX, 500); ctx.scale(z, z); ctx.translate(-CX - 30 + 50 * easeIO(u), -500);
+  const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#01050f'); sky.addColorStop(0.5, '#0a2644'); sky.addColorStop(1, '#020508'); ctx.fillStyle = sky; fillView();
+  for (let i = 0; i < 7; i++) { const x = ((i * 90 + s * (8 + i * 2)) % (W + 240)) - 120, y = 40 + (i % 3) * 34; ctx.fillStyle = `rgba(${26 + (hit ? 50 * Math.exp(-hs * 4) : 0)},${48 + (hit ? 100 * Math.exp(-hs * 4) : 0)},${80 + (hit ? 120 * Math.exp(-hs * 4) : 0)},.6)`; ctx.beginPath(); ctx.ellipse(x, y, 120, 34, 0, 0, TAU); ctx.fill(); }
+  const sp = towerSprite(), TP = [[-20, 520, 0.7], [150, 560, 1.0], [330, 620, 1.5]], LH = [170, 205, 235];
+  // the lightning finds the middle pylon on the swell
+  if (hit && hs < 0.9) { const a = Math.exp(-hs * 4) * (Math.sin(hs * 50) > -0.3 ? 1 : 0.4); ctx.save(); ctx.globalAlpha = a; zapBolt(250, -40, 150, 560 - 236, 7, { amp: 34, w: 2.2, forks: 4, col: '#9ff0ff' }); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(150, 324, 4, 150, 324, 160); g.addColorStop(0, 'rgba(160,236,255,.6)'); g.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = g; ctx.fillRect(-10, 164, 320, 320); ctx.restore(); }
+  for (const [x, y, sc] of TP) { ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); blit(sp); ctx.restore(); }
+  for (let l = 0; l < 3; l++) {
+    const y0 = 520 - LH[l] * 0.7, y1 = 560 - LH[l], y2 = 620 - LH[l] * 1.5;
+    ctx.strokeStyle = '#01040a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-20, y0); ctx.quadraticCurveTo(65, y0 + 30, 150, y1); ctx.quadraticCurveTo(240, y1 + 44, 330, y2); ctx.stroke();
+    // charge racing toward the camera: a trickle before the strike, a flood after
+    const n = hit ? 3 : 1, spd = hit ? 1.5 : 0.5;
+    for (let q = 0; q < n; q++) { const k = (s * spd + l * 0.3 + q / n) % 1, x = -20 + k * 350, yy = k < 0.486 ? y0 + (y1 - y0) * (k / 0.486) + 30 * Math.sin(k / 0.486 * Math.PI) * 0.5 : y1 + (y2 - y1) * ((k - 0.486) / 0.514) + 44 * Math.sin((k - 0.486) / 0.514 * Math.PI) * 0.5, r = 2 + 4 * k; ctx.fillStyle = 'rgba(42,216,255,.3)'; ctx.beginPath(); ctx.arc(x, yy, r * 3, 0, TAU); ctx.fill(); ctx.fillStyle = hit ? '#ffffff' : '#2ad8ff'; ctx.beginPath(); ctx.arc(x, yy, r, 0, TAU); ctx.fill(); }
+  }
+  ctx.fillStyle = '#03070b'; ctx.fillRect(-W, 640, W * 3, H); ctx.fillStyle = '#0a141c'; ctx.fillRect(-W, 640, W * 3, 3);
+  for (let i = 0; i < 6; i++) { const x = 20 + i * 76; ctx.fillStyle = '#050a10'; ctx.fillRect(x, 596, 40, 46); ctx.fillStyle = '#0c1822'; for (let f = 0; f < 5; f++) ctx.fillRect(x + 3 + f * 7.5, 602, 4, 36); ctx.fillStyle = hit && Math.sin(time * 12 + i) > 0 ? '#ff2e45' : '#1f5f1a'; ctx.fillRect(x + 17, 598, 5, 3); }
+  ctx.restore();
+  wiRain(s, 70, 0.3);
+  if (s < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - s})`; fillView(); }
+  cineCaption('SUBSTATION 9  //  02:14', s, 690, '#9ff0ff', 10, 0.8, D);
+}
+function wiPanel(t) {
+  const s = t - TW.sw1, on2 = t >= TW.sw2, s2 = t - TW.sw2, D = TW.wind - TW.sw1, u = clamp(s2 / (TW.wind - TW.sw2), 0, 1);
+  const nv = !on2 ? 0.12 : clamp(0.42 + 0.3 * Math.exp(-s2 * 5) * Math.cos(s2 * 22) * 0.4 + 0.62 * Math.pow(u, 0.8), 0, 1.03), crit = nv > 0.8;
+  ctx.fillStyle = '#06080b'; fillView();
+  // brushed steel panel
+  const pg = ctx.createLinearGradient(0, 60, 0, 720); pg.addColorStop(0, '#1e2228'); pg.addColorStop(1, '#0c0e12'); ctx.fillStyle = pg; ctx.fillRect(20, 80, W - 40, 640);
+  ctx.strokeStyle = '#3a4048'; ctx.lineWidth = 3; ctx.strokeRect(20, 80, W - 40, 640);
+  for (const [x, y] of [[32, 92], [W - 32, 92], [32, 708], [W - 32, 708]]) { ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill(); ctx.fillStyle = '#16161b'; ctx.fillRect(x - 3, y - 0.6, 6, 1.2); }
+  // the meter
+  const mx = CX, my = 300, jit = crit ? Math.sin(time * 60) * 1.5 : 0;
+  ctx.save(); ctx.translate(mx + jit, my);
+  ctx.fillStyle = '#050506'; ctx.fillRect(-154, -134, 308, 238); ctx.fillStyle = '#2a2e36'; ctx.fillRect(-150, -130, 300, 230);
+  const fg = ctx.createLinearGradient(0, -110, 0, 80); fg.addColorStop(0, '#f2eee0'); fg.addColorStop(1, '#cfc9b6'); ctx.fillStyle = fg; ctx.fillRect(-132, -112, 264, 194);
+  if (crit) { ctx.fillStyle = `rgba(255,46,69,${0.12 + 0.1 * Math.sin(time * 14)})`; ctx.fillRect(-132, -112, 264, 194); }
+  for (const [a0, a1, c] of [[0, 0.55, '#2f9a1f'], [0.55, 0.78, '#c89a1a'], [0.78, 1, '#c4122a']]) { ctx.strokeStyle = c; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(0, 60, 130, Math.PI * (1.15 + 0.7 * a0), Math.PI * (1.15 + 0.7 * a1)); ctx.stroke(); }
+  for (let i = 0; i <= 20; i++) { const a = Math.PI * (1.15 + 0.7 * i / 20); ctx.strokeStyle = '#16161b'; ctx.lineWidth = i % 5 ? 1 : 2.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 118, 60 + Math.sin(a) * 118); ctx.lineTo(Math.cos(a) * (i % 5 ? 110 : 102), 60 + Math.sin(a) * (i % 5 ? 110 : 102)); ctx.stroke(); if (i % 5 === 0) text(String(i * 20), Math.cos(a) * 88, 60 + Math.sin(a) * 88, 10, '#16161b', 'center', 700); }
+  text('kV', 0, 22, 16, '#16161b', 'center', 700); text('BUS A  //  LOAD', 0, 68, 7, '#5c5c66', 'center', 700);
+  const na = Math.PI * (1.15 + 0.7 * nv) + (crit ? Math.sin(time * 60) * 0.02 : 0);
+  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(3, 64); ctx.lineTo(Math.cos(na) * 125 + 3, 64 + Math.sin(na) * 125); ctx.stroke();
+  ctx.strokeStyle = '#c4122a'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(Math.cos(na) * 125, 60 + Math.sin(na) * 125); ctx.stroke();
+  ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, 60, 9, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.beginPath(); ctx.moveTo(-132, -112); ctx.lineTo(10, -112); ctx.lineTo(-70, 82); ctx.lineTo(-132, 82); ctx.fill();
+  ctx.restore();
+  // warning lamps
+  for (let i = 0; i < 3; i++) { const lx = CX - 110 + i * 110, ly = 448, on = on2 && (i === 0 || (i === 1 && nv > 0.6) || (i === 2 && crit && Math.sin(time * 14) > 0)), c = ['255,210,63', '255,122,26', '255,46,69'][i]; ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.arc(lx, ly, 15, 0, TAU); ctx.fill(); ctx.fillStyle = on ? `rgb(${c})` : `rgba(${c},.15)`; ctx.beginPath(); ctx.arc(lx, ly, 11, 0, TAU); ctx.fill(); if (on) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(lx, ly, 3, lx, ly, 50); g.addColorStop(0, `rgba(${c},.5)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.fillRect(lx - 50, ly - 50, 100, 100); ctx.restore(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(lx - 3, ly - 3, 3, 0, TAU); ctx.fill(); } text(['LOAD', 'OVER', 'TRIP'][i], lx, ly + 26, 7, '#8d8d97', 'center', 700); }
+  // the knife switch, thrown on the first hit
+  const sy = 590, k = ease3(clamp(s / 0.07, 0, 1)), la = -1.15 + 1.15 * k;
+  ctx.fillStyle = '#050506'; ctx.fillRect(CX - 96, sy - 62, 192, 110); ctx.fillStyle = '#e8e4d8'; ctx.fillRect(CX - 92, sy - 58, 184, 102);
+  ctx.fillStyle = '#ffd23f'; ctx.fillRect(CX - 92, sy + 32, 184, 12); ctx.fillStyle = '#08080a'; for (let i = 0; i < 12; i++) { ctx.beginPath(); ctx.moveTo(CX - 92 + i * 16, sy + 44); ctx.lineTo(CX - 84 + i * 16, sy + 32); ctx.lineTo(CX - 78 + i * 16, sy + 32); ctx.lineTo(CX - 86 + i * 16, sy + 44); ctx.fill(); }
+  for (const cxp of [CX - 66, CX - 6]) { ctx.fillStyle = '#5e2e10'; ctx.fillRect(cxp - 9, sy - 16, 18, 26); ctx.fillStyle = '#c97a35'; ctx.fillRect(cxp - 7, sy - 14, 6, 22); ctx.fillRect(cxp + 1, sy - 14, 6, 22); ctx.fillStyle = '#f2b766'; ctx.fillRect(cxp - 7, sy - 14, 2, 22); }
+  ctx.save(); ctx.translate(CX - 66, sy); ctx.rotate(la);
+  ctx.fillStyle = '#050506'; ctx.fillRect(-4, -8, 150, 16); const bg = ctx.createLinearGradient(0, -6, 0, 6); bg.addColorStop(0, '#f2b766'); bg.addColorStop(0.5, '#c97a35'); bg.addColorStop(1, '#6b3e10'); ctx.fillStyle = bg; ctx.fillRect(-2, -6, 84, 12);
+  ctx.fillStyle = '#16161b'; ctx.fillRect(82, -9, 62, 18); ctx.fillStyle = '#ff2e45'; ctx.fillRect(84, -7, 58, 14); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(84, -7, 58, 3);
+  ctx.restore();
+  ctx.fillStyle = '#8d8d97'; ctx.beginPath(); ctx.arc(CX - 66, sy, 6, 0, TAU); ctx.fill();
+  if (s < 0.5) for (let i = 0; i < 3; i++) { const q = Math.floor(time * 30) + i; ctx.globalAlpha = 1 - s / 0.5; zapBolt(CX - 6, sy, CX - 6 + (hash(i, q, 1) - 0.5) * 120, sy - 20 - hash(i, q, 2) * 70, q, { amp: 12, w: 1, forks: 1, pulse: false, col: '#9ff0ff' }); ctx.globalAlpha = 1; }
+  text('MAIN BREAKER', CX, sy - 46, 8, '#16161b', 'center', 700);
+  if (on2 && s2 > 1.4) { const a = (s2 - 1.4) * 4; ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (const o of [0, Math.PI]) beam(W - 30, 40, a + o, 760, 4, 120, `rgba(255,46,69,${0.1 + 0.08 * u})`); ctx.restore(); }
+  cineCaption(crit ? 'LOAD: CRITICAL' : 'LOAD RISING', Math.max(0, s2), 690, crit && Math.sin(time * 10) > 0 ? '#ff2e45' : '#ffffff', 12, 0.5, on2 ? TW.wind - TW.sw2 : 0);
+}
+function wiWind(t) {
+  const s = t - TW.wind, D = TW.out - TW.wind, u = clamp(s / D, 0, 1), cx = CX, cy = 380, sc = 1.75 + 0.35 * easeIO(u), V = 0.25 + 0.75 * u;
+  ctx.fillStyle = '#02050a'; fillView();
+  const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, 420); g.addColorStop(0, `rgba(42,216,255,${0.22 + 0.25 * u})`); g.addColorStop(0.5, 'rgba(18,60,120,.18)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; fillView();
+  // cables dragged in across the floor from every side
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 10; i++) {
+    const a = i / 10 * TAU + 0.3, col = WIRE_COLS[i % WIRE_COLS.length], pull = clamp(s * 0.5 - hash(i, 13, 2) * 0.4, 0, 1), r0 = 520, pts = [];
+    for (let k = 0; k <= 16; k++) { const q = k / 16, rr = r0 + (R * sc * 0.8 - r0) * q, wob = Math.sin(q * 9 - s * 5 + i) * 26 * (1 - q) * (1 - 0.6 * pull); pts.push([cx + Math.cos(a) * rr - Math.sin(a) * wob, cy + Math.sin(a) * rr + Math.cos(a) * wob]); }
+    for (const [c, w] of [['#030305', 15], [i % 3 ? '#1e1e24' : col, 10]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 2; ctx.beginPath(); pts.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x - 2, y - 3)); ctx.stroke();
+    const k2 = (s * 1.4 + i * 0.37) % 1, p = pts[Math.floor(k2 * 16)]; ctx.fillStyle = 'rgba(42,216,255,.35)'; ctx.beginPath(); ctx.arc(p[0], p[1], 11, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p[0], p[1], 3, 0, TAU); ctx.fill();
+  }
+  ctx.lineCap = 'butt';
+  // the real clump, winding itself strand by strand
+  if (!wireStrands) wireStrands = makeWireStrands();
+  const N = wireStrands.length; wireStrands.forEach((st, i) => { st.rev = clamp(u * 2.1 - i / N * 1.05, 0, 1); });
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc); const rot = s * (0.6 + 1.2 * u);
+  ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.arc(0, 0, R * 0.8 * Math.min(1, u * 2.5), 0, TAU); ctx.fill();
+  ctx.rotate(rot); drawWireLive({ rot, wire: { volt: V, vp: 'safe', braids: [], jolt: 0 } }); ctx.restore();
+  for (const st of wireStrands) st.rev = 1;
+  // lightning lashing out of the core, harder as it tightens
+  const nb = 1 + Math.floor(u * 4);
+  for (let i = 0; i < nb; i++) { const q = Math.floor(time * 10) + i * 7, a = hash(i, q, 5) * TAU, L = 140 + hash(i, q, 6) * 200 * u; zapBolt(cx + Math.cos(a) * R * sc * 0.7, cy + Math.sin(a) * R * sc * 0.7, cx + Math.cos(a) * (R * sc * 0.7 + L), cy + Math.sin(a) * (R * sc * 0.7 + L), q, { amp: 22, w: 1 + u, forks: 2, pulse: false, col: '#9ff0ff' }); }
+  if (s < 0.5) { ctx.fillStyle = `rgba(0,0,0,${1 - s / 0.5})`; fillView(); }
+  cineTitle('THE WIRE CLUMP', 'HIT THE BRAIDS  /  WATCH THE VOLTS  /  ' + WIRE_HP + ' HITS', s - 0.7, '#2ad8ff', '#3a7bff', 120);
+}
+// the live room with the power out: red alarm beams, the core glowing in the dark, then a bolt finds it
+function wiDark(t, tg) {
+  const T = tg.wire, s = t - TW.out, hit = t >= TW.arc, hs = t - TW.arc, r = R * T.s;
+  const g = ctx.createRadialGradient(CX, CY, r * 0.5, CX, CY, r + 170); g.addColorStop(0, 'rgba(1,2,6,.25)'); g.addColorStop(0.4, 'rgba(1,2,6,.82)'); g.addColorStop(1, 'rgba(1,2,6,.94)'); ctx.fillStyle = g; fillView();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const [bx, ph] of [[22, 0], [W - 22, 2.2]]) beam(bx, 150, Math.atan2(CY - 150, CX - bx) + Math.sin(s * 3.2 + ph) * 0.7, 640, 4, 110, 'rgba(255,46,69,.14)');
+  ctx.restore();
+  for (const bx of [22, W - 22]) { ctx.fillStyle = '#16161b'; ctx.fillRect(bx - 10, 154, 20, 8); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(bx, 150, 8, Math.PI, 0); ctx.fill(); }
+  if (hit && hs < 0.45) { const a = Math.exp(-hs * 6) * (Math.sin(hs * 60) > -0.4 ? 1 : 0.4); ctx.save(); ctx.globalAlpha = a; zapBolt(CX + 60, -60, CX, CY - r, 3, { amp: 30, w: 2.4, forks: 4, col: '#9ff0ff' }); ctx.globalCompositeOperation = 'lighter'; const lg = ctx.createRadialGradient(CX, CY, 10, CX, CY, 280); lg.addColorStop(0, 'rgba(160,236,255,.55)'); lg.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = lg; ctx.fillRect(CX - 280, CY - 280, 560, 560); ctx.restore(); }
+  if (!hit) text('POWER LOST', CX, CY + R + 120, 12, Math.sin(time * 12) > 0 ? '#ff2e45' : '#5a0612', 'center', 700);
+  else text('RESTORING...', CX, CY + R + 120, 12, '#9ff0ff', 'center', 700);
+}
+function drawWireIntro(t) {
+  const tg = fx.tg, live = t >= TW.out;
+  ctx.save();
+  if (!live) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= TW.yard && t < TW.sw1) wiYard(t);
+  else if (t >= TW.sw1 && t < TW.wind) wiPanel(t);
+  else if (t >= TW.wind && t < TW.out) wiWind(t);
+  else if (live && t < TW.land) wiDark(t, tg);
+  if (t >= TW.star && t < TW.yard + 0.4) drawIntroStar(t, TW.star, 'wire');
+  if (!live) {
+    blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); }));
+    drawGrain(0.1);
+  }
+  ctx.restore();
+  if (!live) cineSkipHint();
+}
+
 // ======================= HORNET'S NEST, redrawn (build 54) =======================
 // Visual retouch only: every rule, timer and hit test is unchanged.
 
@@ -8927,24 +9280,6 @@ const VCYCLE = { 1: { safe: 6.6, rise: 1.7, danger: 1.8, fall: 0.8 }, 2: { safe:
 // and lit from a fixed light, so the clump reads as one solid tumbling knot.
 const n3 = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const x3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-let wireStrands = null;
-function makeWireStrands() {
-  const rnd = mulberry(4471), S = [];
-  const COLS = ['#ff2e45', '#ffd23f', '#2ad8ff', '#7cff4f', '#f0f0f4', '#ff7a1a', '#3a7bff', '#ff2e88'];
-  for (let i = 0; i < 26; i++) {
-    const u = n3([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5]), v = n3(x3(u, n3([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5])));
-    const heavy = i < 9, open = !heavy && rnd() < 0.5, span = open ? TAU * (0.4 + rnd() * 0.35) : TAU, a0 = rnd() * TAU;
-    const k1 = 2 + Math.floor(rnd() * 3), ph = rnd() * TAU, amp = 0.04 + rnd() * 0.07, n = open ? 16 : 30, pts = [];
-    for (let j = 0; j <= n; j++) { const th = a0 + span * j / n, r = R * ((heavy ? 0.9 : 0.84 + rnd() * 0.02) + amp * Math.sin(k1 * th + ph)); pts.push([(Math.cos(th) * u[0] + Math.sin(th) * v[0]) * r, (Math.cos(th) * u[1] + Math.sin(th) * v[1]) * r, (Math.cos(th) * u[2] + Math.sin(th) * v[2]) * r]); }
-    S.push({ pts, q: new Float32Array(pts.length * 3), col: heavy ? ['#2a2a31', '#38383f', '#1e1e24'][i % 3] : COLS[Math.floor(rnd() * COLS.length)], w: heavy ? 7.5 : 4, heavy, open, z: 0, stripe: !heavy && rnd() < 0.3 });
-  }
-  for (let i = 0; i < 9; i++) {   // loose loops bulging past the rim give it the knotted, cloud-like outline
-    const a = i / 9 * TAU + rnd() * 0.3, half = 0.18 + rnd() * 0.12, out = 0.1 + rnd() * 0.1, pts = [];
-    for (let j = 0; j <= 10; j++) { const u = j / 10, ang = a - half + 2 * half * u, r = R * (0.86 + out * Math.sin(Math.PI * u)), z = R * (0.05 + 0.35 * Math.sin(Math.PI * u)) * (i % 2 ? 1 : -0.4); pts.push([Math.cos(ang) * r, Math.sin(ang) * r, z]); }
-    S.push({ pts, q: new Float32Array(pts.length * 3), col: i % 3 ? '#2a2a31' : COLS[i % COLS.length], w: i % 3 ? 6.5 : 4, heavy: !!(i % 3), open: false, z: 0, loop: true });
-  }
-  return S;
-}
 // the tangle's turn this frame: undo the in-plane spin (drawFace is already rotated), wobble about the screen axes, spin back
 function wireMatrix(t) {
   const T = t.wire, rot = t.rot, wx = Math.sin(time * 0.71) * 0.2 + (T.jolt || 0) * 0.3, wy = Math.cos(time * 0.53) * 0.2 + Math.sin(time * 0.31) * 0.08;
@@ -8953,16 +9288,6 @@ function wireMatrix(t) {
   const Rz = [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]], Rzi = [[cz, sz, 0], [-sz, cz, 0], [0, 0, 1]], Rx = [[1, 0, 0], [0, cx, -sx], [0, sx, cx]], Ry = [[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]];
   return mul(Rzi, mul(Rx, mul(Ry, Rz)));
 }
-function wireRuns(s, front, keep) {   // the parts of a strand on one side of the sphere, as one path
-  const q = s.q, n = q.length / 3; let on = false;
-  if (!keep) ctx.beginPath();
-  for (let j = 0; j < n; j++) {
-    const z = q[j * 3 + 2], vis = front ? z >= -3 : z < 3;
-    if (vis) { if (!on) { ctx.moveTo(q[j * 3], q[j * 3 + 1]); on = true; } else ctx.lineTo(q[j * 3], q[j * 3 + 1]); } else on = false;
-  }
-}
-
-
 // heavy ribbed conduits running from the clump off-screen into junction boxes, swaying with the parallax
 function wireCablePts(c) {
   const ex = (c.side < 0 ? -20 : W + 20) + plx.x * 1.4, ey = c.y + plx.y * 1.4, a = Math.atan2(ey - CY, ex - CX), sx = CX + Math.cos(a) * (R - 6), sy = CY + Math.sin(a) * (R - 6);
@@ -9113,110 +9438,6 @@ function wireStuck(t, s, a) {
 }
 
 // ---------- drawing ----------
-function drawWireLive(t) {
-  const T = t.wire; if (!wireStrands) wireStrands = makeWireStrands();
-  const M = wireMatrix(t), dz = voltDanger(T), V = T.volt, B = beatInfo('wire');
-  const hot = dz ? '#ff2e45' : '#2ad8ff';
-  for (const s of wireStrands) {
-    let zs = 0; const P = s.pts, q = s.q;
-    for (let j = 0; j < P.length; j++) { const p = P[j], x = M[0][0] * p[0] + M[0][1] * p[1] + M[0][2] * p[2], y = M[1][0] * p[0] + M[1][1] * p[1] + M[1][2] * p[2], z = M[2][0] * p[0] + M[2][1] * p[1] + M[2][2] * p[2]; q[j * 3] = x; q[j * 3 + 1] = y; q[j * 3 + 2] = z; if (z > 0) zs += z; }
-    s.z = zs / P.length;
-  }
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  // back half: dim, thin, seen through the gaps
-  ctx.beginPath(); for (const s of wireStrands) wireRuns(s, false, true);
-  ctx.strokeStyle = '#030305'; ctx.lineWidth = 6.5; ctx.stroke(); ctx.strokeStyle = '#1a1a20'; ctx.lineWidth = 3.5; ctx.stroke();
-  // the core: charge glowing through the knot, swelling on the beat and with the voltage
-  const cr = R * (0.55 + 0.12 * B.pulse + 0.15 * V), cg = ctx.createRadialGradient(0, 0, 2, 0, 0, cr);
-  cg.addColorStop(0, dz ? 'rgba(255,220,200,.95)' : 'rgba(220,250,255,.9)'); cg.addColorStop(0.25, dz ? 'rgba(255,46,69,.75)' : `rgba(42,216,255,${0.45 + 0.4 * V})`); cg.addColorStop(1, 'rgba(31,95,209,0)');
-  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, cr, 0, TAU); ctx.fill();
-  for (let i = 0; i < 2 + Math.floor(V * 4); i++) { const q2 = Math.floor(time * 14) + i * 5, a = hash(i, q2, 7) * TAU; zapBolt(0, 0, Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6, q2, { amp: 10, w: 0.5 + V, forks: 1, pulse: false, col: hot }); }
-  // front half, back to front, lit from the upper left of the screen whatever the spin
-  const lx = -1.3, ly = -1.5, cs = Math.cos(-t.rot), sn = Math.sin(-t.rot), hx = cs * lx - sn * ly, hy = sn * lx + cs * ly;
-  const order = wireStrands.slice().sort((a, b) => a.z - b.z);
-  for (const s of order) {
-    wireRuns(s, true);
-    ctx.strokeStyle = '#030305'; ctx.lineWidth = s.w + 3; ctx.stroke();
-    ctx.strokeStyle = s.col; ctx.lineWidth = s.w; ctx.stroke();
-    if (s.stripe) { ctx.setLineDash([3, 5]); ctx.strokeStyle = '#08080a'; ctx.lineWidth = s.w * 0.7; ctx.stroke(); ctx.setLineDash([]); }
-    ctx.save(); ctx.translate(hx * s.w * 0.18, hy * s.w * 0.18); ctx.strokeStyle = dz ? 'rgba(255,170,120,.55)' : 'rgba(255,255,255,.42)'; ctx.lineWidth = Math.max(1, s.w * 0.28); ctx.stroke(); ctx.restore();
-    if (s.open) for (const j of [0, s.q.length / 3 - 1]) {   // cut ends: bare copper, sparking when the volts climb
-      const z = s.q[j * 3 + 2]; if (z < 0) continue; const x = s.q[j * 3], y = s.q[j * 3 + 1];
-      ctx.strokeStyle = '#c97a35'; ctx.lineWidth = 1.1; ctx.beginPath(); for (let k = 0; k < 5; k++) { const a = Math.atan2(y, x) + (k - 2) * 0.35 + Math.sin(time * 9 + k) * 0.08; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); } ctx.stroke();
-      if (V > 0.45 && hash(j, Math.floor(time * 20), s.w) < V * 0.5) zapBolt(x, y, x + rand(-14, 14), y + rand(-14, 14), Math.floor(rand(99)), { amp: 4, w: 0.6, forks: 0, pulse: false, col: hot });
-    }
-  }
-  // current crawling along the cables: the faster and brighter, the closer to the red
-  const nSp = 3 + Math.floor(V * 7);
-  for (let i = 0; i < nSp; i++) {
-    const s = wireStrands[(i * 7 + Math.floor(time * 0.4 + i * 0.3)) % wireStrands.length], n = s.q.length / 3, u = (time * (0.35 + V * 0.8) + i * 0.37) % 1, j = Math.min(n - 2, Math.floor(u * (n - 1)));
-    if (s.q[j * 3 + 2] < 0) continue;
-    const x = s.q[j * 3], y = s.q[j * 3 + 1], x2 = s.q[j * 3 + 3], y2 = s.q[j * 3 + 4], g = ctx.createRadialGradient(x, y, 0, x, y, 9 + V * 6);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(0.3, hot); g.addColorStop(1, 'rgba(42,216,255,0)'); ctx.fillStyle = g; ctx.fillRect(x - 16, y - 16, 32, 32);
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
-  }
-  // the braids: thick two-ply rope twisted round the rim, brass ferrules at each end, a gold "safe" halo
-  for (const b of T.braids) {
-    const steps = Math.max(6, Math.round(b.w * 2 * R / 6)), rr = R - 7;
-    ctx.save();
-    ctx.strokeStyle = `rgba(255,210,63,${0.35 + 0.35 * Math.sin(time * 4 + b.a * 3) + 0.3 * B.pulse})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R + 8, b.a - b.w, b.a + b.w); ctx.stroke();
-    ctx.strokeStyle = '#030305'; ctx.lineWidth = 15; ctx.beginPath(); ctx.arc(0, 0, rr, b.a - b.w, b.a + b.w); ctx.stroke();
-    for (let i = 0; i < steps; i++) {
-      const a = b.a - b.w + (i + 0.5) / steps * 2 * b.w, x = Math.cos(a) * rr, y = Math.sin(a) * rr;
-      ctx.save(); ctx.translate(x, y); ctx.rotate(a + HALF + (i % 2 ? 0.7 : -0.7));
-      ctx.fillStyle = i % 2 ? '#c97a35' : '#c3c3ca'; ctx.beginPath(); ctx.ellipse(0, 0, 6.5, 3.6, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = i % 2 ? '#ffd23f' : '#ffffff'; ctx.beginPath(); ctx.ellipse(-1.5, -1.2, 3.5, 1.2, 0, 0, TAU); ctx.fill();
-      ctx.restore();
-    }
-    for (const sd of [-1, 1]) { const a = b.a + sd * b.w; ctx.save(); ctx.translate(Math.cos(a) * rr, Math.sin(a) * rr); ctx.rotate(a); ctx.fillStyle = '#874419'; ctx.fillRect(-9, -4, 18, 8); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-9, -4, 18, 3); ctx.restore(); }
-    ctx.restore();
-  }
-  if (dz) { const p = 0.5 + 0.5 * Math.sin(time * 24); ctx.fillStyle = `rgba(255,46,69,${0.1 + 0.12 * p})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
-}
-function drawWireFront(t) {
-  const T = t.wire; if (T.hide) return;
-  const [cx, cy] = [CX + T.ox, CY + T.oy];
-  for (const A of T.arcs) { const u = A.t / A.life, grow = Math.min(1, A.t / 0.2), w = t.rot + A.a, x0 = cx + Math.cos(w) * R, y0 = cy + Math.sin(w) * R, x1 = cx + Math.cos(w) * (R + A.len * grow), y1 = cy + Math.sin(w) * (R + A.len * grow); ctx.save(); ctx.globalAlpha = 1 - Math.max(0, u - 0.8) / 0.2; zapBolt(x0, y0, x1, y1, A.seed, { amp: 14, w: 1.2, forks: 2 }); zapRing(x1, y1, 9, 1, A.seed); ctx.restore(); }
-  // ground wires: a live cable hanging off the clump, frayed copper end; its glow tracks the voltage
-  for (const G of T.grounds) {
-    const w = t.rot + G.a, L = 70 * G.grow, sway = Math.sin(time * 2.4 + G.seed) * 0.18, x0 = cx + Math.cos(w) * (R - 4), y0 = cy + Math.sin(w) * (R - 4), ex = x0 + Math.cos(w + sway) * L, ey = y0 + Math.sin(w + sway) * L + 18 * G.grow;
-    const mx = (x0 + ex) / 2 - Math.sin(w) * 8, my = (y0 + ey) / 2 + 16;
-    ctx.lineCap = 'round'; ctx.strokeStyle = '#030305'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
-    ctx.strokeStyle = '#2f9a1f'; ctx.lineWidth = 5.5; ctx.stroke(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
-    const glow = T.volt, gr = ctx.createRadialGradient(ex, ey, 1, ex, ey, 18 + glow * 30); gr.addColorStop(0, `rgba(255,236,150,${0.4 + 0.6 * glow})`); gr.addColorStop(0.4, `rgba(255,122,26,${0.25 + 0.4 * glow})`); gr.addColorStop(1, 'rgba(255,122,26,0)'); ctx.fillStyle = gr; ctx.fillRect(ex - 50, ey - 50, 100, 100);
-    ctx.strokeStyle = '#c97a35'; ctx.lineWidth = 1.4; ctx.beginPath(); for (let i = 0; i < 7; i++) { const a = Math.atan2(ey - my, ex - mx) + (i - 3) * 0.28 + Math.sin(time * 20 + i) * 0.06; ctx.moveTo(ex, ey); ctx.lineTo(ex + Math.cos(a) * 10, ey + Math.sin(a) * 10); } ctx.stroke();
-    // a hazard tag on a zip tie
-    const tx = (x0 + mx) / 2, ty = (y0 + my) / 2; ctx.save(); ctx.translate(tx, ty); ctx.rotate(Math.sin(time * 3 + G.seed) * 0.3); ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(8, 16); ctx.lineTo(-8, 16); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#08080a'; ctx.fillRect(-1, 7, 2, 5); ctx.fillRect(-1, 13, 2, 2); ctx.restore();
-    if (Math.random() < 0.3 + glow * 0.6) zapBolt(ex, ey, ex + rand(-28, 28), ey + rand(-8, 34), Math.floor(rand(99)), { amp: 7, w: 0.6, forks: 1, pulse: false, col: '#ffd23f' });
-    if (G.life - G.t < 2 && Math.sin(time * 16) > 0) { ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(ex, ey, 13, 0, TAU); ctx.stroke(); }
-  }
-  // wire cutters: giant bolt cutters biting at the rim, red grips reaching out toward you
-  for (const Cu of T.cutters) {
-    const u = clamp(Cu.t / Cu.dur, 0, 1), w = t.rot + Cu.a, open = 0.42 * (1 - u * u), rr = R + 4 + 22 * Cu.in, x = cx + Math.cos(w) * rr, y = cy + Math.sin(w) * rr, jit = u > 0.75 ? Math.sin(time * 50) * 2 : 0;
-    ctx.save(); ctx.translate(x + jit, y); ctx.rotate(w);
-    for (const sd of [-1, 1]) {
-      // handle: steel arm then a long ribbed red grip
-      ctx.save(); ctx.rotate(-sd * open * 0.45);
-      ctx.fillStyle = '#030305'; ctx.fillRect(8, sd > 0 ? 1 : -9, 104 * Cu.in, 8);
-      ctx.fillStyle = '#8d8d97'; ctx.fillRect(10, sd > 0 ? 2 : -8, 46 * Cu.in, 6); ctx.fillStyle = '#c3c3ca'; ctx.fillRect(10, sd > 0 ? 2 : -8, 46 * Cu.in, 2);
-      ctx.fillStyle = '#ff2e45'; ctx.fillRect(56 * Cu.in, sd > 0 ? 1 : -9, 54 * Cu.in, 8); ctx.fillStyle = '#a3122a'; for (let i = 0; i < 8; i++) ctx.fillRect((58 + i * 6.5) * Cu.in, sd > 0 ? 1 : -9, 2, 8);
-      ctx.restore();
-      // jaw: short, thick, sharpened, biting inward
-      ctx.save(); ctx.rotate(sd * open);
-      ctx.fillStyle = '#030305'; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-24, sd * 1); ctx.lineTo(-20, sd * 11); ctx.lineTo(10, sd * 12); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#5c5c66'; ctx.beginPath(); ctx.moveTo(8, sd * 1.5); ctx.lineTo(-21, sd * 2); ctx.lineTo(-18, sd * 9.5); ctx.lineTo(8, sd * 10.5); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f0f0f4'; ctx.fillRect(-20, sd > 0 ? 1.5 : -3, 26, 1.5);
-      ctx.restore();
-    }
-    ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(10, 0, 6, 0, TAU); ctx.fill(); ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(10, 0, 2.5, 0, TAU); ctx.fill();
-    ctx.restore();
-    // countdown: a ring that drains, and a warning that flashes once the jaws are nearly shut
-    const lx2 = cx + Math.cos(w) * (rr + 60), ly2 = cy + Math.sin(w) * (rr + 60);
-    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(lx2, ly2, 22, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = u > 0.7 && Math.sin(time * 20) > 0 ? '#ffffff' : '#ff2e45'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(lx2, ly2, 22, -HALF, -HALF + TAU * (1 - u)); ctx.stroke();
-    text(Math.max(0, Cu.dur - Cu.t).toFixed(1), lx2, ly2 + 1, 9, '#ffffff', 'center', 700);
-  }
-}
 // the heavy cables running from the clump off-screen, swaying with the parallax
 function drawWireCables(t) {
   const T = t.wire; if (!T || T.hide) return;
@@ -9224,9 +9445,14 @@ function drawWireCables(t) {
   for (const c of T.cables) {
     const P = wireCablePts(c), { ex, ey, a, sx, sy, mx, my } = P;
     // the junction box on the wall
-    ctx.save(); ctx.translate(c.side < 0 ? 4 + plx.x * 1.4 : W - 4 + plx.x * 1.4, ey); ctx.fillStyle = '#16161b'; ctx.fillRect(-16, -24, 32, 48); ctx.strokeStyle = '#38383f'; ctx.lineWidth = 2; ctx.strokeRect(-16, -24, 32, 48);
-    ctx.fillStyle = '#ffd23f'; for (let i = 0; i < 4; i++) ctx.fillRect(-16 + i * 9, 18, 5, 6);
-    const led = c.snapped ? (Math.sin(time * 10) > 0 ? '#ff2e45' : '#2a0a0e') : dz ? '#ff2e45' : B.pulse > 0.5 ? '#7cff4f' : '#1f5f1a'; ctx.fillStyle = led; ctx.fillRect(-4, -16, 8, 8); ctx.restore();
+    ctx.save(); ctx.translate(c.side < 0 ? 4 + plx.x * 1.4 : W - 4 + plx.x * 1.4, ey);
+    ctx.fillStyle = '#050506'; ctx.fillRect(-19, -28, 38, 56); ctx.fillStyle = '#22262e'; ctx.fillRect(-17, -26, 34, 52); ctx.fillStyle = '#3a4048'; ctx.fillRect(-17, -26, 34, 4); ctx.fillStyle = '#101216'; ctx.fillRect(-17, 22, 34, 4);
+    for (const [bx, by] of [[-13, -19], [13, -19], [-13, 12], [13, 12]]) { ctx.fillStyle = '#8d8d97'; ctx.fillRect(bx - 1.2, by - 1.2, 2.4, 2.4); }
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(9, 10); ctx.lineTo(-9, 10); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.moveTo(1.4, -2); ctx.lineTo(-2.4, 3.6); ctx.lineTo(0.2, 3.6); ctx.lineTo(-1.4, 8); ctx.lineTo(2.6, 2); ctx.lineTo(0, 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffd23f'; for (let i = 0; i < 4; i++) ctx.fillRect(-17 + i * 9, 16, 5, 6);
+    const ledOn = c.snapped ? Math.sin(time * 10) > 0 : dz || B.pulse > 0.5, ledC = c.snapped || dz ? '255,46,69' : '124,255,79';
+    ctx.fillStyle = ledOn ? `rgb(${ledC})` : `rgba(${ledC},.2)`; ctx.fillRect(-4, -19, 8, 6); if (ledOn) { ctx.fillStyle = `rgba(${ledC},.25)`; ctx.fillRect(-9, -24, 18, 16); }
+    ctx.restore();
     if (c.snapped) {
       const whip = c.whip, L = 70 + 30 * Math.sin(time * 2 + c.y), dx = Math.cos(a), dy = Math.sin(a);
       for (const [x0, y0, d] of [[sx, sy, 1], [ex, ey, -1]]) {
@@ -9274,41 +9500,6 @@ function drawWireBlackout(t) {
   text('BLACKOUT  ' + Math.ceil(T.blackout) + 'S', CX, 150, 10, '#ff2e45', 'center', 700);
 }
 // HUD: health, stability, and the voltmeter (dead during a blackout)
-function drawWireHUD() {
-  const t = tgt; if (!t || !t.wire || t.wire.hide) return;
-  const T = t.wire, x0 = CX - 100, y = 104, cw = 200 / WIRE_HP;
-  let fill = 1; if (fx && fx.type === 'wireintro') fill = clamp((fx.t - WSHOT.reveal - 0.4) / 0.9, 0, 1);
-  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
-  for (let i = 0; i < WIRE_HP; i++) { const on = i < Math.min(knivesLeft, Math.floor(WIRE_HP * fill)); ctx.fillStyle = on ? (T.flash > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i % 2 ? '#2ad8ff' : '#1f5fd1') : '#1e1e24'; ctx.fillRect(x0 + i * cw, y, cw - 1.5, 8); }
-  for (const f of [1 / 3, 2 / 3]) ctx.fillRect(x0 + WIRE_HP * f * cw - 1, y - 3, 2, 14);
-  text('P' + T.phase, x0 - 18, y + 4, 8, '#2ad8ff', 'center', 700);
-  // stability
-  const sy = y + 20, sc = T.stab > 50 ? '#7cff4f' : T.stab > 25 ? '#ffd23f' : '#ff2e45';
-  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, sy - 3, 208, 11); ctx.fillStyle = '#1e1e24'; ctx.fillRect(x0, sy, 200, 5); ctx.fillStyle = T.stabT > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : sc; ctx.fillRect(x0, sy, 200 * T.stab / 100, 5);
-  text('STABILITY ' + Math.ceil(T.stab) + '%', CX, sy + 14, 7, sc, 'center', 700);
-  // voltmeter
-  const gx = W - 52, gy = 196, r = 30, off = T.blackout > 0;
-  ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(gx, gy, r + 6, 0, TAU); ctx.fill(); ctx.strokeStyle = '#38383f'; ctx.lineWidth = 2; ctx.stroke();
-  if (off) { text('NO', gx, gy - 5, 8, '#38383f', 'center', 700); text('SIGNAL', gx, gy + 6, 7, '#38383f', 'center', 700); }
-  else {
-    for (const [a0, a1, c] of [[0, 0.55, '#7cff4f'], [0.55, 0.78, '#ffd23f'], [0.78, 1, '#ff2e45']]) { ctx.strokeStyle = c; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(gx, gy, r - 3, Math.PI * (0.8 + 1.4 * a0), Math.PI * (0.8 + 1.4 * a1)); ctx.stroke(); }
-    const na = Math.PI * (0.8 + 1.4 * clamp(T.volt + (voltDanger(T) ? Math.sin(time * 40) * 0.02 : 0), 0, 1)); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(na) * (r - 5), gy + Math.sin(na) * (r - 5)); ctx.stroke(); ctx.fillStyle = '#c3c3ca'; ctx.beginPath(); ctx.arc(gx, gy, 3, 0, TAU); ctx.fill();
-    text(Math.round(40 + T.volt * 400) + 'V', gx, gy + 14, 9, voltDanger(T) ? '#ff2e45' : '#ffffff', 'center', 700);
-    const dz = voltDanger(T); text(dz ? 'DANGEROUS' : T.vp === 'rise' ? 'RISING' : 'SAFE', gx, gy + r + 14, 8, dz ? (Math.sin(time * 16) > 0 ? '#ff2e45' : '#ffffff') : T.vp === 'rise' ? '#ffd23f' : '#7cff4f', 'center', 700);
-    text('VOLTAGE', gx, gy + r + 24, 6, '#8d8d97', 'center', 700);
-  }
-  let msg = 'HIT THE BRAIDS  /  BARE WIRE X3 BUT UNSTABLE', col = '#8d8d97';
-  if (T.cutters.length) { msg = 'SMASH THE WIRE CUTTERS!'; col = Math.sin(time * 14) > 0 ? '#ff2e45' : '#ffffff'; }
-  else if (voltDanger(T)) { msg = 'DANGEROUS VOLTAGE: DO NOT TOUCH'; col = '#ff2e45'; }
-  else if (T.blackout > 0) { msg = 'BLACKOUT: READ THE GROUND WIRES'; col = '#ff7a1a'; }
-  text(msg, CX, sy + 26, 8, col, 'center', 700);
-}
-function drawWireDebris(d) {
-  if (d.kind === 'cutter') { ctx.fillStyle = d.half ? '#ff2e45' : '#8d8d97'; ctx.beginPath(); ctx.moveTo(-12, -3); ctx.quadraticCurveTo(0, -8, 14, -2); ctx.lineTo(14, 3); ctx.quadraticCurveTo(0, -2, -12, 3); ctx.fill(); return true; }
-  if (d.kind === 'cable') { ctx.strokeStyle = '#030305'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-12, 0); ctx.quadraticCurveTo(0, -8, 12, 2); ctx.stroke(); ctx.strokeStyle = d.c || '#ff2e45'; ctx.lineWidth = 3.5; ctx.stroke(); ctx.fillStyle = '#c97a35'; ctx.fillRect(10, -1, 5, 3); return true; }
-  return false;
-}
-
 // ---------- stability gone: it explodes and takes you with it ----------
 function startWireBlow(t) {
   fx = { type: 'wireblow', t: 0, lt: 0, freeze: 0.2, x: CX, y: CY, lines: impactLinesFor(30, 1100), tg: t };
@@ -11658,7 +11849,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 54', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 55', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

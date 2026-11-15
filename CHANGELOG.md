@@ -2,6 +2,31 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 55
+- **The Wire Clump redrawn.** This is a visual retouch only: every rule, timer and hit test is unchanged.
+- **New intro, cut to the boss track.** The music starts on the black screen:
+  - 0:00.5: the spinning star.
+  - 0:02.8: the substation in a storm. At 0:05.1 lightning takes the pylon and charge floods down the lines.
+  - 0:08.2: the main breaker is thrown. At 0:08.7 the kV meter kicks, then climbs into the red as the warning lamps come on.
+  - 0:13.6: the real clump winds itself strand by strand while cables are dragged in from every side.
+  - 0:18.5: the lights die on the live room. At 0:19.7 a bolt finds the clump.
+  - 0:20.3: the power comes back on the drop, with no cut. The HUD assembles from shards and the knife rises.
+- **Boss art:**
+  - The cables now carry hardware: ceramic insulators, bolted clamps, zip ties and hazard tags. Heavy cables are ribbed, and every cable is shaded on both sides.
+  - The core is a reactor: copper rings orbiting a ball of plasma.
+  - Braids are a woven copper sleeve with heat-shrink cuffs and a green "safe" lamp.
+  - Sparks crawl round the outline as the voltage climbs.
+- **Abilities reanimated:**
+  - Voltage: charge rings close in while it rises, a red cage with warning signs circles while it is live, and a ring is thrown off as it falls.
+  - Wire cutters are forged bolt cutters with hazard grips and a dial countdown.
+  - Ground wires end in a toothed clamp, and arcs fire from ceramic stand-offs.
+  - Also redrawn: the junction boxes, the voltmeter and the debris.
+- **Background follows the song:**
+  - The rain, the charge on the lines and a wall of level meters all rise with the music.
+  - The Tesla coils fire on the beat and arc to each other on loud downbeats.
+  - Lightning walks the sky every bar, with a barrage on drops.
+  - Also: a far city that goes dark in a blackout, and lit storm clouds.
+
 ## Build 54
 - **Hornet's Nest redrawn.** This is a visual retouch only: every rule, timer and hit test is unchanged.
 - **New intro, cut to the boss track.** The hive still splits in slow motion in the game, then the track slams in on black:
