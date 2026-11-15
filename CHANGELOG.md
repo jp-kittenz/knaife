@@ -2,6 +2,51 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 60
+- **Litany of the Botany redesigned,** loosely inspired by Omega Flowey (not a copy).
+- **The boss:**
+  - **Rose-eye:** the centre is now a great crimson rose with four rings of petals around a gold, slit-pupilled eye.
+    - The eye tracks your knife and blinks.
+    - It flinches shut when hit, and flares its petals and blows its pupil wide when it roars.
+  - **Bark:** it is now chunky lit plates split by crevices bleeding red sap, with moss.
+  - **Face:** a fleshy heartwood face strangled by thorned briars spiralling in, with glowing fissures and little eyes asleep in the grain.
+  - **Vines:** thick twisted trunks with two strands winding round them, thorns down both edges, leaves, a small rose-eye watching you, and sap pulsing toward the log on the beat.
+  - **Rim growths:** all redrawn with outlines, depth and glow:
+    - Lilies have outlined petals and a soft glow.
+    - Flytraps have toothed jaws, ivy glows, and nightshade has bells and berries.
+    - Daisies grow on the floral vines, and roses have thorns and an eye.
+    - The black tentacles drip, and the hollow is a toothed maw with a slit-pupilled red eye.
+    - Breakaways crowd with eyes that follow you.
+  - **Sanity effects:** while your sanity is low, rose-eyes watch you from the edges of the screen.
+- **New background:**
+  - A crimson void behind a huge blood rose that turns slowly and swells on the beat.
+  - Ribbed organic tubes pump glowing sap in from the edges, and briars arch overhead.
+  - Two giant flytraps on the flanks snap on every downbeat.
+  - Petals fall through a CRT haze.
+  - It still follows the sections of the level built for the same song:
+    - Pale bone fog with black silhouettes.
+    - A red strobe at 0:15.
+    - Sixteen rose-eyes opening and staring at you at 0:24.6.
+    - The bleeding vein section with bone thorns.
+    - TV static tearing through at 0:46.5.
+- **New intro, smoother and busier:**
+  - The rose-eye opens and snaps to stare at you on the beats.
+  - The picture tears into green TV static with HELP stamped through it, and the set switches off to a dot.
+  - The dot bursts into white thorns stabbing in from every edge on the beat, with red and green ghosts, while briars crawl toward the eye.
+  - The camera dives into the pupil, into a red star and a vortex of petals.
+  - A ring of thorns snaps shut, and the rose blooms with a shockwave.
+  - The lyric lines slash across.
+  - A fly-through of red gothic arches, then out through the last arch onto the boss as it lands.
+- **Star handoff fixed (Litany and Permafrost):** the yellow star no longer hangs over the first scene. It spins down to a point, and the scene irises open out of that point behind a ring of light.
+- **Nerfs:**
+  - Tentacles attack the white lily less often (60%) and take 3s to strangle it (was 2.4s).
+  - Special lilies, floral vines, roses and vine tentacles all appear less often. Only 1 rose at a time.
+  - Fewer flytraps, ivy and nightshade, and the flytraps stay open for a shorter time.
+  - Vine tentacles take 0.9s to reach you (was 0.75s).
+  - The hollow spits less often.
+  - Breakaways come every 30–40s. Sanity drains slower (9%/s) and recovers faster.
+  - The swing is slower, with fewer violent tugs.
+
 ## Build 59
 - **New boss: LITANY OF THE BOTANY.** It joins the stage-5 roster, so there are now seven bosses picked at random.
   - **Music:** Waterflame's "Cove" (the track you supplied). The boss lands on the beat at 0:16, and the fight loops from 0:32 to 2:34.
