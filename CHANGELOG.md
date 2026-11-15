@@ -2,6 +2,53 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 58
+- **Permafrost reworked: new theme, jagged crystal art, more action, and a tougher fight.**
+- **Theme music: Camellia's NUCLEAR-STAR** (the track you supplied) replaces the placeholder track.
+  - The intro is locked to its opening and the boss lands on the beat at 0:13.5.
+  - After that the fight loops from the first full drop to the end of the final drop.
+  - The background, the beat pulses and the spectrum visualizer all follow the song.
+- **Everything icy is now jagged crystal,** in an iridescent cyan, lavender and pink palette:
+  - The shell is a geode of crystal facets with a crown of crystal spikes jutting past the rim. A glint runs around the crown.
+  - The species blocks are jagged chunks of ice.
+  - Frozen knives grow crystal shards along the handle.
+  - Crystallized ice, partial ice, breakaways, icicles and the core spears are all made of crystal shards.
+- **New intro, modelled on your reference:**
+  - The star at 0:01.4.
+  - A fast flight over a frozen river, surging on every accent, with a typed caption.
+  - A crystal tree rises on the far shore, and a four-point star flares in its branches.
+  - An iris snaps shut on it.
+  - It blooms, with an iridescent halo, crystal blossoms and falling light.
+  - Then the halo folds into its heart, the shards fly together into the shell, and the boss lands on the beat.
+- **New background: a hall of crystal.**
+  - Giant soft crystal shards drift in the dark, holographic light streaks sweep across, and crystal clusters glow in the corners.
+  - A spectrum visualizer reads the music across the frozen floor.
+  - On the drops, crystal falls from above.
+- **The core's room is now a vast crystal ice cave.**
+  - Stalactites, stalagmites and pillars frame a wide open hall, with distant crystal walls receding around it.
+  - The floor is glassy, and shafts of light fall from the roof.
+  - The core is bigger, with shards orbiting it.
+- **More action:**
+  - Every hit throws crystal shards and a flash of light.
+  - Frost motes ride the wind around the boss.
+  - Each released species bursts out of its block.
+  - The biggest moments throw out rings of light rays.
+  - Icicles leave a cold trail.
+- **New attack, CRYSTAL BURST:** every 10–13s (8–11s on the raw log) the core draws in, the cracks light up and the spin slows for 1s, then spikes ring the whole rim for 1s. A knife thrown into them costs a heart.
+- **More frozen species:** every fight starts with 2 or 3 blocks, each a different creature, and a regrown shell brings 2 new ones.
+- **Buffs:**
+  - Ice and raw log are now 18 hits each (were 15).
+  - Knives freeze in 2.4s (was 3.2s).
+  - Up to 3 crystals at a time, appearing more often.
+  - The frost wind blows harder and gusts more often.
+  - Tentacles reach in 0.65s (was 0.8s).
+  - A breakaway forms every 3 hits, 3 at most (was every 4, max 2).
+  - Avalanches come every 18–24s, and more often drop two patches of partial ice.
+- **Fixes:**
+  - The Wonder Butterfly's double hits now run out after 3 hits (before, they never ran out).
+  - Permafrost no longer replaces a line-drawing helper the rest of the game uses.
+- **Set pieces:** the "lantern glow" set pieces became five Crystal Burst answers, one per knife.
+
 ## Build 57
 - **New boss: PERMAFROST.** It joins the stage-5 roster, so there are now six bosses picked at random. It has its own track (assets/frost.mp3).
 - **Phase 1, THE ICE LAYER (15 hits):** a glowing sky-blue shell with a dark blue star core.
