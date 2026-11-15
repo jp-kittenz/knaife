@@ -12661,6 +12661,186 @@ function drawBotVines(t) {
 }
 function x0FromTear(C, N) { return C[Math.round(N * 0.35)][0]; }
 
+// ---------- LITANY OF THE BOTANY: the plants ----------
+// Each plant on the rim is assembled from baked, shaded parts and given its own life: stems bend in a breeze, lilies
+// open as a cluster of three blooms with ribbon petals that ripple, flytraps hinge open and slam shut, ivy flutters,
+// nightshade bells bob over glossy berries, daisies nod on a curling vine, roses unfold as a spiral.
+function botShade(hex, f) { const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255, m = v => Math.max(0, Math.min(255, f < 0 ? v * (1 + f) : v + (255 - v) * f)) | 0; return `rgb(${m(r)},${m(g)},${m(b)})`; }
+// a tapered stem along a curve, built from the vine material
+function botStem(x0, y0, cx, cy, x1, y1, w0, w1) {
+  const seg = botVineSegSprite(), N = 8; let px = x0, py = y0;
+  for (let i = 1; i <= N; i++) { const u = i / N, x = (1 - u) * (1 - u) * x0 + 2 * u * (1 - u) * cx + u * u * x1, y = (1 - u) * (1 - u) * y0 + 2 * u * (1 - u) * cy + u * u * y1, a = Math.atan2(y - py, x - px), L = Math.hypot(x - px, y - py) * 1.3 + 1, w = w0 + (w1 - w0) * u; ctx.save(); ctx.translate((x + px) / 2, (y + py) / 2); ctx.rotate(a); ctx.drawImage(seg.c, -L / 2, -w / 2, L, w); ctx.restore(); px = x; py = y; }
+}
+function botMushSprite() {
+  return bakeSprite('botMushS', -24, -14, 48, 26, g => {
+    const rnd = mulberry(55); for (let i = 0; i < 9; i++) { const x = (rnd() - 0.5) * 34, y = (rnd() - 0.5) * 10 + 2, r = 5 + rnd() * 6, mg = g.createRadialGradient(x - r * 0.3, y - r * 0.4, 0.5, x, y, r); mg.addColorStop(0, '#8ad85a'); mg.addColorStop(0.5, '#2f7a1a'); mg.addColorStop(1, '#0a2406'); g.fillStyle = mg; g.beginPath(); g.ellipse(x, y, r, r * 0.75, 0, 0, TAU); g.fill(); }
+    g.fillStyle = 'rgba(220,255,190,.5)'; for (let i = 0; i < 6; i++) g.fillRect((rnd() - 0.5) * 30, (rnd() - 0.5) * 8 - 2, 1.4, 1.4);
+  });
+}
+function botMush(x, y, s, seed) { const sp = botMushSprite(), k = s / 14; ctx.save(); ctx.translate(x, y); ctx.scale(k * (0.9 + (seed % 3) * 0.08), k); ctx.drawImage(sp.c, sp.x, sp.y, sp.w, sp.h); ctx.restore(); }
+// ---------- spider lily ----------
+function botLilyPetal(col) {
+  return bakeSprite('botLP' + col, -6, -46, 12, 48, g => {
+    const path = () => { g.beginPath(); g.moveTo(-1.2, 0); g.bezierCurveTo(-5, -12, -3, -24, -4.6, -32); g.quadraticCurveTo(-3, -40, 0, -45); g.quadraticCurveTo(3, -40, 4.6, -32); g.bezierCurveTo(3, -24, 5, -12, 1.2, 0); g.closePath(); };
+    const lg = g.createLinearGradient(0, 0, 0, -45); lg.addColorStop(0, botShade(col, -0.55)); lg.addColorStop(0.35, botShade(col, -0.15)); lg.addColorStop(0.8, col); lg.addColorStop(1, botShade(col, 0.4));
+    path(); g.fillStyle = lg; g.fill();
+    g.save(); path(); g.clip(); const sg = g.createLinearGradient(-5, 0, 5, 0); sg.addColorStop(0, 'rgba(0,0,0,.35)'); sg.addColorStop(0.5, 'rgba(255,255,255,.18)'); sg.addColorStop(1, 'rgba(0,0,0,.4)'); g.fillStyle = sg; g.fillRect(-6, -46, 12, 48); g.restore();
+    g.strokeStyle = botShade(col, -0.5); g.lineWidth = 0.6; g.beginPath(); g.moveTo(0, -1); g.lineTo(0, -42); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 0.6; g.beginPath(); for (let i = 0; i <= 12; i++) { const y = -4 - i * 3.3; g[i ? 'lineTo' : 'moveTo'](-3.8 + Math.sin(i * 1.8) * 0.8, y); } g.stroke();
+    path(); g.strokeStyle = botShade(col, -0.7); g.lineWidth = 0.7; g.stroke();
+  });
+}
+function botLilyBud(col) {
+  return bakeSprite('botLB' + col, -8, -30, 16, 32, g => {
+    const path = () => { g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(-8, -6, -7, -22, 0, -29); g.bezierCurveTo(7, -22, 8, -6, 0, 0); g.closePath(); };
+    const lg = g.createLinearGradient(0, 0, 0, -29); lg.addColorStop(0, '#2a6a14'); lg.addColorStop(0.55, '#4a9a26'); lg.addColorStop(0.85, botShade(col, -0.2)); lg.addColorStop(1, col);
+    path(); g.fillStyle = lg; g.fill();
+    g.save(); path(); g.clip(); const sg = g.createLinearGradient(-8, 0, 8, 0); sg.addColorStop(0, 'rgba(0,0,0,.45)'); sg.addColorStop(0.4, 'rgba(255,255,255,.22)'); sg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = sg; g.fillRect(-8, -30, 16, 32); g.restore();
+    g.strokeStyle = 'rgba(10,40,4,.6)'; g.lineWidth = 0.6; for (const x of [-2.5, 0, 2.5]) { g.beginPath(); g.moveTo(x * 0.4, -1); g.quadraticCurveTo(x * 1.6, -14, x * 0.5, -27); g.stroke(); }
+    path(); g.strokeStyle = '#0c2a06'; g.lineWidth = 0.9; g.stroke();
+  });
+}
+// one floret: six recurved ribbon petals and six long stamens, seen a little from the side
+function botLilyFloret(col, open, ph, sc) {
+  const pet = botLilyPetal(col);
+  ctx.save(); ctx.scale(sc, sc);
+  for (let i = 0; i < 6; i++) { const a = -HALF + (i - 2.5) * 0.5 * open + Math.sin(time * 2.4 + i + ph) * 0.05, curl = 0.5 + 0.35 * open; ctx.save(); ctx.rotate(a + HALF); ctx.scale(1, 0.55 + 0.45 * open); ctx.rotate((i < 3 ? -1 : 1) * curl * 0.35); ctx.drawImage(pet.c, pet.x, pet.y, pet.w, pet.h); ctx.restore(); }
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 6; i++) { const a = -HALF + (i - 2.5) * 0.3 * open + Math.sin(time * 1.9 + i * 1.3 + ph) * 0.04, L = 46 * open, ex = Math.cos(a) * L, ey = Math.sin(a) * L - 8, mx = Math.cos(a) * L * 0.5, my = Math.sin(a) * L * 0.5 - 12; for (const [w, c] of [[2, 'rgba(0,0,0,.45)'], [0.9, col]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke(); } ctx.fillStyle = '#3a1a00'; ctx.beginPath(); ctx.ellipse(ex, ey, 2.4, 1.2, a, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffcf3a'; ctx.beginPath(); ctx.ellipse(ex - 0.3, ey - 0.3, 1.8, 0.9, a, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = botShade(col, -0.3); ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawSpiderLily(col, grow, bloom, ph = 0, sc = 1) {
+  ctx.save(); ctx.scale(sc, sc);
+  const h = 18 + 24 * grow, sw = Math.sin(time * 1.6 + ph) * 3;
+  botStem(0, 0, 4 + sw * 0.4, -h * 0.5, sw, -h, 5, 3);
+  const lf = botLeafSprite(); ctx.save(); ctx.translate(-1, -h * 0.25); ctx.rotate(Math.PI + 0.7 + Math.sin(time * 2 + ph) * 0.1); ctx.scale(0.55, 0.45); ctx.drawImage(lf.c, lf.x, lf.y, lf.w, lf.h); ctx.restore();
+  ctx.translate(sw, -h);
+  if (bloom <= 0) { const bd = botLilyBud(col), k = 0.55 + 0.6 * grow; for (let i = -1; i <= 1; i++) { ctx.save(); ctx.rotate(i * 0.32 + Math.sin(time * 2 + i) * 0.04); ctx.scale(k * (i ? 0.8 : 1), k * (i ? 0.85 : 1)); ctx.drawImage(bd.c, bd.x, bd.y, bd.w, bd.h); ctx.restore(); } ctx.restore(); return; }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, -10, 1, 0, -10, 40); gl.addColorStop(0, 'rgba(255,255,255,.25)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = gl; ctx.fillRect(-40, -50, 80, 80); ctx.restore();
+  // an umbel of three florets on short pedicels
+  ctx.strokeStyle = '#2f7a1a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+  for (const [dx, dy, a, s] of [[-9, -6, -0.55, 0.62], [9, -6, 0.55, 0.62], [0, -12, 0, 0.78]]) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(dx * 0.4, dy * 0.6, dx, dy); ctx.stroke(); ctx.save(); ctx.translate(dx, dy); ctx.rotate(a + Math.sin(time * 1.4 + ph + dx) * 0.06); botLilyFloret(col, bloom, ph + dx, s); ctx.restore(); }
+  ctx.restore();
+}
+// ---------- the black tentacle that strangles lilies: glossy, tapering, dripping ----------
+function drawBlackTentacle(u, seed) {
+  ctx.save(); ctx.lineCap = 'round';
+  const pts = []; for (let i = 0; i <= 14; i++) { const k = i / 14 * u, x = 22 - 34 * k + Math.sin(k * 9 + time * 6 + seed) * 6 * (0.4 + k), y = 34 - 84 * k; pts.push([x, y]); }
+  for (let i = 0; i < 14; i++) { const w = 15 * (1 - i / 16); ctx.strokeStyle = '#020203'; ctx.lineWidth = w + 2; ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke(); ctx.strokeStyle = '#121216'; ctx.lineWidth = w; ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(190,190,220,.55)'; ctx.lineWidth = 1.6; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x - 4 * (1 - i / 16), y - 1)); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 0.8; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x - 2 * (1 - i / 16), y - 2)); ctx.stroke();
+  for (let i = 3; i < 13; i += 3) { const [x, y] = pts[i], r = 2.4 * (1 - i / 16); ctx.fillStyle = '#2a2a30'; ctx.beginPath(); ctx.arc(x + 3.5 * (1 - i / 16), y, r + 0.8, 0, TAU); ctx.fill(); ctx.fillStyle = '#5a5a66'; ctx.beginPath(); ctx.arc(x + 3.5 * (1 - i / 16), y, r, 0, TAU); ctx.fill(); }
+  for (let i = 2; i < 12; i += 3) { const d = 4 + ((time * 8 + i) % 12), [x, y] = pts[i]; ctx.fillStyle = '#050506'; ctx.fillRect(x + 1, y, 2.2, d); ctx.beginPath(); ctx.arc(x + 2.1, y + d, 2.4, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(200,200,230,.5)'; ctx.fillRect(x + 1.4, y + d - 1.4, 0.8, 0.8); }
+  ctx.restore();
+}
+// ---------- venus flytrap ----------
+function botTrapLobe() {
+  return bakeSprite('botTrapL', -2, -26, 46, 30, g => {
+    const outer = () => { g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(4, -22, 36, -24, 42, -6); g.quadraticCurveTo(30, 2, 0, 0); g.closePath(); };
+    const lg = g.createLinearGradient(0, -22, 0, 2); lg.addColorStop(0, '#7ad040'); lg.addColorStop(0.5, '#3a8a1e'); lg.addColorStop(1, '#123a08'); outer(); g.fillStyle = lg; g.fill();
+    g.save(); outer(); g.clip();
+    const ig = g.createRadialGradient(20, -8, 2, 20, -8, 22); ig.addColorStop(0, '#ff6a7a'); ig.addColorStop(0.5, '#c4122a'); ig.addColorStop(1, '#5a0010'); g.fillStyle = ig; g.beginPath(); g.moveTo(4, -2); g.bezierCurveTo(8, -18, 34, -19, 38, -6); g.quadraticCurveTo(26, 0, 4, -2); g.fill();
+    g.strokeStyle = 'rgba(255,200,210,.7)'; g.lineWidth = 0.6; for (const [x, y] of [[14, -8], [22, -10], [28, -7]]) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + 1, y - 4); g.stroke(); }
+    g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.ellipse(18, -12, 6, 1.6, -0.2, 0, TAU); g.fill();
+    g.restore();
+    outer(); g.strokeStyle = '#061a03'; g.lineWidth = 1; g.stroke();
+    for (let i = 0; i <= 12; i++) { const u = i / 12, x = (1 - u) * (1 - u) * (1 - u) * 0 + 3 * u * (1 - u) * (1 - u) * 4 + 3 * u * u * (1 - u) * 36 + u * u * u * 42, y = 3 * u * (1 - u) * (1 - u) * -22 + 3 * u * u * (1 - u) * -24 + u * u * u * -6, a = Math.atan2(-y - 8, x - 20); const tg = g.createLinearGradient(x, y, x + Math.cos(-a) * 7, y - 7); tg.addColorStop(0, '#d8d0a0'); tg.addColorStop(1, '#fffbe8'); g.strokeStyle = tg; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (x - 20) * 0.22, y - 7 - u * 2); g.stroke(); }
+  });
+}
+function botDrawFlytrap(o) {
+  const op = o.open ? 0.85 + 0.12 * Math.sin(time * 6) : 0.04, sway = Math.sin(time * 1.5 + o.seed) * 0.08, snapT = o.was === false && o.cyc % 3.6 < 1.55 ? 0 : 0;
+  botStem(0, 2, -6, -10, 0, -18, 7, 5);
+  const lf = botLeafSprite(); for (const sd of [-1, 1]) { ctx.save(); ctx.translate(sd * 2, -4); ctx.rotate(sd < 0 ? Math.PI + 0.5 : -0.5); ctx.scale(0.6, 0.5); ctx.drawImage(lf.c, lf.x, lf.y, lf.w, lf.h); ctx.restore(); }
+  const lobe = botTrapLobe();
+  ctx.save(); ctx.translate(0, -20); ctx.rotate(-HALF + sway);
+  for (const sd of [1, -1]) { ctx.save(); ctx.scale(1, sd); ctx.rotate(-op * 0.9); ctx.scale(0.8, 0.8); ctx.drawImage(lobe.c, lobe.x, lobe.y, lobe.w, lobe.h); ctx.restore(); }
+  ctx.restore();
+  if (o.open) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gg = ctx.createRadialGradient(0, -36, 1, 0, -36, 18); gg.addColorStop(0, 'rgba(255,60,80,.5)'); gg.addColorStop(1, 'rgba(255,0,30,0)'); ctx.fillStyle = gg; ctx.fillRect(-18, -54, 36, 36); ctx.restore(); ctx.fillStyle = 'rgba(200,255,140,.75)'; for (let i = 0; i < 2; i++) { const d = (time * 14 + i * 6) % 14; ctx.beginPath(); ctx.ellipse(-3 + i * 6, -28 + d, 1, 1.8, 0, 0, TAU); ctx.fill(); } }
+}
+// ---------- poison ivy ----------
+function botIvyLeaf() {
+  return bakeSprite('botIvy', -14, -34, 28, 36, g => {
+    const path = () => { g.beginPath(); g.moveTo(0, 0); const pts = [[-6, -5], [-11, -12], [-9, -15], [-12, -21], [-8, -26], [-4, -32], [0, -34], [4, -32], [8, -26], [12, -21], [9, -15], [11, -12], [6, -5]]; for (const [x, y] of pts) g.lineTo(x, y); g.closePath(); };
+    const lg = g.createLinearGradient(-12, -30, 12, 0); lg.addColorStop(0, '#b8f05a'); lg.addColorStop(0.45, '#4aa82a'); lg.addColorStop(1, '#14400a'); path(); g.fillStyle = lg; g.fill();
+    g.save(); path(); g.clip(); g.fillStyle = 'rgba(200,40,20,.3)'; g.fillRect(-14, -8, 28, 10); g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.ellipse(-4, -20, 3, 9, -0.3, 0, TAU); g.fill(); g.restore();
+    g.strokeStyle = 'rgba(20,60,6,.8)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -32); g.stroke(); g.lineWidth = 0.5; for (let i = 1; i < 6; i++) { g.beginPath(); g.moveTo(0, -i * 5.5); g.lineTo(-7, -i * 5.5 - 4); g.moveTo(0, -i * 5.5); g.lineTo(7, -i * 5.5 - 4); g.stroke(); }
+    path(); g.strokeStyle = '#0c2a06'; g.lineWidth = 0.9; g.stroke();
+  });
+}
+function botDrawIvy(o) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(160,255,80,${0.16 + 0.1 * Math.sin(time * 5)})`; ctx.beginPath(); ctx.arc(0, -22, 26, 0, TAU); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = '#7a2a10'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-3, -10, 0, -18); ctx.stroke();
+  const lf = botIvyLeaf();
+  for (const [x, y, r, s] of [[0, -18, 0, 0.9], [-1, -16, -1.1, 0.75], [1, -16, 1.1, 0.75], [0, -6, -1.9, 0.55], [0, -6, 1.9, 0.55]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(r + Math.sin(time * 3.2 + r * 3 + o.seed) * 0.08); ctx.scale(s, s); ctx.drawImage(lf.c, lf.x, lf.y, lf.w, lf.h); ctx.restore(); }
+  ctx.fillStyle = 'rgba(210,255,90,.85)'; for (let i = 0; i < 6; i++) { const yy = -14 - ((time * 16 + i * 7) % 34); ctx.beginPath(); ctx.arc(Math.sin(i * 2 + time * 1.3) * 14, yy, 1.2, 0, TAU); ctx.fill(); }
+}
+// ---------- deadly nightshade ----------
+function botShadeBell() {
+  return bakeSprite('botBell', -9, -2, 18, 20, g => {
+    const path = () => { g.beginPath(); g.moveTo(-4, 0); g.bezierCurveTo(-8, 6, -9, 13, -7, 17); g.lineTo(-4, 15); g.lineTo(-2, 18); g.lineTo(0, 15.5); g.lineTo(2, 18); g.lineTo(4, 15); g.lineTo(7, 17); g.bezierCurveTo(9, 13, 8, 6, 4, 0); g.closePath(); };
+    const lg = g.createLinearGradient(-8, 0, 8, 0); lg.addColorStop(0, '#2a0a3a'); lg.addColorStop(0.45, '#8a42c8'); lg.addColorStop(1, '#3a1050'); path(); g.fillStyle = lg; g.fill();
+    g.fillStyle = 'rgba(255,220,120,.6)'; g.fillRect(-0.6, 3, 1.2, 9); g.strokeStyle = 'rgba(30,6,40,.8)'; g.lineWidth = 0.8; path(); g.stroke();
+    g.fillStyle = '#2a5a14'; g.beginPath(); g.moveTo(-5, 0); g.lineTo(0, -2); g.lineTo(5, 0); g.lineTo(0, 3); g.fill();
+  });
+}
+function botBerry() {
+  return bakeSprite('botBerry', -7, -7, 14, 14, g => {
+    const bg = g.createRadialGradient(-2, -2, 0.5, 0, 0, 6); bg.addColorStop(0, '#5a5a70'); bg.addColorStop(0.35, '#16161e'); bg.addColorStop(1, '#020203'); g.fillStyle = bg; g.beginPath(); g.arc(0, 0, 6, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-2.2, -2.4, 1.6, 1, -0.6, 0, TAU); g.fill();
+    g.fillStyle = '#2a5a14'; for (let i = 0; i < 5; i++) { const a = -HALF + i / 5 * TAU; g.beginPath(); g.moveTo(0, -4.5); g.lineTo(Math.cos(a) * 4, -4.5 + Math.sin(a) * 2); g.lineTo(Math.cos(a + 0.4) * 1.5, -4.5 + Math.sin(a + 0.4)); g.fill(); }
+  });
+}
+function botDrawShade(o) {
+  botStem(0, 0, 8, -14, 0, -30, 4, 2.4);
+  const lf = botLeafSprite(); for (const [y, sd] of [[-10, 1], [-20, -1]]) { ctx.save(); ctx.translate(3, y); ctx.rotate(sd < 0 ? Math.PI + 0.4 : -0.4 + Math.sin(time * 2 + y) * 0.1); ctx.scale(0.55, 0.5); ctx.drawImage(lf.c, lf.x, lf.y, lf.w, lf.h); ctx.restore(); }
+  const bell = botShadeBell(), ber = botBerry();
+  for (const [x, y, k] of [[-10, -24, 0], [11, -28, 1], [0, -34, 2]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(time * 2.2 + k * 2 + o.seed) * 0.25); ctx.drawImage(bell.c, bell.x, bell.y, bell.w, bell.h); ctx.restore(); }
+  for (const [x, y] of [[-5, -10], [7, -12], [1, -16]]) { ctx.save(); ctx.translate(x, y + Math.sin(time * 3 + x) * 0.6); ctx.drawImage(ber.c, ber.x, ber.y, ber.w, ber.h); ctx.restore(); }
+}
+// ---------- floral vine: daisies on a curling vine ----------
+function botDaisy() {
+  return bakeSprite('botDaisy', -16, -16, 32, 32, g => {
+    for (let i = 0; i < 16; i++) { g.save(); g.rotate(i / 16 * TAU); const lg = g.createLinearGradient(0, -4, 0, -15); lg.addColorStop(0, '#c8c0d0'); lg.addColorStop(0.3, '#ffffff'); lg.addColorStop(1, '#f0eaf4'); g.fillStyle = lg; g.beginPath(); g.ellipse(0, -9.5, 2.4, 6, 0, 0, TAU); g.fill(); g.strokeStyle = 'rgba(80,70,100,.4)'; g.lineWidth = 0.5; g.stroke(); g.restore(); }
+    const cg = g.createRadialGradient(-1, -1, 0.5, 0, 0, 5); cg.addColorStop(0, '#ffe680'); cg.addColorStop(0.7, '#e8a010'); cg.addColorStop(1, '#8a5004'); g.fillStyle = cg; g.beginPath(); g.arc(0, 0, 5, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(120,60,0,.6)'; const rnd = mulberry(4); for (let i = 0; i < 14; i++) { const a = rnd() * TAU, r = rnd() * 4; g.fillRect(Math.cos(a) * r, Math.sin(a) * r, 0.8, 0.8); }
+  });
+}
+function botDrawFlora(f) {
+  const pts = []; for (let i = 0; i <= 10; i++) pts.push([Math.sin(i * 1.1 + time * 1.8 + f.seed) * 7 * (i / 10 + 0.3), -i * 5]);
+  ctx.lineCap = 'round';
+  for (const [w, c] of [[5, '#0c2a06'], [3.2, '#3f9a22'], [1, 'rgba(180,255,130,.5)']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x - (w < 2 ? 1 : 0), y)); ctx.stroke(); }
+  for (const i of [2, 5, 8]) { const [x, y] = pts[i], sd = i % 2 ? 1 : -1; ctx.strokeStyle = '#3f9a22'; ctx.lineWidth = 1; ctx.beginPath(); for (let k = 0; k <= 16; k++) { const a = k / 16 * TAU * 1.5 + time, r = 5 * (1 - k / 18); ctx[k ? 'lineTo' : 'moveTo'](x + sd * (4 + Math.cos(a) * r), y + Math.sin(a) * r); } ctx.stroke(); }
+  const lf = botLeafSprite(); for (const i of [3, 7]) { const [x, y] = pts[i]; ctx.save(); ctx.translate(x, y); ctx.rotate((i % 2 ? -0.5 : Math.PI + 0.5) + Math.sin(time * 2 + i) * 0.15); ctx.scale(0.45, 0.4); ctx.drawImage(lf.c, lf.x, lf.y, lf.w, lf.h); ctx.restore(); }
+  const ds = botDaisy();
+  for (const [i, s] of [[4, 0.55], [7, 0.7], [10, 0.9]]) { const [x, y] = pts[i], nod = Math.sin(time * 1.7 + i + f.seed); ctx.save(); ctx.translate(x + (i % 2 ? 6 : -6), y); ctx.rotate(time * 0.4 + i); ctx.scale(s, s * (0.75 + 0.25 * nod)); ctx.drawImage(ds.c, ds.x, ds.y, ds.w, ds.h); ctx.restore(); }
+}
+// ---------- the rim rose: a spiral bloom on a thorned stem ----------
+function botRoseBloom() {
+  return bakeSprite('botRoseB', -16, -16, 32, 32, g => {
+    for (let ring = 0; ring < 4; ring++) { const n = 6 - ring, r = 14 - ring * 3.2; for (let i = 0; i < n; i++) { const a = i / n * TAU + ring * 0.6, x = Math.cos(a) * r * 0.45, y = Math.sin(a) * r * 0.45; const pg = g.createRadialGradient(x, y, 1, x, y, r * 0.7); pg.addColorStop(0, BOT_PAL_RED[ring][3]); pg.addColorStop(0.6, BOT_PAL_RED[ring][2]); pg.addColorStop(1, BOT_PAL_RED[ring][0]); g.fillStyle = pg; g.beginPath(); g.ellipse(x, y, r * 0.6, r * 0.42, a + HALF, 0, TAU); g.fill(); g.strokeStyle = 'rgba(30,0,6,.6)'; g.lineWidth = 0.6; g.stroke(); } }
+    g.strokeStyle = 'rgba(30,0,6,.7)'; g.lineWidth = 0.9; g.beginPath(); for (let k = 0; k <= 24; k++) { const a = k / 24 * TAU * 1.6, r = 1 + k * 0.18; g[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } g.stroke();
+    g.strokeStyle = 'rgba(255,170,180,.5)'; g.lineWidth = 0.7; g.beginPath(); g.arc(-2, -3, 9, -2.6, -1.2); g.stroke();
+  });
+}
+function botDrawRimRose(r) {
+  botStem(0, 0, -8, -16, 2, -30, 4.5, 3);
+  const thn = botThornSprite(); for (const [x, y, a] of [[-4, -10, -1.2], [-4, -19, 1.3], [-1, -25, -1.2]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(0.45, 0.45); ctx.drawImage(thn.c, thn.x, thn.y, thn.w, thn.h); ctx.restore(); }
+  const lf = botLeafSprite(); ctx.save(); ctx.translate(-5, -15); ctx.rotate(Math.PI + 0.4 + Math.sin(time * 2 + r.seed) * 0.1); ctx.scale(0.5, 0.45); ctx.drawImage(lf.c, lf.x, lf.y, lf.w, lf.h); ctx.restore();
+  const sep = botSepalSprite(false); for (let i = 0; i < 5; i++) { ctx.save(); ctx.translate(2, -32); ctx.rotate(-HALF + (i - 2) * 0.5 + Math.PI); ctx.scale(0.12, 0.12); ctx.drawImage(sep.c, sep.x, sep.y, sep.w, sep.h); ctx.restore(); }
+  const bl = botRoseBloom(); ctx.save(); ctx.translate(2, -40); ctx.rotate(Math.sin(time * 1.4 + r.seed) * 0.12); const k = 0.95 + 0.06 * Math.sin(time * 2.4); ctx.scale(k, k * 0.92); ctx.drawImage(bl.c, bl.x, bl.y, bl.w, bl.h); ctx.restore();
+}
+// ---------- vine tentacles: segmented, with tendril tips ----------
+function botDrawVtent(V) {
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const pts = []; for (let i = 0; i <= 8; i++) pts.push([(k - 1.5) * 4 + Math.sin(i * 1.3 + time * 3.6 + k * 1.7) * (2 + i * 1.1), -i * 6.5]);
+    for (let i = 0; i < 8; i++) { const w = 5.2 * (1 - i / 10); for (const [lw, c] of [[w + 1.6, '#061a03'], [w, i % 2 ? '#4aa82a' : '#2f7a1a']]) { ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke(); } }
+    ctx.strokeStyle = 'rgba(190,255,140,.45)'; ctx.lineWidth = 0.8; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x - 1, y)); ctx.stroke();
+    const [tx, ty] = pts[8]; ctx.strokeStyle = '#4aa82a'; ctx.lineWidth = 1; ctx.beginPath(); for (let q = 0; q <= 12; q++) { const a = q / 12 * TAU * 1.3 + time * 2 + k, rr = 4 * (1 - q / 14); ctx[q ? 'lineTo' : 'moveTo'](tx + Math.cos(a) * rr, ty - 2 + Math.sin(a) * rr); } ctx.stroke();
+  }
+}
+
 // ---------- LITANY OF THE BOTANY, drawn ----------
 // The log is half wood, half garden gone wrong: plated bark split by thorns and bleeding red sap, a fleshy heartwood face
 // strangled by spiralling briars, little eyes hidden in the grain, and at its heart a great crimson ROSE with an eye in
@@ -12672,29 +12852,6 @@ function botThornLine(g, pts, w, col, thorns, rnd) {
   g.strokeStyle = col; g.lineWidth = w; g.stroke();
   g.strokeStyle = 'rgba(170,255,120,.35)'; g.lineWidth = Math.max(0.6, w * 0.25); g.beginPath(); pts.forEach(([x, y], i) => g[i ? 'lineTo' : 'moveTo'](x - w * 0.18, y - w * 0.18)); g.stroke();
   if (thorns) for (let i = 1; i < pts.length - 1; i += 2) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i + 1], a = Math.atan2(y1 - y0, x1 - x0), sd = rnd() < 0.5 ? 1 : -1, nx = -Math.sin(a) * sd, ny = Math.cos(a) * sd, [x, y] = pts[i], L = w * 1.6 + rnd() * w; g.fillStyle = '#d8d2a8'; g.beginPath(); g.moveTo(x + Math.cos(a) * w * 0.6, y + Math.sin(a) * w * 0.6); g.lineTo(x + nx * L + Math.cos(a) * L * 0.4, y + ny * L + Math.sin(a) * L * 0.4); g.lineTo(x - Math.cos(a) * w * 0.4, y - Math.sin(a) * w * 0.4); g.closePath(); g.fill(); g.strokeStyle = '#2a2410'; g.lineWidth = 0.6; g.stroke(); }
-}
-function botMush(x, y, s, seed) { const rnd = mulberry(seed); ctx.fillStyle = '#123a0c'; ctx.beginPath(); for (let i = 0; i <= 10; i++) { const a = i / 10 * TAU, r = s * (0.75 + rnd() * 0.5); ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7); } ctx.closePath(); ctx.fill(); ctx.fillStyle = '#2a6a1a'; ctx.beginPath(); ctx.ellipse(x, y - s * 0.1, s * 0.7, s * 0.42, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(180,255,130,.4)'; ctx.beginPath(); ctx.ellipse(x - s * 0.25, y - s * 0.28, s * 0.3, s * 0.13, 0, 0, TAU); ctx.fill(); }
-function drawSpiderLily(col, grow, bloom, ph = 0, sc = 1) {
-  ctx.save(); ctx.scale(sc, sc); ctx.lineCap = 'round';
-  const h = 18 + 22 * grow;
-  for (const [w, c] of [[5, '#0c2a06'], [3, '#3a8a22']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(4 * Math.sin(ph), -h * 0.5, 0, -h); ctx.stroke(); }
-  ctx.fillStyle = '#3a8a22'; ctx.beginPath(); ctx.ellipse(-5, -h * 0.4, 6, 2.5, -0.5, 0, TAU); ctx.fill();
-  ctx.translate(0, -h);
-  if (bloom <= 0) { const b = 4 + 6 * grow; ctx.fillStyle = '#4a8a2a'; ctx.strokeStyle = '#0c2a06'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(0, -b * 0.6, b * 0.55, b, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, -b * 0.95, b * 0.3, b * 0.6, 0, 0, TAU); ctx.fill(); ctx.restore(); return; }
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, -6, 1, 0, -6, 30); gl.addColorStop(0, 'rgba(255,255,255,.35)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = gl; ctx.fillRect(-30, -36, 60, 60); ctx.restore();
-  for (const [lw, c] of [[5, '#1a0408'], [3, col], [1, 'rgba(255,255,255,.55)']]) for (let i = 0; i < 6; i++) { const a = -HALF + (i - 2.5) * 0.44 * bloom, cu = i < 3 ? -1 : 1; ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(Math.cos(a) * 10, Math.sin(a) * 10, Math.cos(a) * 17, Math.sin(a) * 17, Math.cos(a + 0.9 * cu) * 18 * bloom, Math.sin(a + 0.9 * cu) * 18 * bloom); ctx.stroke(); }
-  for (let i = 0; i < 6; i++) { const a = -HALF + (i - 2.5) * 0.32 * bloom; for (const [lw, c] of [[2.2, '#1a0408'], [1, col]]) { ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(Math.cos(a) * 15, Math.sin(a) * 15, Math.cos(a) * 28 * bloom, Math.sin(a) * 28 * bloom - 5); ctx.stroke(); } ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(Math.cos(a) * 28 * bloom, Math.sin(a) * 28 * bloom - 5, 1.6, 0, TAU); ctx.fill(); }
-  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 3.2, 0, TAU); ctx.fill();
-  ctx.restore();
-}
-function drawBlackTentacle(u, seed) {
-  ctx.save(); ctx.lineCap = 'round';
-  const pts = []; for (let i = 0; i <= 12; i++) { const k = i / 12 * u, x = 22 - 34 * k + Math.sin(k * 9 + time * 6 + seed) * 6, y = 34 - 82 * k; pts.push([x, y]); }
-  for (let i = 0; i < 12; i++) { const w = 14 * (1 - i / 14); ctx.strokeStyle = '#050506'; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke(); }
-  ctx.strokeStyle = 'rgba(150,150,170,.45)'; ctx.lineWidth = 1.5; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x - 3, y)); ctx.stroke();
-  ctx.fillStyle = '#e8e8f0'; for (let i = 3; i < 12; i += 3) { ctx.beginPath(); ctx.arc(pts[i][0] + 3, pts[i][1], 1.6, 0, TAU); ctx.fill(); }
-  ctx.fillStyle = '#050506'; for (let i = 2; i < 11; i += 3) { const d = 4 + ((time * 8 + i) % 10); ctx.fillRect(pts[i][0] + 2, pts[i][1], 2, d); ctx.beginPath(); ctx.arc(pts[i][0] + 3, pts[i][1] + d, 2.2, 0, TAU); ctx.fill(); }
-  ctx.restore();
 }
 function drawBotLive(t) {
   const B = t.bot; if (!B) return;
@@ -12744,38 +12901,19 @@ function drawBotLive(t) {
   for (const o of B.obs) onRim(o.a, () => {
     const g = easeOutBack(clamp(o.t / 0.5, 0, 1)), wl = o.life < 99 ? clamp((o.life - o.t) / 1.5, 0, 1) : 1; ctx.scale(g * wl, g * wl);
     if (o.hitT) ctx.translate(Math.sin(time * 70) * 2 * o.hitT, 0);
-    botMush(0, 2, 10, Math.floor(o.seed * 10));
-    if (o.kind === 'flytrap') {
-      for (const [w, c] of [[6, '#0c2a06'], [4, '#3a8a22']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-4, -8, 0, -16); ctx.stroke(); }
-      const op = o.open ? 0.8 + 0.12 * Math.sin(time * 6) : 0.05;
-      for (const sd of [-1, 1]) { ctx.save(); ctx.translate(0, -17); ctx.rotate(sd * op); ctx.fillStyle = '#0c2a06'; ctx.beginPath(); ctx.ellipse(sd * 3, -13, 10, 16, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#4ab02a'; ctx.beginPath(); ctx.ellipse(sd * 3, -13, 8.5, 14.5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#b8102a'; ctx.beginPath(); ctx.ellipse(sd * 1.5, -13, 5, 12, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#ff6070'; ctx.fillRect(sd * 1 - 1, -20, 2, 12); ctx.fillStyle = '#f4f0d8'; for (let i = 0; i < 7; i++) { const y = -27 + i * 4.2; ctx.beginPath(); ctx.moveTo(sd * 8, y); ctx.lineTo(sd * 16, y + 1.6); ctx.lineTo(sd * 8, y + 3); ctx.fill(); } ctx.restore(); }
-      if (o.open) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,46,69,.4)'; ctx.beginPath(); ctx.arc(0, -30, 14, 0, TAU); ctx.fill(); ctx.restore(); ctx.fillStyle = 'rgba(200,255,140,.7)'; for (let i = 0; i < 2; i++) { const d = (time * 14 + i * 6) % 14; ctx.fillRect(-3 + i * 6, -22 + d, 1.6, 4); } }
-    } else if (o.kind === 'ivy') {
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(160,255,80,${0.18 + 0.12 * Math.sin(time * 5)})`; ctx.beginPath(); ctx.arc(0, -20, 24, 0, TAU); ctx.fill(); ctx.restore();
-      for (const [x, y, r] of [[-10, -14, 0.5], [10, -16, -0.5], [0, -28, 0]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(r); ctx.fillStyle = '#0c2a06'; ctx.beginPath(); ctx.ellipse(0, -5, 7.5, 10.5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#5ac02a'; ctx.beginPath(); ctx.ellipse(0, -5, 6, 9, 0, 0, TAU); ctx.fill(); ctx.strokeStyle = '#1f5a12'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, 3); ctx.lineTo(0, -13); ctx.stroke(); ctx.fillStyle = '#d8ff4f'; for (let k = 0; k < 3; k++) ctx.fillRect(-3 + k * 2.5, -9 + k * 2, 1.6, 1.6); ctx.restore(); }
-      ctx.fillStyle = 'rgba(200,255,80,.8)'; for (let i = 0; i < 4; i++) { const yy = -10 - ((time * 18 + i * 9) % 30); ctx.fillRect(Math.sin(i * 2 + time) * 10, yy, 1.6, 1.6); }
-    } else {
-      for (const [w, c] of [[4, '#0a1a06'], [2.5, '#2a4a1a']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, -15, 0, -28); ctx.stroke(); }
-      for (const [x, y] of [[-9, -19], [10, -23], [0, -33]]) { ctx.fillStyle = '#1a0628'; ctx.beginPath(); ctx.moveTo(x - 7, y + 1); ctx.lineTo(x, y - 9); ctx.lineTo(x + 7, y + 1); ctx.lineTo(x, y + 4); ctx.fill(); ctx.fillStyle = '#7a32b8'; ctx.beginPath(); ctx.moveTo(x - 5.5, y); ctx.lineTo(x, y - 7.5); ctx.lineTo(x + 5.5, y); ctx.lineTo(x, y + 2.5); ctx.fill(); ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - 1, y - 2, 2, 4); }
-      for (const [x, y] of [[-5, -8], [6, -10], [0, -13]]) { ctx.fillStyle = '#050508'; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(200,180,255,.7)'; ctx.fillRect(x - 2, y - 2.4, 1.8, 1.8); }
-    }
+    ctx.rotate(Math.sin(time * 1.4 + o.seed) * 0.05);
+    botMush(0, 2, 11, Math.floor(o.seed * 10));
+    if (o.kind === 'flytrap') botDrawFlytrap(o); else if (o.kind === 'ivy') botDrawIvy(o); else botDrawShade(o);
   });
   for (const f of B.flora) onRim(f.a, () => {
-    const g = easeOutBack(clamp(f.t / 0.6, 0, 1)), wl = clamp((f.life - f.t) / 1.5, 0, 1); ctx.scale(g * wl, g * wl); botMush(0, 2, 8, Math.floor(f.seed * 10));
-    const pts = []; for (let i = 0; i <= 9; i++) pts.push([Math.sin(i * 1.2 + time * 2) * 8, -i * 5]);
-    for (const [w, c] of [[5.5, '#0c2a06'], [3.5, '#4ab02a']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke(); }
-    for (const [i, s] of [[3, 0.85], [6, 1.05], [9, 1.3]]) { const x = pts[i][0] + (i % 2 ? 8 : -8), y = pts[i][1]; ctx.save(); ctx.translate(x, y); ctx.rotate(time * 0.8 + i); for (let p = 0; p < 8; p++) { ctx.rotate(TAU / 8); ctx.fillStyle = '#1a1a14'; ctx.beginPath(); ctx.ellipse(0, -4.4 * s, 2.6 * s, 4.2 * s, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, -4.2 * s, 2 * s, 3.6 * s, 0, 0, TAU); ctx.fill(); } ctx.fillStyle = '#ffb81a'; ctx.beginPath(); ctx.arc(0, 0, 2.6 * s, 0, TAU); ctx.fill(); ctx.restore(); }
+    const g = easeOutBack(clamp(f.t / 0.6, 0, 1)), wl = clamp((f.life - f.t) / 1.5, 0, 1); ctx.scale(g * wl, g * wl); botMush(0, 2, 9, Math.floor(f.seed * 10)); botDrawFlora(f);
   });
   for (const r of B.roses) onRim(r.a, () => {
-    const g = easeOutBack(clamp(r.t / 0.6, 0, 1)), wl = clamp((r.life - r.t) / 1.5, 0, 1); ctx.scale(g * wl, g * wl); botMush(0, 2, 8, Math.floor(r.seed * 10));
-    for (const [w, c] of [[5, '#0c2a06'], [3, '#3a8a22']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-8, -16, 2, -30); ctx.stroke(); }
-    ctx.fillStyle = '#e8e0b0'; for (const [x, y, sd] of [[-4, -10, -1], [-3, -20, 1], [0, -26, -1]]) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + sd * 6, y - 2); ctx.lineTo(x, y - 3.5); ctx.fill(); }
-    ctx.save(); ctx.translate(2, -38); drawRoseEye(9, 0, 0, Math.sin(time * 3) * 0.5, 0, 0); ctx.restore();
+    const g = easeOutBack(clamp(r.t / 0.6, 0, 1)), wl = clamp((r.life - r.t) / 1.5, 0, 1); ctx.scale(g * wl, g * wl); botMush(0, 2, 9, Math.floor(r.seed * 10)); ctx.rotate(Math.sin(time * 1.3 + r.seed) * 0.06); botDrawRimRose(r);
   });
   for (const V of B.vtent) onRim(V.a, () => {
     if (V.st === 'reach') return;
-    ctx.scale(V.grow, V.grow); botMush(0, 2, 10, Math.floor(V.seed * 10)); ctx.lineCap = 'round';
-    for (let k = 0; k < 5; k++) { const pts = []; for (let i = 0; i <= 7; i++) pts.push([(k - 2) * 3 + Math.sin(i * 1.4 + time * 4 + k) * (3 + i), -i * 6]); for (const [w, c] of [[3.6, '#0c2a06'], [2, k % 2 ? '#5ac02a' : '#3a8a22']]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke(); } }
+    ctx.scale(V.grow, V.grow); botMush(0, 2, 11, Math.floor(V.seed * 10)); botDrawVtent(V);
   });
   if (B.hitT > 0) { const c = Math.cos(B.hitA), s = Math.sin(B.hitA); ctx.save(); ctx.globalAlpha = B.hitT; star(c * (R - 8), s * (R - 8), 10 + 14 * (1 - B.hitT), '#ffd0b0'); ctx.restore(); }
   if (wilt > 0) { ctx.fillStyle = `rgba(30,6,4,${0.55 * wilt})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
@@ -15416,7 +15554,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 61', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 62', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

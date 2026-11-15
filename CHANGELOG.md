@@ -2,6 +2,21 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 62
+- **Litany of the Botany: every plant redesigned.** Each plant is built from detailed, shaded parts and has its own idle animation.
+  - **Spider lilies:**
+    - **Buds:** a cluster of three striped green buds that tint toward the lily's colour as they swell and sway.
+    - **Blooms:** they open as a cluster of three blooms. Each has six curled, wavy-edged ribbon petals with shading and a centre vein, and six long stamens tipped with gold pollen.
+    - **Motion:** the petals ripple and the stems sway.
+  - **Venus flytraps:** a stem with leaves and two jaws hinged at the base. The jaws have a bright red inside, trigger hairs, a glossy highlight and pale lashes, and they swing open and slam shut. They glow and drool while open.
+  - **Poison ivy:** clusters of three glossy, saw-toothed leaflets with veins and a red-tinged base, on a red stem. The leaves flutter and toxic sparks rise from them.
+  - **Deadly nightshade:** purple bell flowers with five-pointed mouths that bob on the stem, over shiny black berries with green star caps, and leaves.
+  - **Floral vines:** a curling vine with spiral tendrils and leaves, carrying white daisies with shaded petals and textured golden centres that nod and turn.
+  - **Roses:** a spiral rose bloom of layered shaded petals on a thorned, leafy stem with sepals, which breathes and sways.
+  - **Vine tentacles:** four segmented, outlined tendrils with highlights and curling tips that writhe.
+  - **Black tentacles:** thicker and glossy, with a sheen, pale suckers and dripping ooze.
+  - **Moss:** every growth now roots in a clump of shaded moss.
+
 ## Build 61
 - **Litany of the Botany: new high-detail assets and much more animation.**
 - **Baked, shaded sprites:** every repeated part is now drawn once into a detailed sprite, then bent and animated on the fly.
