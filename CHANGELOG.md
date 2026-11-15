@@ -2,6 +2,53 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 59
+- **New boss: LITANY OF THE BOTANY.** It joins the stage-5 roster, so there are now seven bosses picked at random.
+  - **Music:** Waterflame's "Cove" (the track you supplied). The boss lands on the beat at 0:16, and the fight loops from 0:32 to 2:34.
+  - **Design:** taken from your sketch:
+    - A thick brown bark ring around a peach heartwood face, with green veins crawling in toward a red eye that watches your knife.
+    - Five great vines flaring out to the edges of the screen, rooted in sticky mush.
+- **Vine phases:**
+  - **Locked swing:** the vines lock the log's spin. It can only swing back and forth across the arc between two vines, and everything grows in that arc.
+  - **White spider lilies:**
+    - A lily buds in the arc and blooms after 10s.
+    - While it grows, black sticky tentacles may crawl out of the log to strangle it. Hit them to save it; if one reaches it, the lily is gone.
+    - A bud cannot be struck early (the knife bounces off). Strike the bloomed lily to kill it.
+  - **Tearing vines:** after 3 kills, one vine bounding the arc tears away and the arc widens. There are four phases.
+  - **Kill phase:** then the last vine snaps, the log spins free, and 5 hits end it.
+- **Special lilies:**
+  - Blue: counts double.
+  - Red: half a heart.
+  - Golden: 5 apples.
+  - Surprise: blooms in your face and blinds you for 2s.
+  - Electric blue: shocks whoever kills it.
+  - Good lilies get attacked by the tentacles; the lethal ones are guarded by them.
+- **In the arc:**
+  - Venus flytraps: they snap your knife while open; split them while shut.
+  - Poison ivy: costs half a heart.
+  - Deadly nightshade: costs a heart.
+- **More growths:**
+  - **Floral vines:** your first status effect, BLOOMING. For 60s, 35% of throws bloom into petals instead of throwing.
+  - **Roses:** SPLINTERED. For 10 throws, each has a 20% chance to cost a heart.
+  - **Vine tentacles:** they steal your knife for 6s unless you cut them while they reach.
+  - **Mature hollow:** it swallows knives and spits them back when it faces you; knock them out of the air. Hit it 5 times while its eyes are shut to kill it.
+  - **Breakaways:** the bark bursts off, baring eyes in black ooze. A SANITY meter then appears. It drains while the eyes face you and refills when you land hits. At 0% you lose a heart, and the screen darkens as it falls.
+- **Status effects:** a new panel in the top left shows the active effects and their timers.
+- **Intro:** combines your three references, locked to the song:
+  - The star.
+  - A lone eye in the dark ("After all of that happened, there was nothing left.").
+  - Static scrawled with HELP.
+  - White thorns stabbing in around the eye on every beat.
+  - A red star with falling petals, closed in by a ring of thorns, then blooming into a rose.
+  - "THESE ROSES / RUINED / ME" on bars of red light.
+  - Three red gothic arches.
+  - "NOW WE ARE ONE" as the log rises and its vines lash out, landing on the beat.
+- **Background:** taken from the deco of the GD level made for the same song, and it changes where that level does:
+  - A pale red fog full of scrolling black sawblade suns, bare trees, floating ruins and red blocks.
+  - A red flash at 0:15 and two giant red eyes at 0:24.6.
+  - The dark red vein section with white thorns from 0:32, a glitch at 0:46.5, and on around the loop.
+- **Also:** one new ability interaction per knife, 30 set pieces per knife (150 in total), an encyclopedia entry with a live demo, and an admin panel option.
+
 ## Build 58
 - **Permafrost reworked: new theme, jagged crystal art, more action, and a tougher fight.**
 - **Theme music: Camellia's NUCLEAR-STAR** (the track you supplied) replaces the placeholder track.
