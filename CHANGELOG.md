@@ -2,6 +2,28 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 61
+- **Litany of the Botany: new high-detail assets and much more animation.**
+- **Baked, shaded sprites:** every repeated part is now drawn once into a detailed sprite, then bent and animated on the fly.
+  - **Rose petals:** a full rose of broad crimson petals with gradient shading, veins, a centre crease, rim light and dark edges.
+  - **Eye:**
+    - A wet sclera with red veins and a lid shadow.
+    - A fibrous gold-to-crimson iris with a collarette and a dark limbal ring.
+    - A slit pupil, two highlights and a reflection.
+    - Petal eyelids that close over it when it blinks.
+  - **Sepals:** shaded green with a midrib.
+  - **Vines:** a textured vine material with striations and nodules, stamped along each vine, plus real thorns, veined leaves and a drop shadow.
+  - **Bark:** bevelled plates with wood grain, highlights and shadows, and moss.
+  - **Face:** mottled flesh with a network of blood vessels that glows on the beat, sleeping slit eyes, and a dark edge.
+  - **Rim thorns:** a ring of thorns sticking out past the edge of the bark.
+- **Animation:**
+  - The log breathes and pulses on the beat, and squashes and springs back when hit.
+  - Every petal sways on its own. The eye glances away now and then and snaps back to your knife.
+  - Every 13–19s it roars: petals flare, the pupil blows wide, the thorns stand up, the vines lash, and petals burst out.
+  - The vines writhe with a wave running along them, harder when it roars or is hit, and they spray sap as they tear.
+  - Lily buds pop in and sway as they grow. When they mature, the petals unfurl with an overshoot and pulse on the beat.
+  - Open flytraps drool.
+
 ## Build 60
 - **Litany of the Botany redesigned,** loosely inspired by Omega Flowey (not a copy).
 - **The boss:**
