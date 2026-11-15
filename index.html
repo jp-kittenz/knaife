@@ -12890,10 +12890,10 @@ function drawBotLive(t) {
     const g = clamp(L.t / L.grow, 0, 1), col = LILIES[L.kind].col, bl = L.mature ? (L.kind === 'surprise' && !L.popped ? 0 : easeOutBack(clamp((L.mt || 0) / 0.55, 0.02, 1))) : 0;
     onRim(L.a, () => {
       botMush(0, 2, 8, Math.floor(L.seed * 10));
-      if (L.mature && L.kind !== 'white') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, -44, 2, 0, -44, 40); gl.addColorStop(0, col + '99'); gl.addColorStop(1, col + '00'); ctx.fillStyle = gl; ctx.fillRect(-40, -84, 80, 80); ctx.restore(); }
+      if (L.mature && L.kind !== 'white') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(0, -32, 2, 0, -32, 30); gl.addColorStop(0, col + '88'); gl.addColorStop(1, col + '00'); ctx.fillStyle = gl; ctx.fillRect(-40, -84, 80, 80); ctx.restore(); }
       const pop = clamp(L.t / 0.35, 0, 1); ctx.scale(easeOutBack(pop), easeOutBack(pop)); if (!L.mature) ctx.rotate(Math.sin(time * 5 + L.seed) * 0.06 * g);
-      drawSpiderLily(col, g, bl, time * 2 + L.seed, (1 + (L.hitT || 0) * 0.2) * (1 + 0.04 * Bt.pulse));
-      if (!L.mature) { ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, -22, 16, -HALF, -HALF + TAU * g); ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); }
+      drawSpiderLily(col, g, bl, time * 2 + L.seed, 0.7 * (1 + (L.hitT || 0) * 0.2) * (1 + 0.04 * Bt.pulse));
+      if (!L.mature) { ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, -17, 12, -HALF, -HALF + TAU * g); ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); }
       if (L.guard > 0) for (let k = 0; k < L.guard; k++) { ctx.save(); ctx.scale(k ? -1 : 1, 1); drawBlackTentacle(0.75 + 0.05 * Math.sin(time * 3), Math.floor(L.seed * 10) + k); ctx.restore(); }
       if (L.tent && L.tent.st === 'crawl') drawBlackTentacle(clamp(L.tent.t / 3.0, 0.15, 1), Math.floor(L.seed * 10));
     });
@@ -12931,7 +12931,7 @@ function drawBotFront(t) {
     ctx.restore();
   }
   for (const sp of B.spits) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(CX, sp.y, 2, CX, sp.y, 40); g.addColorStop(0, 'rgba(255,40,60,.5)'); g.addColorStop(1, 'rgba(255,0,30,0)'); ctx.fillStyle = g; ctx.fillRect(CX - 40, sp.y - 40, 80, 80); ctx.restore(); ctx.save(); ctx.translate(CX, sp.y); ctx.rotate(Math.PI + Math.sin(sp.rot) * 0.3); drawKnife(); ctx.restore(); ctx.strokeStyle = `rgba(255,46,69,${0.5 + 0.5 * Math.sin(time * 40)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, sp.y - 40, 34, 0, TAU); ctx.stroke(); }
-  for (const f of B.frees) { const u = f.t / 1.2; ctx.save(); ctx.globalAlpha = 1 - u; ctx.translate(f.x, f.y - 50 * ease3(u)); ctx.scale(1.3 + u * 1.5, 1.3 + u * 1.5); ctx.rotate(u * 2); drawSpiderLily(LILIES[f.kind].col, 1, 1, 0, 1); ctx.restore(); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - u)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + 120 * ease3(u), 0, TAU); ctx.stroke(); ctx.restore(); }
+  for (const f of B.frees) { const u = f.t / 1.2; ctx.save(); ctx.globalAlpha = 1 - u; ctx.translate(f.x, f.y - 50 * ease3(u)); ctx.scale(1.3 + u * 1.5, 1.3 + u * 1.5); ctx.rotate(u * 2); drawSpiderLily(LILIES[f.kind].col, 1, 1, 0, 0.75); ctx.restore(); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - u)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + 120 * ease3(u), 0, TAU); ctx.stroke(); ctx.restore(); }
 }
 function drawBotScreen(t) {
   const B = t.bot; if (!B || B.hide) return;
@@ -15554,7 +15554,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 62', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 63', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens

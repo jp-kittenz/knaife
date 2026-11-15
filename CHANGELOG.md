@@ -2,6 +2,9 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 63
+- **Litany of the Botany:** spider lily clusters shrunk by 30% so they no longer crowd the growths around them. Their glow, the growth ring on the buds and the burst when one is struck are scaled down to match.
+
 ## Build 62
 - **Litany of the Botany: every plant redesigned.** Each plant is built from detailed, shaded parts and has its own idle animation.
   - **Spider lilies:**
