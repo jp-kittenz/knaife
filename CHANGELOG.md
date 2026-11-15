@@ -2,6 +2,27 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 56
+- **750 boss set pieces: every knife ability has 30 special interactions with every boss.**
+- **How they work:**
+  - Each boss reads 30 situations off what it is doing right now. Examples: the Water Tanker's pipe rising, the Gearbox's chain held, the Monster Tire full of holes, the queen diving, the Wire Clump's voltage live.
+  - Each of the five knives (Strong Throw, Marker, Knife with a Knife, Chain Reaction, Cook) has its own answer to every situation.
+  - When an ability lands on a boss, up to 3 matching situations fire at once, ones you have never seen first. Each slams its title in where it happens and is listed in the feed, marked NEW the first time.
+  - Finds are saved. The encyclopedia's boss card shows how many set pieces the equipped knife has on that boss, how many you have found, and the latest names.
+- **What they do,** in each knife's own style:
+  - Strong Throw knocks things off.
+  - Marker reads, tags and locks.
+  - Knife with a Knife carves plugs, wedges and wooden knives.
+  - Chain Reaction shorts, welds and charges.
+  - Cook boils, bakes and heals.
+- **Per boss:**
+  - Water Tanker: cooling the heat cycle, buying flood time, sealing leaks, flattening pipes, clearing steam, holding knives in.
+  - Gearbox: cancelling or delaying swaps, cracking and snapping the chain, jamming the gears, removing pinions, smashing sprockets.
+  - Monster Tire: chalk marks, valves, deflating a full tyre outright, calming the burnout, folding blades, sweeping loose nuts, wiping splatter off the screen.
+  - Hornet's Nest: clearing wasps and infested spots, tearing breaches, cleaning claimed knives, unjamming your ability, breaking or dazing the queen out of each of her five moves.
+  - Wire Clump: dropping the voltage to safe, restoring stability, ending blackouts, mending cables, smashing cutters, laying new braids.
+- **Limits:** set-piece damage is capped at +3 per ability use.
+
 ## Build 55
 - **The Wire Clump redrawn.** This is a visual retouch only: every rule, timer and hit test is unchanged.
 - **New intro, cut to the boss track.** The music starts on the black screen:
