@@ -428,9 +428,9 @@ const sfx = {
 
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3' };
 // bar-aligned loop points (seconds, as Chromium decodes the files): the intro plays once, then the body loops on a crossfaded seam
-const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609] };
+const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [19.2, 76.8] };
 function loopSrc(src, name) { const L = LOOPS[name]; if (L && src.buffer && src.buffer.duration > L[1] - 0.02) { src.loopStart = L[0]; src.loopEnd = Math.min(L[1], src.buffer.duration); } }
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
@@ -508,6 +508,7 @@ function updateMusic(rdt) {
   else if (fx && fx.type === 'queenrise' && fx.t < 1.4) { const u = clamp((fx.t - 0.2) / 1.12, 0, 1); rate = 1 - 0.68 * Math.pow(u, 1.5); cut = 20000 * Math.pow(0.013, u); vol = fx.t > 1.3 ? 0 : 0.55; }
   else if (fx && fx.type === 'queenrise') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'wireintro') { rate = 1; cut = 20000; vol = 0.62; }
+  else if (fx && fx.type === 'frostintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
@@ -732,10 +733,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -911,7 +912,7 @@ function menuTarget() {
 }
 
 function newStage() {
-  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire'][Math.floor(rand(5))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
+  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost'][Math.floor(rand(6))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
   let admType = null; if (adminNextType && stage % 5 !== 0) { admType = adminNextType; adminNextType = null; syncAdmin(); }
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
@@ -921,10 +922,10 @@ function newStage() {
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
   setHD(true);
-  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
-  const type = tanker || gearB || tireB || wireB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB || tireB || wireB || frostB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   if (hasPassive('birdheart') && !boss && type !== 'branches' && stage > 1 && Math.random() < 0.3) {   // a bonus perch on any other log
     const taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a), (tgt.f.kegs || []).map(k => k.a), (tgt.f.ice || []).map(i => i.a), tgt.f.treehole ? [tgt.f.treehole.a] : [], tgt.f.bushes.map(b => b.a), tgt.f.moss.map(m => m.a));
@@ -942,6 +943,7 @@ function newStage() {
   if (gearB) { setupGear(tgt); knivesTotal = knivesLeft = GEAR_HP; banner.t = 0; startGearIntro(tgt); }
   if (tireB) { setupTire(tgt); knivesTotal = knivesLeft = TIRE_HP; banner.t = 0; startTireIntro(tgt); }
   if (wireB) { setupWire(tgt); knivesTotal = knivesLeft = WIRE_HP; banner.t = 0; startWireIntro(tgt); }
+  if (frostB) { setupFrost(tgt); knivesTotal = knivesLeft = FROST_ICE; banner.t = 0; startFrostIntro(tgt); }
   if (nestB) {   // in disguise: a branched log with one beehive on it
     const F = tgt.f, taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a));
     const far = () => { let best = 0, bd = -1; for (let i = 0; i < 72; i++) { const a = i / 72 * TAU, d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } } taken.push(best); return best; };
@@ -1008,6 +1010,7 @@ function stepKnife(k) {
   if (t.tire && !k.ability && !k.wood && tireNutHit(k, t)) return;
   if (t.nest && nestFlightHit(k, t)) return;
   if (t.wire && wireFlightHit(k, t)) return;
+  if (t.frost && frostFlightHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -1027,6 +1030,7 @@ function stepKnife(k) {
           hitWood = true; break;
         }
         if (t.tire && t.tire.ripe && t.tire.layer === 'rubber' && !k.wood) { tireKnockOut(k, t, s, px, py); return; }
+        if (t.frost && frostKnifeHit(k, t, s, px, py)) return;
         if (!k.ability && !k.wood && nestKnifeInfested(t, s)) { burst(px, py, 14, ['#ffd23f', '#08080a'], 300, 20, 2.5, 0.3); nestSwarm(k, t, 'INFESTED KNIFE!'); return; }
         if (k.ability && !k.grazed && Math.abs(d) >= GRAZE) abilityGraze(k, s, px, py);
         else if (k.ability) abilityClank(k, s);
@@ -1135,6 +1139,7 @@ function clearStage() {
   if (t.gear && !t.gear.dead) { t.gear.dead = true; startGearDeath(t); return; }
   if (t.tire && !t.tire.dead) { t.tire.dead = true; startTireDeath(t); return; }
   if (t.wire) { if (!t.wire.dead) { t.wire.dead = true; startWireDeath(t); } return; }
+  if (t.frost) { frostClear(t); return; }
   if (t.nestBait) { if (t.nestGo && !fx) { t.nestPending = false; startNestIntro(t); } return; }
   if (t.nest && !t.nest.queen) { startQueenRise(t); return; }
   if (t.nest && !t.nest.dead) { t.nest.dead = true; startNestDeath(t); return; }
@@ -1552,7 +1557,7 @@ function drawStun(ky) {
   }
   ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(cx - 30, ky + KL + 8, 60, 4);
   ctx.fillStyle = stunMax > 2 ? '#2ad8ff' : '#ffd35c'; ctx.fillRect(cx - 30, ky + KL + 8, 60 * stunT / stunMax, 4);
-  if (stunMax > 2 && Math.floor(time * 16) % 3 === 0) { ctx.strokeStyle = '#2ad8ff'; ctx.lineWidth = 2; ctx.beginPath(); let x = cx + rand(-14, 14), y = ky; ctx.moveTo(x, y); for (let i = 0; i < 5; i++) { x += rand(-12, 12); y += KL / 5; ctx.lineTo(x, y); } ctx.stroke(); }
+  if (stunMax > 2 && !(tgt && tgt.frost) && Math.floor(time * 16) % 3 === 0) { ctx.strokeStyle = '#2ad8ff'; ctx.lineWidth = 2; ctx.beginPath(); let x = cx + rand(-14, 14), y = ky; ctx.moveTo(x, y); for (let i = 0; i < 5; i++) { x += rand(-12, 12); y += KL / 5; ctx.lineTo(x, y); } ctx.stroke(); }
 }
 
 // ---- the three outcomes ----
@@ -1717,6 +1722,12 @@ function updateFx(rdt) {
     case 'wireintro': updateWireIntro(t); break;
     case 'wiredeath': updateWireDeath(t); break;
     case 'wireblow': updateWireBlow(t); break;
+    case 'frostintro': updateFrostIntro(t); break;
+    case 'frostbreak': updateFrostBreak(t); break;
+    case 'frostrefreeze': updateFrostRefreeze(t); break;
+    case 'frostcore': updateFrostCore(t); break;
+    case 'frostreach': updateFrostReach(t); break;
+    case 'frostdeath': updateFrostDeath(t); break;
     case 'nestintro': updateNestIntro(t); break;
     case 'queenrise': updateQueenRise(t); break;
     case 'nestdeath': updateNestDeath(t); break;
@@ -2035,6 +2046,7 @@ function stickNormal(k, t) {
   if (t.tire && tireRubberHit(k, t, a)) return;
   if (t.nest && nestSurfaceHit(k, t, a)) return;
   if (t.wire && wireSurfaceHit(k, t, a)) return;
+  if (t.frost && frostSurfaceHit(k, t, a)) return;
   if (F && F.mag && magPoleHit(k, t, a)) return;
   if (F && F.vines && F.vines.length && vineSnag(k, t, a)) return;
   if (F && F.stone && F.stone.length && stoneHit(k, t, a)) return;
@@ -2043,6 +2055,7 @@ function stickNormal(k, t) {
   if (t.tire) tireStuck(t, s, a);
   if (t.nest) nestStuck(t, s, a);
   if (t.wire) wireStuck(t, s, a);
+  if (t.frost) frostStuck(t, s, a);
   if (F && F.ice && F.ice.length) iceStick(t, s, a);
   if (F && F.shrooms && F.shrooms.length) shroomStick(t, s, a);
   if (F && F.runes) runeStick(t, s, a);
@@ -5057,7 +5070,7 @@ function abilityMeetsLog(t, id, a) {
 let stunShield = 0, abilFeed = [];
 const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice', 'type:lodestone', 'type:bramble', 'type:fungal', 'type:runestone', 'type:spiralwood', 'type:resinwood', 'type:petrified', 'type:embercore', 'type:ringwood',
   'sub:swirl', 'sub:fire', 'sub:hive', 'sub:wire', 'sub:linked', 'bird:song', 'bird:crow', 'bird:pecker', 'bird:owl', 'apples', 'hidden',
-  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:classic'];
+  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:classic'];
 const KNIFE_COL = { strong: '#ffffff', marker: '#ff2e45', carve: '#f2cf94', chain: '#2ad8ff', cook: '#ffa04a' };
 function feed(txt, id) { abilFeed.push({ txt, col: KNIFE_COL[id] || '#ffffff', t: -abilFeed.filter(f => f.t < 0.3).length * 0.16 }); if (abilFeed.length > 7) abilFeed.shift(); }
 function updateFeed(dt) { for (const f of abilFeed) f.t += dt; abilFeed = abilFeed.filter(f => f.t < 2.6); }
@@ -5078,7 +5091,7 @@ function heal1() { if (lives < MAX_LIVES) { lives++; abil.pop['heart' + (lives -
 function boostAbility(n) { abil.boost = (abil.boost || 0) + n; }
 function interKeys(t) {
   const ks = [], F = t.f || {};
-  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire');
+  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost');
   else if (t.nest) { ks.push('boss:nest'); if (t.nest.queen) ks.push('boss:queen'); }
   else if (t.boss) ks.push('boss:classic');
   else if (t.type) ks.push('type:' + t.type);
@@ -5144,6 +5157,7 @@ const INTER = {
     'boss:gear': ['GEAR STRIP', 'A live chain snaps at once. Otherwise a rim pinion is sheared off.', c => { const T = c.t.gear; if (chainLive(T.sw)) c.later(0.1, () => snapChain(c.t)); else if (T.pins.length) { T.pins.pop(); sfx.clank(); } }],
     'boss:tire': ['BLOWOUT', 'Rubber: 3 punctures at once. Steel: the burnout stalls and the blades fold away.', c => { const T = c.t.tire; if (T.layer === 'rubber') V.tirePen(c, 3); else { T.mode = 'slow'; T.cyc = 0; T.blades = 0; } sfx.puncture(); }],
     'boss:wire': ['SHORT CIRCUIT', 'The blast dumps the charge: voltage drops to safe, frying knives cool, every ground wire is blown off, +1 hit.', c => { const T = c.t.wire; T.vp = 'safe'; T.vt = 0; T.grounds = []; T.arcs = []; for (const s of c.t.stuck) s.fry = 0; c.dmg(1); }],
+    'boss:frost': ['AVALANCHE BREAKER', 'The blast shatters every frozen knife on the rim and every grown crystal; in the raw log it clears the partial ice and the breakaways. +1 hit.', c => { const T = c.t.frost; if (!T || T.layer === 'core') return; for (const s of c.t.stuck.filter(q => q.frozen)) { c.t.stuck.splice(c.t.stuck.indexOf(s), 1); const [x, y] = worldAt(c.t, s.a, R + 24); frostShatter(x, y, 16); } T.crystals = T.crystals.filter(k => !k.grown); T.partial = []; T.partialT = 0; T.breaks = []; c.dmg(1); }],
     'boss:nest': ['SHOCKWAVE', 'Two wasps are blown out of the air and an infested patch is scoured clean.', c => { V.wasps(c, 2); c.t.nest.spots.sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a)).shift(); }],
     'boss:queen': ['ROYAL CRASH', 'The queen is knocked out of the air: dazed, and the next hit is x2.', c => V.daze(c)],
     'boss:classic': ['HEARTWOOD', 'The blow reaches the heartwood: +3 score.', c => c.score(3)],
@@ -5165,6 +5179,7 @@ const INTER = {
     'boss:gear': ['WEAK LINK', 'The next gear swap is delayed by 6s.', c => { const T = c.t.gear; if (!T.sw) T.next += 6; }],
     'boss:tire': ['PRESSURE POINT', 'Rubber: a chalk mark at the hit and every mark refreshed. Steel: blades jam shut for 6s.', c => { const T = c.t.tire; if (T.layer === 'rubber') { T.dents.forEach(d => d.life = TIRE.dentLife); T.dents.push({ a: c.a, life: TIRE.dentLife, born: time }); } else { T.blades = 0; T.cyc = Math.min(T.cyc, TIRE.slow - 6); } }],
     'boss:wire': ['FAULT LINE', 'A new braid twists in where it hit, and any closing cutters are wound back open.', c => { const T = c.t.wire; T.braids.push({ a: c.a, w: 0.2 }); if (T.braids.length > 7) T.braids.shift(); T.cutters.forEach(q => q.t = 0); T.nextCut += 4; }],
+    'boss:frost': ['SURVEY LINE', 'The frost wind is pinned down: it holds steady for 8s, and every crack streak is erased before a crystal grows.', c => { const T = c.t.frost; if (!T) return; T.windT = T.wind; T.windNext = Math.max(T.windNext, 8); T.gust = 0; T.crystals = T.crystals.filter(k => k.grown); T.crystalNext += 4; }],
     'boss:nest': ['FLY SWATTER', 'The wasp nearest the mark is swatted, and the infested patch there is cleared.', c => { V.wasps(c, 1); const T = c.t.nest; T.spots = T.spots.filter(s => angDiff(s.a, c.a) > 0.5); }],
     'boss:queen': ['EXPOSED', 'The queen is marked: the next hit on the nest is x2.', c => { c.t.nest.exposed = true; }],
     'boss:classic': ['TRUE STRIKE', '+3 score.', c => c.score(3)],
@@ -5186,6 +5201,7 @@ const INTER = {
     'boss:gear': ['WOODEN TOOTH', 'A wooden tooth jams the gearbox for 3s.', c => { c.t.gear.jam = Math.max(c.t.gear.jam, 3); }],
     'boss:tire': ['TIRE IRON', 'Rubber: +2 punctures. Steel: a lug nut is levered off without falling into your lane.', c => { const T = c.t.tire; if (T.layer === 'rubber') V.tirePen(c, 2); else if (T.nuts > 0) { T.nuts--; c.dmg(1); } }],
     'boss:wire': ['SPLICE', 'Stability +15 and the nearest snapped cable is spliced back, ending any blackout.', c => { const T = c.t.wire; T.stab = Math.min(100, T.stab + 15); const cb = T.cables.find(q => q.snapped); if (cb) cb.snapped = false; T.blackout = 0; }],
+    'boss:frost': ['ICE SCULPT', 'The nearest frozen artifact is carved free: a frozen knife pops out, a crystal seal is cut open, or the species block is split on the spot.', c => { const T = c.t.frost; if (!T) return; const s = c.t.stuck.filter(q => q.frozen).sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a))[0]; if (s) { c.t.stuck.splice(c.t.stuck.indexOf(s), 1); const [x, y] = worldAt(c.t, s.a, R + 24); frostShatter(x, y, 20); return; } const q = T.arts.slice().sort((p, r) => angDiff(p.a, c.a) - angDiff(r.a, c.a))[0]; if (q) { T.arts.splice(T.arts.indexOf(q), 1); const [x, y] = worldAt(c.t, q.a, R + 16); frostShatter(x, y, 30); if (q.kind === 'species') frostRelease(c.t, q, x, y); } }],
     'boss:nest': ['FLY SWATTERS', 'Two carved swatters knock two wasps out of orbit.', c => V.wasps(c, 2)],
     'boss:queen': ['WOODEN CROWN', 'The queen is distracted: her next move waits 6s longer.', c => { c.t.nest.queen.next += 6; }],
     'boss:classic': ['CHIP AWAY', '+2 score and a wooden knife.', c => { c.score(2); const [x, y] = worldAt(c.t, c.a, R); V.wood(c, x, y); }],
@@ -5207,6 +5223,7 @@ const INTER = {
     'boss:gear': ['SHORT CIRCUIT', 'The gearbox seizes for 4s and any swap is cancelled.', c => { const T = c.t.gear; T.jam = Math.max(T.jam, 4); if (chainLive(T.sw)) c.later(0.1, () => snapChain(c.t)); }],
     'boss:tire': ['ARC WELD', 'Rubber: the marks are welded open, +2 punctures. Steel: the blades are welded shut until the next burnout.', c => { const T = c.t.tire; if (T.layer === 'rubber') V.tirePen(c, 2); else { T.blades = 0; T.cyc = 0; } }],
     'boss:wire': ['GROUND FAULT', 'Your chain earths the clump: the voltage stays safe for 8s more and the knife still counts +1.', c => { const T = c.t.wire; T.vp = 'safe'; T.vt = -8; for (const s of c.t.stuck) s.fry = 0; c.dmg(1); }],
+    'boss:frost': ['COLD SNAP CIRCUIT', 'The current runs through the ice: every knife still freezing cracks loose before it sets, and the tentacles are shocked limp for 6s. +1 hit.', c => { const T = c.t.frost; if (!T) return; for (const s of c.t.stuck.filter(q => q.freeze !== undefined && !q.frozen)) c.t.stuck.splice(c.t.stuck.indexOf(s), 1); if (T.tent) { T.tent.cd = Math.max(T.tent.cd, 6); if (T.tent.st === 'reach') { T.tent.st = 'recoil'; T.tent.t = 0; } } c.dmg(1); }],
     'boss:nest': ['ZAPPER', 'Half the orbiting wasps are fried.', c => V.wasps(c, Math.ceil(c.t.nest.wasps.length / 2))],
     'boss:queen': ['TASER', 'The queen is stunned out of the air: dazed, next hit x2.', c => V.daze(c)],
     'boss:classic': ['CONDUCTED', '+3 score.', c => c.score(3)],
@@ -5228,6 +5245,7 @@ const INTER = {
     'boss:gear': ['GREASED', 'Cooking grease in the works: the gearbox stalls for 2s.', c => { c.t.gear.jam = Math.max(c.t.gear.jam, 2); }],
     'boss:tire': ['BARBECUE', 'Rubber: the marks last longer. Steel: the burnout is put off for a full cycle.', c => { const T = c.t.tire; if (T.layer === 'rubber') T.dents.forEach(d => d.life += 5); else { T.mode = 'slow'; T.cyc = 0; } }],
     'boss:wire': ['HOT WIRE', 'The insulation melts: every wire cutter drips off and the lights come straight back. +2 score.', c => { const T = c.t.wire; T.cutters = []; T.blackout = 0; c.score(2); }],
+    'boss:frost': ['THAW', 'The heat bites: -3 ice (or -2 on the raw log), every crystal melts, the partial ice steams away and a glass knife turns back to steel.', c => { const T = c.t.frost; if (!T) return; if (T.layer === 'ice') T.iceHP = Math.max(0, T.iceHP - 3); else if (T.layer === 'raw') T.rawHP = Math.max(0, T.rawHP - 2); for (const k of T.crystals) k.t = Math.max(k.t, k.life); T.partial = []; T.partialT = 0; T.crystalKnives = Math.max(0, T.crystalKnives - 1); T.flashHP = 0.3; }],
     'boss:nest': ['HONEY TRAP', 'Three wasps leave to eat.', c => V.wasps(c, 3)],
     'boss:queen': ['ROYAL BANQUET', 'The queen stops to feast: her next move waits 8s.', c => { c.t.nest.queen.next += 8; }],
     'boss:classic': ['FEAST', '+1 heart, or +3 score if your hearts are full.', c => { if (!heal1()) c.score(3); }],
@@ -5257,7 +5275,7 @@ function entryKeys(e) {
   if (e.cat === 'LOG TYPE') return ['type:' + e.type];
   if (e.sub === 'bird') return ['bird:' + (e.kind || 'song')];
   if (e.cat === 'BRANCH') return e.sub === 'plain' ? ['type:branches'] : ['sub:' + e.sub];
-  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.nest) return ['boss:nest', 'boss:queen'];
+  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.nest) return ['boss:nest', 'boss:queen'];
   if (e.boss !== undefined) return ['boss:classic'];
   if (e.name === 'APPLES') return ['apples']; if (e.hidden) return ['hidden'];
   return [];
@@ -5274,7 +5292,7 @@ function interCount(id) { return INTER_KEYS.filter(k => interText(id, k)).length
 // ones you have never seen first), each with its own title slamming in where it happens. Finds are remembered.
 const BIX = {}, BIX_IDS = ['strong', 'marker', 'carve', 'chain', 'cook'];
 let bixFound = load('knaife.bix', {});
-const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : null;
+const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : null;
 const bixCount = (b, id) => BIX[b] ? BIX[b][id].length : 0;
 const bixFoundN = (b, id) => BIX[b] ? BIX[b][id].filter((_, i) => bixFound[b + ':' + id + ':' + i]).length : 0;
 function bixCtx(t, id, a, c0) {
@@ -5326,7 +5344,7 @@ function bossSetPieces(t, id, a, c0) {
 }
 // encyclopedia: how many set pieces this knife has on this boss, and the ones you have found
 function bixLines(e, id) {
-  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
+  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
   const found = BIX[b][id].map((x, i) => bixFound[b + ':' + id + ':' + i] ? x[0] : null).filter(Boolean);
   return [{ text: bixCount(b, id) + ' BOSS SET PIECES  /  ' + found.length + ' FOUND', size: 6, col: KNIFE_COL[id] || '#ffd23f' }].concat(found.slice(-3).map(n => ({ text: '- ' + n, size: 6, col: '#c3c3ca' })));
 }
@@ -6204,7 +6222,7 @@ const IX_SFX = {
   'type:bark': () => sfx.barkBreak(), 'type:treehole': () => sfx.gulp(), 'type:saw': () => sfx.sawKick(), 'type:blackout': () => sfx.breaker(), 'type:tnt': () => sfx.kegBoom(), 'type:ice': () => sfx.iceBreak(), 'type:lodestone': () => sfx.magPulse(), 'type:bramble': () => sfx.rustle(), 'type:fungal': () => sfx.sporeBurst(), 'type:runestone': () => sfx.runeHit(), 'type:spiralwood': () => sfx.spiralShift(), 'type:resinwood': () => sfx.resinCrack(), 'type:petrified': () => sfx.stoneHit(), 'type:embercore': () => sfx.flare(), 'type:ringwood': () => sfx.ringRise(),
   'sub:swirl': () => sfx.boing(), 'sub:fire': () => sfx.whoosh(), 'sub:hive': () => sfx.bees(), 'sub:wire': () => sfx.zap(0.5), 'sub:linked': () => sfx.chain(),
   'bird:song': () => sfx.tweet(), 'bird:crow': () => sfx.caw(), 'bird:pecker': () => sfx.peck(), 'bird:owl': () => sfx.hoot(), 'apples': () => sfx.apple(), 'hidden': () => sfx.reveal(),
-  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
+  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
 };
 const SIG_SFX = { strong: () => sfx.subDrop(), marker: () => sfx.markerOn(), carve: () => sfx.carve(), chain: () => sfx.zap(0.35), cook: () => sfx.sizzle() };
 function updateIx(rdt) {
@@ -6258,6 +6276,7 @@ const IX_DRAW = {
   'boss:tank'(e, u) { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#2ad8ff'; for (let i = 0; i < 24; i++) { const h = hash(i, 8, e.seed), a = -HALF + (h - 0.5) * 1.2, v = 220 + 180 * h, x = e.x + Math.cos(a) * v * u, y = e.y + Math.sin(a) * v * u + 300 * u * u; ctx.beginPath(); ctx.arc(x, y, 3 + h * 3, 0, TAU); ctx.fill(); } ctx.fillStyle = '#c3c3ca'; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.fillRect(e.x + Math.cos(a) * ease3(u) * 100 - 3, e.y + Math.sin(a) * ease3(u) * 100 - 3, 6, 6); } ctx.globalAlpha = 1; },
   'boss:gear'(e, u) { const sh = u > 0.5 ? (u - 0.5) / 0.5 : 0; ctx.globalAlpha = 1 - sh; drawCog(e.x, e.y, 70 + sh * 30, 18, u * 9, { wire: '#ffd23f', lw: 3 }); ctx.fillStyle = '#c3c3ca'; for (let i = 0; i < 18; i++) if (sh > 0) { const a = i / 18 * TAU + u * 9, r = 84 + sh * 90; ctx.fillRect(e.x + Math.cos(a) * r - 3, e.y + Math.sin(a) * r - 3, 6, 6); } ctx.globalAlpha = 1; },
   'boss:wire'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 9; i++) { const a = i / 9 * TAU + e.seed, L = 30 + ease3(Math.min(1, u * 1.8)) * 170; zapBolt(e.x, e.y, e.x + Math.cos(a) * L, e.y + Math.sin(a) * L, i + Math.floor(u * 14), { amp: 18, w: 1.3 - u, forks: 2 }); } zapRing(e.x, e.y, 20 + u * 60, 1 - u, e.seed); ctx.globalAlpha = 1; },
+  'boss:frost'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + e.seed, d = 14 + ease3(Math.min(1, u * 1.6)) * 150, x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d; ctx.save(); ctx.translate(x, y); ctx.rotate(a + HALF); ctx.fillStyle = i % 2 ? '#dff4ff' : '#9ff0ff'; ctx.beginPath(); ctx.moveTo(-4, 6); ctx.lineTo(0, -12); ctx.lineTo(4, 6); ctx.closePath(); ctx.fill(); ctx.restore(); } ctx.strokeStyle = '#9ff0ff'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 80, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:tire'(e, u) { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#08080a'; for (const sd of [-1, 1]) for (let i = 0; i < 10; i++) { const x = e.x - 160 + ease3(u) * 320 * (i / 10), y = e.y + sd * 26 + i * 3; ctx.fillRect(x, y, 16, 8); } ctx.fillStyle = '#5c5c66'; for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(e.x - 120 + i * 34, e.y - u * 40 - (i % 2) * 10, 8 + u * 22, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; },
   'boss:nest'(e, u) { for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + e.seed, r = 20 + ease3(u) * 160; ctx.globalAlpha = 1 - u; drawHornet(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, 0.9, a, time + i); } ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 4; for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4, r = 60 + 40 * u; const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r, s = 10 * Math.min(1, u * 4); ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); ctx.stroke(); } ctx.globalAlpha = 1; },
   'boss:queen'(e, u) { const fall = ease3(Math.min(1, u * 1.6)) * 70, cr = u > 0.6; ctx.save(); ctx.translate(e.x, e.y - 90 + fall); ctx.globalAlpha = 1 - Math.max(0, u - 0.7) / 0.3; ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(-30, 14); ctx.lineTo(-30, -10); ctx.lineTo(-15, 4); ctx.lineTo(0, -18); ctx.lineTo(15, 4); ctx.lineTo(30, -10); ctx.lineTo(30, 14); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(0, 4, 5, 0, TAU); ctx.fill(); if (cr) { ctx.strokeStyle = '#08080a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-4, -16); ctx.lineTo(3, -2); ctx.lineTo(-5, 6); ctx.lineTo(2, 14); ctx.stroke(); } ctx.restore(); ctx.globalAlpha = 1; },
@@ -6346,7 +6365,184 @@ const CASE_TXT = {
 const CASE_SUB = { hit: '', lethal: 'FINAL BLOW', knife: 'HIT A KNIFE  /  NO HEART LOST', graze: 'GRAZED A KNIFE', lethalKnife: 'FINAL BLOW  +  HIT A KNIFE', lethalGraze: 'FINAL BLOW  +  GRAZE', branch: 'THROUGH A BRANCH', apple: 'MID-AIR APPLE', boss: '' };
 const AB_COL = { strong: '#ffffff', carve: '#f2cf94', chain: '#2ad8ff' };
 const abId = k => k.ab || 'strong';
-const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire));
+// ---------- PERMAFROST: 30 situations ----------
+const FRX = {
+  knives(c, frozen) { return c.t.stuck.filter(s => s.freeze !== undefined && (frozen === undefined || !!s.frozen === frozen)); },
+  pop(c, s) { const t = c.t, w = t.rot + s.a; t.stuck.splice(t.stuck.indexOf(s), 1); debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * 320, vy: Math.sin(w) * 320 - 220, rot: w - HALF, vr: rand(-12, 12) }); const [x, y] = worldAt(t, s.a, R + 24); frostShatter(x, y, 14); },
+  loose(c, n) { let k = 0; for (const s of FRX.knives(c, false).slice(0, n)) { FRX.pop(c, s); k++; } return k; },
+  frozen(c, n) { let k = 0; for (const s of FRX.knives(c, true).slice(0, n)) { FRX.pop(c, s); k++; } return k; },
+  artHit(c, q, n) { q.hp -= n; q.hitT = 1; const [x, y] = worldAt(c.t, q.a, R + 16); frostShatter(x, y, 18); if (q.hp <= 0) { c.T.arts.splice(c.T.arts.indexOf(q), 1); frostShatter(x, y, 30); if (q.kind === 'species') frostRelease(c.t, q, x, y); } },
+  shatter(c, n) { let k = 0; while (k < n) { if (FRX.frozen(c, 1)) { k++; continue; } const q = c.T.arts.find(q => q.kind === 'crystal') || c.T.arts[0]; if (q) { FRX.artHit(c, q, q.hp); k++; continue; } if (FRX.loose(c, 1)) { k++; continue; } break; } return k; },
+  crackSpecies(c, n) { const q = c.T.arts.find(q => q.kind === 'species'); if (q) FRX.artHit(c, q, n); },
+  release(c) { const q = c.T.arts.find(q => q.kind === 'species'); if (q) FRX.artHit(c, q, q.hp); },
+  crackCrystal(c, n) { const q = c.T.arts.find(q => q.kind === 'crystal'); if (q) FRX.artHit(c, q, n); },
+  streaks(c) { c.T.crystals = c.T.crystals.filter(k => k.grown); },
+  crystals(c, n = 9) { const g = c.T.crystals.filter(k => k.grown).slice(0, n); for (const k of g) { const [x, y] = worldAt(c.t, k.a, R + 10); frostShatter(x, y, 20); } c.T.crystals = c.T.crystals.filter(k => !g.includes(k)); },
+  melt(c) { for (const k of c.T.crystals) k.t = Math.max(k.t, k.life); },
+  calm(c, s) { const T = c.T; T.gust = 0; T.windT = (Math.sign(T.wind) || 1) * 0.3; T.windNext = Math.max(T.windNext, s); },
+  hornet(c) { const H = c.T.hornet; if (H) { burst(H.x, H.y, 20, ['#ffd23f', '#08080a', '#ffffff'], 300, 30, 2.5, 0.4); c.T.hornet = null; } },
+  tentTear(c) { const Tn = c.T.tent; if (Tn) { const [x, y] = worldAt(c.t, Tn.a, R + 30); burst(x, y, 24, ['#6a40b0', '#c4a8ff', '#ffffff'], 380, 30, 2.6, 0.45); c.T.tent = null; sfx.squelch(); } },
+  tentHold(c, s) { const Tn = c.T.tent; if (Tn) { Tn.cd = Math.max(Tn.cd, s); if (Tn.st === 'reach') { Tn.st = 'recoil'; Tn.t = 0; } } },
+  aval(c) { c.T.aval = 0; },
+  partial(c, n = 9) { const T = c.T; for (const p of T.partial.splice(0, n)) { const [x, y] = worldAt(c.t, p.a, R); frostShatter(x, y, 24); } if (!T.partial.length) T.partialT = 0; },
+  breaks(c, n = 9) { for (const b of c.T.breaks.splice(0, n)) { const [x, y] = worldAt(c.t, b.a, R + 18); frostShatter(x, y, 30); } },
+  icicle(c) { const T = c.T; for (const ic of T.icicles) frostShatter(CX, ic.y, 24); T.icicles = []; T.slow = 0; },
+  slowFreeze(c) { for (const s of FRX.knives(c, false)) s.freeze = Math.max(0.001, s.freeze - 0.5); },
+  rewarm(c) { for (const s of FRX.knives(c, false)) s.freeze = 0.001; },
+  glass(c, n) { c.T.crystalKnives = Math.max(0, c.T.crystalKnives - n); },
+};
+const isIce = c => c.T.layer === 'ice', isRaw = c => c.T.layer === 'raw';
+const frKnife = fz => c => { const s = FRX.knives(c, fz)[0]; return s ? c.at(s.a, R + 34) : null; };
+const frArt = kind => c => { const q = c.T.arts.find(q => q.kind === kind); return q ? c.at(q.a, R + 20) : null; };
+const frCrystal = c => { const k = c.T.crystals.find(k => k.grown) || c.T.crystals[0]; return k ? c.at(k.a, R + 10) : null; };
+const frTent = c => c.T.tent ? c.at(c.T.tent.a, R + 30) : null;
+const frPart = c => c.T.partial[0] ? c.at(c.T.partial[0].a, R) : null;
+const frBreak = c => c.T.breaks[0] ? c.at(c.T.breaks[0].a, R + 20) : null;
+BIX.frost = {
+  sit: [
+    ['THE ICE LAYER', c => isIce(c) && c.T.iceHP > 0], ['THICK ICE', c => isIce(c) && c.T.iceHP >= 10], ['BRITTLE', c => isIce(c) && c.T.iceHP <= 0],
+    ['FREEZING KNIFE', c => FRX.knives(c, false).length > 0, frKnife(false)], ['FROZEN ARTIFACT', c => FRX.knives(c, true).length > 0, frKnife(true)],
+    ['ARTIFACT HOARD', c => FRX.knives(c).length + c.T.arts.length >= 4], ['FROZEN SPECIES', c => c.T.arts.some(q => q.kind === 'species'), frArt('species')],
+    ['CRACK STREAK', c => c.T.crystals.some(k => !k.grown), frCrystal], ['CRYSTALLIZED ICE', c => c.T.crystals.some(k => k.grown), frCrystal], ['SEALED IN CRYSTAL', c => c.T.arts.some(q => q.kind === 'crystal'), frArt('crystal')],
+    ['FROST GUST', c => c.T.gust > 0], ['DEAD CALM', c => Math.abs(c.T.wind) < 0.25],
+    ['DRONING CICADA', c => c.T.cicada > 0], ['ANCIENT HORNET', c => !!c.T.hornet, c => [c.T.hornet.x, c.T.hornet.y]], ['WONDER', c => c.T.bfly > 0],
+    ['TENTACLES', c => !!c.T.tent, frTent], ['GLASS KNIVES', c => c.T.crystalKnives > 0, c => [CX, KNIFE_Y]],
+    ['THE RAW LOG', c => isRaw(c)], ['AVALANCHE', c => c.T.aval > 0], ['PARTIAL ICE', c => c.T.partial.length > 0, frPart],
+    ['BREAKAWAY', c => c.T.breaks.length > 0, frBreak], ['ICICLE', c => c.T.icicles.length > 0, c => [CX, c.T.icicles[0].y]], ['LANTERN GLOW', c => c.T.lantern > 0],
+    ['PINCUSHION', c => c.n() >= 3], ['BARE FACE', c => c.n() === 0], ['FINAL THAW', c => knivesLeft <= 3], ['LAST HEART', c => lives === 1], ['FULL HEALTH', c => lives >= MAX_LIVES], ['FROZEN STIFF', c => stunT > 0 || c.T.frozenT > 0], ['APPLE STASH', c => apples >= 3],
+  ],
+  strong: [
+    ['ICEBREAKER', 'The shell takes the full blow: +1 damage.', c => c.hit(1)],
+    ['DEEP FRACTURE', 'Thick ice: +2 damage.', c => c.hit(2)],
+    ['SHATTERPOINT', 'Brittle: the two nearest artifacts shatter.', c => FRX.shatter(c, 2)],
+    ['KNOCK LOOSE', 'A freezing knife is knocked out before it sets.', c => FRX.loose(c, 1)],
+    ['HAMMER', 'A frozen knife is smashed out of the ice.', c => FRX.frozen(c, 1)],
+    ['AVALANCHE PUNCH', 'Artifact hoard: three shatter at once.', c => FRX.shatter(c, 3)],
+    ['CRACK THE BLOCK', 'The species block takes a crack.', c => FRX.crackSpecies(c, 1)],
+    ['STAMP OUT', 'Crack streaks are stamped shut before a crystal grows.', c => FRX.streaks(c)],
+    ['CRYSTAL CRUSH', 'Every grown crystal is crushed, +1.', c => { FRX.crystals(c); c.pts(1); }],
+    ['SEAL BREAKER', 'A crystal seal loses two layers.', c => FRX.crackCrystal(c, 2)],
+    ['HEADWIND', 'The gust is punched out of the air.', c => FRX.calm(c, 4)],
+    ['STILL TARGET', 'No wind: +1 damage.', c => c.hit(1)],
+    ['SWAT', 'The cicada is swatted silent.', c => { c.T.cicada = 0; }],
+    ['SWATTER', 'The ancient hornet is knocked out of the sky, +2.', c => { FRX.hornet(c); c.pts(2); }],
+    ['POWER WINGS', 'Wonder: +1 damage and one more double hit.', c => { c.hit(1); c.T.bfly++; }],
+    ['TEAR OFF', 'The tentacles are ripped off the log.', c => FRX.tentTear(c)],
+    ['TEMPER', 'Your glass knives are hammered back to steel.', c => FRX.glass(c, 3)],
+    ['HEARTWOOD BLOW', 'Raw log: +1 damage.', c => c.hit(1)],
+    ['PUNCH THROUGH', 'The avalanche winds die down.', c => FRX.aval(c)],
+    ['CLEAR THE PATCH', 'The partial ice is smashed away.', c => FRX.partial(c)],
+    ['BREAK AWAY', 'Every breakaway is knocked off.', c => FRX.breaks(c)],
+    ['COUNTERBLOW', 'The icicle shatters mid-air, +1.', c => { FRX.icicle(c); c.pts(1); }],
+    ['LANTERN SWING', 'Lantern glow: 6s more thaw.', c => { c.T.lantern += 6; }],
+    G_('pin', 'strong'), G_('clean', 'strong'), G_('last', 'strong'), G_('heart', 'strong'), G_('full', 'strong'), G_('stun', 'strong'), G_('apples', 'strong'),
+  ],
+  marker: [
+    ['SURVEY LINE', 'Ice layer: +1 damage along the marked line.', c => c.hit(1)],
+    ['CORE SAMPLE', 'Thick ice: +1 damage and +2 score.', c => { c.hit(1); c.pts(2); }],
+    ['FAULT MAP', 'Brittle: the nearest artifact shatters, +2.', c => { FRX.shatter(c, 1); c.pts(2); }],
+    ['TAGGED', 'A freezing knife is tagged and pulled before it sets.', c => FRX.loose(c, 1)],
+    ['PINPOINT', 'A frozen knife is picked out of the ice.', c => FRX.frozen(c, 1)],
+    ['INVENTORY', 'Artifact hoard: two shatter, +1 score for each one left.', c => { FRX.shatter(c, 2); c.pts(FRX.knives(c).length + c.T.arts.length); }],
+    ['SPECIMEN LABEL', 'The species block splits along the label.', c => FRX.crackSpecies(c, 2)],
+    ['STREAK LOCK', 'Crack streaks are locked: no new crystal for 10s.', c => { FRX.streaks(c); c.T.crystalNext += 10; }],
+    ['MELT LINE', 'Grown crystals are marked to melt now.', c => FRX.melt(c)],
+    ['SEAL MARK', 'A crystal seal loses a layer, +2.', c => { FRX.crackCrystal(c, 1); c.pts(2); }],
+    ['WIND SOCK', 'The gust is read and called off: calm for 5s.', c => FRX.calm(c, 5)],
+    ['DEAD RECKONING', 'Dead calm: it holds 4s longer, +1 damage.', c => { c.T.windNext += 4; c.hit(1); }],
+    ['MUTE', 'The cicada is marked and muted.', c => { c.T.cicada = 0; }],
+    ['FLIGHT PATH', 'The hornet is tracked off the board.', c => FRX.hornet(c)],
+    ['WONDER TRAIL', 'Wonder: two more double hits.', c => { c.T.bfly += 2; }],
+    ['TENTACLE TAG', 'Tagged tentacles cannot reach for 8s.', c => FRX.tentHold(c, 8)],
+    ['GLASS LABEL', 'One fewer glass knife, +1.', c => { FRX.glass(c, 1); c.pts(1); }],
+    ['HEARTWOOD MAP', 'Raw log: +1 damage.', c => c.hit(1)],
+    ['STORM WARNING', 'The avalanche ends and the next waits 8s more.', c => { FRX.aval(c); c.T.avalNext += 8; }],
+    ['PATCH MARK', 'Partial ice: 10s more before it refreezes.', c => { c.T.partialT += 10; }],
+    ['BREAKAWAY MAP', 'One breakaway is knocked off.', c => FRX.breaks(c, 1)],
+    ['INTERCEPT', 'The icicle is marked and shattered.', c => FRX.icicle(c)],
+    ['BEACON', 'Lantern glow: 5s more, +2.', c => { c.T.lantern += 5; c.pts(2); }],
+    G_('pin', 'marker'), G_('clean', 'marker'), G_('last', 'marker'), G_('heart', 'marker'), G_('full', 'marker'), G_('stun', 'marker'), G_('apples', 'marker'),
+  ],
+  carve: [
+    ['ICE SCULPTOR', 'Ice layer: +1 damage and an apple.', c => { c.hit(1); c.apple(1); }],
+    ['CHISEL', 'Thick ice: +2 damage.', c => c.hit(2)],
+    ['FINE CHISEL', 'Brittle: the nearest artifact is carved out, +1 apple.', c => { FRX.shatter(c, 1); c.apple(1); }],
+    ['PRY', 'A freezing knife is pried out.', c => FRX.loose(c, 1)],
+    ['ICE PICK', 'A frozen knife is picked out, +1 apple.', c => { FRX.frozen(c, 1); c.apple(1); }],
+    ['CARVING BLOCK', 'Artifact hoard: two are carved out, and a wooden knife.', c => { FRX.shatter(c, 2); c.wood(); }],
+    ['CUT FREE', 'The species is carved out of its block at once.', c => FRX.release(c)],
+    ['SEAM', 'Crack streaks are carved shut.', c => FRX.streaks(c)],
+    ['FACET', 'A grown crystal is cut into apples: +2 apples.', c => { FRX.crystals(c, 1); c.apple(2); }],
+    ['CRYSTAL CUT', 'A crystal seal is carved wide open.', c => FRX.crackCrystal(c, 3)],
+    ['WINDBREAK', 'A carved windbreak ends the gust.', c => FRX.calm(c, 4)],
+    ['STILL CARVE', 'Dead calm: +1 damage.', c => c.hit(1)],
+    ['HUSK', 'The cicada is carved into a husk: +2.', c => { c.T.cicada = 0; c.pts(2); }],
+    ['WOODEN SWATTER', 'The hornet is batted away, and a wooden knife.', c => { FRX.hornet(c); c.wood(); }],
+    ['WING CARVING', 'Wonder: +1 heart.', c => c.heart()],
+    ['PRUNE', 'The tentacles are pruned off the log.', c => FRX.tentTear(c)],
+    ['WHITTLE GLASS', 'Two glass knives are whittled back to steel.', c => FRX.glass(c, 2)],
+    ['HEARTWOOD', 'Raw log: +1 damage, +1 apple.', c => { c.hit(1); c.apple(1); }],
+    ['SNOW FENCE', 'The avalanche winds are fenced off.', c => FRX.aval(c)],
+    ['SCRAPE', 'One patch of partial ice is scraped off.', c => FRX.partial(c, 1)],
+    ['SAW OFF', 'A breakaway is sawn off.', c => FRX.breaks(c, 1)],
+    ['WOODEN SHIELD', 'The icicle shatters on wood, and you keep the wooden knife.', c => { FRX.icicle(c); c.wood(); }],
+    ['LANTERN HOOK', 'Lantern glow: 4s more, +1 apple.', c => { c.T.lantern += 4; c.apple(1); }],
+    G_('pin', 'carve'), G_('clean', 'carve'), G_('last', 'carve'), G_('heart', 'carve'), G_('full', 'carve'), G_('stun', 'carve'), G_('apples', 'carve'),
+  ],
+  chain: [
+    ['COLD CURRENT', 'Ice layer: +1 damage.', c => c.hit(1)],
+    ['RESONANCE', 'Thick ice rings: +1 damage and 1 charge.', c => { c.hit(1); c.charge(1); }],
+    ['CHAIN SHATTER', 'Brittle: the current jumps across three artifacts.', c => FRX.shatter(c, 3)],
+    ['JOLT LOOSE', 'Every freezing knife is jolted loose.', c => FRX.loose(c, 9)],
+    ['CONDUCT', 'Two frozen knives crack off on the current.', c => FRX.frozen(c, 2)],
+    ['ARC WELD', 'Artifact hoard: +1 damage and one shatters.', c => { c.hit(1); FRX.shatter(c, 1); }],
+    ['DEFIB', 'The species block is shocked open.', c => FRX.release(c)],
+    ['SHORT THE STREAK', 'Crack streaks are shorted out.', c => FRX.streaks(c)],
+    ['PIEZO', 'The crystals discharge and crack off, +1 charge.', c => { FRX.crystals(c); c.charge(1); }],
+    ['CONDUCTOR', 'A crystal seal cracks twice.', c => FRX.crackCrystal(c, 2)],
+    ['STATIC', 'The gust is earthed: calm for 4s.', c => FRX.calm(c, 4)],
+    ['GROUNDED', 'Dead calm: +1 damage and 1 charge.', c => { c.hit(1); c.charge(1); }],
+    ['ZAP', 'The cicada is zapped silent, +1.', c => { c.T.cicada = 0; c.pts(1); }],
+    ['BUG ZAPPER', 'The ancient hornet is fried, +2.', c => { FRX.hornet(c); c.pts(2); }],
+    ['WONDER SPARK', 'Wonder: one more double hit and 1 charge.', c => { c.T.bfly++; c.charge(1); }],
+    ['TASER', 'The tentacles are shocked limp for 10s.', c => FRX.tentHold(c, 10)],
+    ['ANNEAL', 'The current anneals every glass knife back to steel.', c => FRX.glass(c, 3)],
+    ['LIVE WOOD', 'Raw log: +1 damage and 1 charge.', c => { c.hit(1); c.charge(1); }],
+    ['STORM CELL', 'The avalanche winds scatter.', c => FRX.aval(c)],
+    ['THAW CURRENT', 'One patch of partial ice cracks off, 5s more on the rest.', c => { FRX.partial(c, 1); c.T.partialT += 5; }],
+    ['LIGHTNING ROD', 'Every breakaway is blasted off.', c => FRX.breaks(c)],
+    ['ARC CATCH', 'The icicle is arced out of the air.', c => FRX.icicle(c)],
+    ['FILAMENT', 'Lantern glow: 6s more.', c => { c.T.lantern += 6; }],
+    G_('pin', 'chain'), G_('clean', 'chain'), G_('last', 'chain'), G_('heart', 'chain'), G_('full', 'chain'), G_('stun', 'chain'), G_('apples', 'chain'),
+  ],
+  cook: [
+    ['THAW', 'Ice layer: +1 damage and freezing knives slow down.', c => { c.hit(1); FRX.slowFreeze(c); }],
+    ['BLOWTORCH', 'Thick ice: +2 damage.', c => c.hit(2)],
+    ['MELTDOWN', 'Brittle: two artifacts melt away.', c => FRX.shatter(c, 2)],
+    ['WARM HANDLE', 'Every freezing knife is warmed back to zero.', c => FRX.rewarm(c)],
+    ['DEFROST', 'A frozen knife thaws out and drops.', c => FRX.frozen(c, 1)],
+    ['STEAM BATH', 'Artifact hoard: two melt, +1 heart.', c => { FRX.shatter(c, 2); c.heart(); }],
+    ['HOT SPRING', 'The species block melts open.', c => FRX.release(c)],
+    ['SEAR', 'Streaks are seared shut: no crystal for 8s.', c => { FRX.streaks(c); c.T.crystalNext += 8; }],
+    ['MELT', 'Every grown crystal melts.', c => FRX.melt(c)],
+    ['BOIL', 'A crystal seal boils off a layer, +1.', c => { FRX.crackCrystal(c, 1); c.pts(1); }],
+    ['WARM FRONT', 'A warm front: calm for 6s.', c => FRX.calm(c, 6)],
+    ['SLOW COOK', 'Dead calm: +1 damage.', c => c.hit(1)],
+    ['FRIED CICADA', 'The cicada is cooked: +1 apple.', c => { c.T.cicada = 0; c.apple(1); }],
+    ['SMOKE OUT', 'The hornet is smoked away.', c => FRX.hornet(c)],
+    ['NECTAR', 'Wonder: +1 heart.', c => c.heart()],
+    ['CALAMARI', 'The tentacles are cooked off the log: +2 apples.', c => { FRX.tentTear(c); c.apple(2); }],
+    ['KILN', 'Glass knives are fired back to steel.', c => FRX.glass(c, 3)],
+    ['CHAR', 'Raw log: +1 damage.', c => c.hit(1)],
+    ['HOT COCOA', 'The avalanche dies down; on your last heart, +1 heart.', c => { FRX.aval(c); if (lives === 1) c.heart(); }],
+    ['DE-ICER', 'All the partial ice melts.', c => FRX.partial(c)],
+    ['HEAT LAMP', 'A breakaway melts off.', c => FRX.breaks(c, 1)],
+    ['STEAM', 'The icicle melts mid-air.', c => FRX.icicle(c)],
+    ['CAMPFIRE', 'Lantern glow: two frozen knives thaw at once.', c => FRX.frozen(c, 2)],
+    G_('pin', 'cook'), G_('clean', 'cook'), G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'),
+  ],
+};
+const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost));
 let appleCase = null;
 function caseBanner(id, c, extra) {
   let sub = extra || CASE_SUB[c];
@@ -7173,7 +7369,7 @@ function drawTypeAmbience4(t) {
 
 // ======================= BEAT CLOCK + BOSS BACKGROUNDS =======================
 // Measured from the tracks: tempo, and where the first downbeat sits (seconds into the file).
-const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, main: { bpm: 120, down: 0 } };
+const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 100, down: 0 }, main: { bpm: 120, down: 0 } };
 // playback position of a track, advanced on the audio clock so the beat never drifts
 function trackPos(tr, dA) {
   if (tr.pos === undefined) tr.pos = 0;
@@ -7201,13 +7397,14 @@ function beatInfo(name) {
 }
 function bossBgKey(t) {
   if (t && t.wire && fx && fx.type === 'wireintro' && fx.t >= TW.out) return 'wire';
+  if (t && t.frost && fx && fx.type === 'frostintro' && fx.t >= TF.c3) return 'frost';
   if (t && t.nest && fx && fx.type === 'nestintro' && fx.t >= NM.macro + TN.down) return 'nest';
   if (t && t.tire && fx && fx.type === 'tireintro' && fx.t >= TT.air) return 'tire';
   if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
   if (t && t.tank && fx && fx.type === 'tankintro' && fx.t > TI.top - 0.3) return 'boss';
   if (!t || introCovering()) return null;
   if (t.tank && !t.tank.hide) return 'boss'; if (t.gear && !t.gear.hide) return 'gear'; if (t.tire && !t.tire.hide) return 'tire';
-  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire';
+  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost';
   return null;
 }
 const BG = {};
@@ -7354,6 +7551,7 @@ MUSIC_MAP.tire = {"e":"dhffgdgfegddfffghdddgefeehecfhegmllrqgmpqipvrkqwwkqrphost
 MUSIC_MAP.nest = {"e":"hhkiknnkkgkhjklhgjkiklpmlgkglvvwuuuwyigfvgquvhfeupxtvgfeugqvuhfevuxvvyxxwyxwxyxxwyzwvxwwvxxxyxxwwyxxvvvvvvxxvvvvvhmvvxvtuvuvuutwuvuttvtuutsvvusuuuvvtyxvuvuwwwuvwxxxwxwwxvxwxyyzyxxywyyzyxwwytrxxvquxwrvyurwwurwxupvvvpwxzyyxwswxwruxvswywwyywvptwxrvwzsyvwuvwwvxzyyyyzyzzzzzzxy","b":"1111111111111111111111111111hopligipvm34qkrowl00qtvwzk22qksqqj12rppoqwvstwwqqywsstxrqwwrpwusswyqsvusqprqqrwsrtvurjxzwwwtzsuystqwvwxzvtsvzspxtvqttttwqvuwztrurtttsuvtrrprtrssuvuxutszrtvussuvxr3qsr3qrt5nup4trm4nuq4tpt4qwtqqts9pqs8qrs7pprkvvorjpszspnxqppqeiisgppomnkmlnptrqrpl","h":"ddeedacbefehhfbfddeedfvrlmjekrsnlnltwr9bxqtrvpa8sqtruoa9wpsqvq98utsrzvuuvtssvuvstwquxuvuwsuuwuusstprxvtrrspqvutqpcqrzwssqrrqqpssnnqowsptqqqpqsrrqnqqxrrtrptuqpsqpqusvssqltqszvsrtwvtvvuvqutsxtwtqppurruuqrosxuorsnktspotuuuzxxzzqsqpqnrxspsrvvupswsrxxwrtutskmpowvzwwwwxyuvuzyrz"};
 MUSIC_MAP.queen = {"e":"vxytvwytyuwuvvvvyyxwxxxxxyzxyyyxxyxxxxxxxxzxwww","b":"srzvrpzsrqrfiiuiqqokjnnjmqssrqonrpomlnlmmrrompr","h":"vvusvvvtsussllolwwyvuvvtvsstvwxzuusuuvyzuxtspvt"};
 MUSIC_MAP.wire = {"e":"ca988rqlhd89jrrjfb979jlhecaadsqkijiejtrnmjhknsrlkljgipommhhqquurpsvyztqnmoqtuvyzzwrnmmosuvtsstvzxutuwtttqqqsstvzyzxxtia7454nprtsooprtwvutsqpquwvustuvutttvvvtsts","b":"10110111011011111101111110111r1a1rqbqn19lnppan191qmb1n19n44tspmvuyuyumnssyuznpmutyuzupnrrxuyopkrtwvyurmnryvznpkuuzvzvq22144xvqmpqtsrunoomottlnppqttrtpknosqsoqmx","h":"12111223121dd223121113231227qn8gsmljlk7ijlkkkjcf9jok9nagplcosplqsouptoioqpsoymjpqqtnuolloqsnynjnrqtounosqprpsnkqsqsptl984j9qyozprsuzpnsmkpyztmultntzqqsmsrvzxpxp"};
+MUSIC_MAP.frost = {"e":"1axc63424243424czf75ud88te99ugflzofdkigekibdllhfmkedmkhelibdnlie8334833383338434e556e556f888hbdizpfeljhdlhednlidmkedmkgeljddllhd","b":"0nsf62000111110izk9ltf8fuiajshbyzuditrkpusbkuumsysblvumrusanxumed00cd009d11cd10gp66mq67jp76mp77yztdkvtkptqdmwulrytclxvlrwsfnutjd","h":"3wg232222222223yq51zs33yv43yvgrzofrbbdod9emfefod8eoeahoc7dqdahpi422752266216522b922b6329733cfktzneqcbgqd8hmdceod9dmebfse7fnbaeni"};
 const musicDec = {};
 function musicArr(name) {
   let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
@@ -10452,6 +10650,1002 @@ function updateWireDeath(t) {
   if (t > 2.9) endFx('clearing');
 }
 
+// ======================= BOSS: PERMAFROST =======================
+// THE ICE LAYER (15): a glowing sky-blue shell. Knives that stick slowly freeze into FROZEN ARTIFACTS; a FROZEN SPECIES
+// block may sit on the rim; CRYSTALLIZED ICE grows along crack streaks and freezes any knife that touches it into a
+// 3-hit artifact. The shell only breaks once its HP is gone AND every artifact is shattered. The FROST WIND sets the
+// spin, and it is never steady. THE RAW LOG (15): AVALANCHE winds drop PARTIAL ICE that refreezes the whole shell if
+// it is left 35s; every 4 hits a BREAKAWAY forms (max 2) and fires icicles when it faces you. THE CORE: one hit, 3s.
+const FROST_ICE = 15, FROST_RAW = 15, FROST_REFREEZE = 35, FROST_CORE_T = 3;
+const FROST_PAL = { name: 'PERMAFROST', style: 'frost', bark: '#5a8cc4', barkHi: '#dff4ff', barkLo: '#1a3a6a', sap: '#9ff0ff', heart: '#2a5a96', ring: 'rgba(255,255,255,.35)', ray: 'rgba(255,255,255,.12)', light: '#dff4ff', dark: '#5a8cc4', knot: '#2a5a96' };
+const FROST_RAW_PAL = { name: 'PERMAFROST', style: 'frost', bark: '#16264a', barkHi: '#3a5a8c', barkLo: '#070d1c', sap: '#9ff0ff', heart: '#0d1a33', ring: 'rgba(0,0,0,.4)', ray: 'rgba(255,255,255,.06)', light: '#5a7cb0', dark: '#16264a', knot: '#0d1a33' };
+const SPECIES = {
+  cicada: { name: 'FROZEN CICADA', good: false, txt: 'DEAFENING DRONE: FASTER SPIN 9s' },
+  hornet: { name: 'ANCIENT HORNET', good: false, txt: 'IT HUNTS YOUR LANE: DO NOT HIT IT' },
+  butterfly: { name: 'WONDER BUTTERFLY', good: true, txt: '+1 HEART, NEXT 3 HITS DOUBLE' },
+  tentacle: { name: 'TRAPPED TENTACLES', good: false, txt: 'THEY GRAB KNIVES THAT FACE THEM: PARRY' },
+  lanternfly: { name: 'GLACIER LANTERNFLY', good: true, txt: 'ITS GLOW THAWS ARTIFACTS 12s' },
+};
+const SPECIES_KEYS = Object.keys(SPECIES);
+const isFrostStage = n => isFirstBossSlot(n) && firstBoss === 'frost';
+const frostBusy = () => !!(fx && /^frost/.test(fx.type));
+let frostSlowF = 1;
+function frostSlow() { return tgt && tgt.frost && !tgt.frost.dead ? frostSlowF : 1; }
+function setupFrost(t) {
+  t.frost = { hide: true, ox: 0, oy: 0, s: 1, dead: false, layer: 'ice', form: 1, iceHP: FROST_ICE, rawHP: FROST_RAW, arts: [], crystals: [], crystalNext: 7,
+    wind: 0.6, windT: 0.6, windNext: 2.5, gust: 0, cicada: 0, hornet: null, bfly: 0, lantern: 0, lanternT: 0, tent: null, crystalKnives: 0,
+    aval: 0, avalNext: 9, partial: [], partialT: 0, breaks: [], rawHits: 0, icicles: [], slow: 0, glare: 0, frozenT: 0, coreT: 0, flashHP: 0, released: [] };
+  t.pal = FROST_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  if (Math.random() < 0.7) frostSpecies(t);
+  t.pat = tt => frostSpin(t, tt);
+}
+function frostSpecies(t) {
+  const T = t.frost; let a = 0;
+  for (let i = 0; i < 40; i++) { a = rand(TAU); if (t.stuck.every(s => angDiff(s.a, a) > 0.6) && T.arts.every(q => angDiff(q.a, a) > 0.9)) break; }
+  T.arts.push({ kind: 'species', sp: SPECIES_KEYS[Math.floor(rand(SPECIES_KEYS.length))], a, hp: 2, max: 2, seed: rand(99), hitT: 0 });
+}
+function frostFree(t, gap) {
+  const T = t.frost; let a = 0;
+  for (let i = 0; i < 60; i++) { a = rand(TAU); if (t.stuck.every(s => angDiff(s.a, a) > gap) && T.arts.every(q => angDiff(q.a, a) > gap + 0.2) && T.crystals.every(c => angDiff(c.a, a) > gap + 0.2) && T.breaks.every(b => angDiff(b.a, a) > gap + 0.3) && T.partial.every(p => angDiff(p.a, a) > gap + p.w) && (!T.tent || angDiff(T.tent.a, a) > gap + 0.3)) return a; }
+  return a;
+}
+// the frost wind: gusting, dropping, turning without warning
+function frostSpin(t, tt) {
+  const T = t.frost; if (!T) return 0;
+  if (T.layer === 'core') return 0.35;
+  let v = T.wind * (0.45 + 2.7 * Math.abs(T.wind));
+  if (T.cicada > 0) v *= 1.35;
+  if (T.layer === 'raw' && T.partial.length) {   // the spin eases a little as a patch of partial ice comes round to you
+    const dir = Math.sign(v) || 1;
+    for (const p of T.partial) { const w = t.rot + p.a, rem = dir > 0 ? normA(HALF - w) : normA(w - HALF); if (rem < 0.8 || rem > TAU - 0.15) { v *= 0.62; break; } }
+  }
+  return v;
+}
+function frostArtHP(T) { return T.arts.reduce((n, q) => n + q.hp, 0); }
+function updateFrost(t, dt) {
+  const T = t.frost; if (!T || T.hide || T.dead || frostBusy()) { frostSlowF = 1; return; }
+  const rdt = dt / (frostSlowF || 1);
+  T.flashHP = Math.max(0, T.flashHP - rdt); T.glare = Math.max(0, T.glare - rdt); T.frozenT = Math.max(0, T.frozenT - rdt);
+  // the frost wind
+  T.windNext -= rdt; T.gust = Math.max(0, T.gust - rdt);
+  if (T.windNext <= 0) {
+    const flip = Math.random() < 0.4 ? -1 : 1, sg = Math.sign(T.windT || 1) * flip;
+    if (Math.random() < 0.25) { T.windT = sg; T.gust = rand(2, 3.4); if (state === 'play') { sfx.whoosh(); floater('FROST GUST', CX, CY - R - 40, '#c8f4ff'); } }
+    else T.windT = sg * rand(0.15, 0.85);
+    T.windNext = rand(1.6, 4.2);
+  }
+  T.wind += (T.windT - T.wind) * Math.min(1, rdt * (T.gust > 0 ? 3 : 1.1));
+  if (Math.abs(T.wind) > 0.75 && Math.random() < rdt * 3) shake = Math.max(shake, 2);
+  // knives slowly consumed by the ice
+  if (T.layer === 'ice') for (const s of t.stuck) {
+    if (s.freeze === undefined || s.frozen) continue;
+    s.freeze = Math.min(1, s.freeze + rdt / 3.2);
+    if (s.freeze >= 1) { s.frozen = true; const [x, y] = worldAt(t, s.a, R + 24); burst(x, y, 16, ['#ffffff', '#9ff0ff', '#dff4ff'], 260, 30, 2, 0.4); floater('FROZEN ARTIFACT', x, y - 26, '#9ff0ff'); sfx.iceCrack(); }
+  }
+  // crystallized ice: a crack streak runs from the core to the rim, then a crystal grows there; it melts if left alone
+  if (T.layer === 'ice' && T.form >= 1) {
+    T.crystalNext -= rdt;
+    if (T.crystalNext <= 0 && T.crystals.length < 2) { T.crystals.push({ a: frostFree(t, 0.45), t: 0, life: 15, seed: rand(99) }); T.crystalNext = rand(8, 13); sfx.iceCrack(); }
+  }
+  for (const c of T.crystals) { c.t += rdt; if (c.t > 1.6 && !c.grown) { c.grown = true; const [x, y] = worldAt(t, c.a, R + 8); burst(x, y, 18, ['#ffffff', '#9ff0ff'], 300, 30, 2, 0.4); sfx.iceBreak(); } }
+  T.crystals = T.crystals.filter(c => c.t < c.life + 1);
+  // species running loose
+  T.cicada = Math.max(0, T.cicada - rdt);
+  if (T.hornet) { const H = T.hornet; H.t += rdt; H.x = CX + Math.sin(H.t * 1.3) * 150; H.y = CY + R + 90 + Math.sin(H.t * 2.6) * 60; if (H.t > H.life) { T.hornet = null; floater('THE HORNET LEAVES', CX, CY + R + 60, '#ffd23f'); } }
+  if (T.lantern > 0) {
+    T.lantern = Math.max(0, T.lantern - rdt); T.lanternT -= rdt;
+    if (T.lanternT <= 0) {
+      T.lanternT = 3;
+      const s = t.stuck.filter(k => k.freeze !== undefined).sort((p, q) => angDiff(t.rot + p.a, -HALF) - angDiff(t.rot + q.a, -HALF))[0];
+      if (s) { const w = t.rot + s.a; t.stuck.splice(t.stuck.indexOf(s), 1); debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * 300, vy: Math.sin(w) * 300 - 200, rot: w - HALF, vr: rand(-12, 12) }); floater('THAWED', CX + Math.cos(w) * (R + 30), CY + Math.sin(w) * (R + 30), '#ffd23f'); sfx.sizzle(); }
+      else if (T.crystals.length) T.crystals[0].t = Math.max(T.crystals[0].t, T.crystals[0].life);
+    }
+  }
+  // trapped tentacles: they reach for your knife whenever the rotation points them at you
+  const Tn = T.tent;
+  if (Tn) {
+    Tn.cd = Math.max(0, Tn.cd - rdt);
+    const facing = angDiff(t.rot + Tn.a, HALF) < 0.32;
+    if (Tn.st === 'idle' && facing && Tn.cd <= 0 && state === 'play') { Tn.st = 'reach'; Tn.t = 0; sfx.squelch(); floater('TENTACLE!', CX + 60, CY + R + 60, '#c4a8ff'); }
+    if (Tn.st !== 'idle') Tn.t += rdt;
+    if (Tn.st === 'reach' && Tn.t >= 0.8) { Tn.st = 'retract'; Tn.t = 0; Tn.cd = 5; T.crystalKnives = 3; shake = Math.max(shake, 8); burst(CX, KNIFE_Y, 26, ['#ffffff', '#9ff0ff', '#c4a8ff'], 380, 40, 2.5, 0.45); floater('KNIFE CRYSTALLIZED  x3', CX, KNIFE_Y - 50, '#9ff0ff'); sfx.iceBreak(); sfx.stun(); buzz([30, 30, 30]); }
+    if ((Tn.st === 'retract' || Tn.st === 'recoil') && Tn.t >= 0.5) { Tn.st = 'idle'; Tn.t = 0; }
+  }
+  // crystallized knives: the next throws are glass
+  for (const k of flying) if (!k.frostMark) { k.frostMark = true; if (T.crystalKnives > 0 && !k.ability && !k.ab && !k.wood) { k.crystal = true; T.crystalKnives--; } }
+  if (T.layer === 'raw') {
+    // winds of the avalanche
+    T.avalNext -= rdt;
+    if (T.avalNext <= 0 && state === 'play') {
+      T.aval = 4; T.avalNext = rand(22, 28); sfx.rumble(); sfx.whoosh(); floater('AVALANCHE!', CX, CY - R - 44, '#dff4ff');
+      if (!T.partial.length) { const n = Math.random() < 0.45 ? 2 : 1; for (let i = 0; i < n; i++) T.partial.push({ a: frostFree(t, 0.5), w: 0.24, hp: 3, max: 3, born: time }); T.partialT = FROST_REFREEZE; floater('PARTIAL ICE: BREAK IT', CX, CY + R + 60, '#9ff0ff'); }
+    }
+    if (T.aval > 0) { T.aval = Math.max(0, T.aval - rdt); shake = Math.max(shake, 3); }
+    if (T.partial.length) { T.partialT -= rdt; if (T.partialT <= 0 && state === 'play') { startFrostRefreeze(t); return; } }
+    // breakaways: when one turns to face you it glares and fires an icicle
+    for (const b of T.breaks) {
+      b.cd = Math.max(0, b.cd - rdt); b.grow = Math.min(1, (b.grow || 0) + rdt * 2);
+      if (b.grow >= 1 && b.cd <= 0 && state === 'play' && angDiff(t.rot + b.a, HALF) < 0.26 && !T.icicles.length) {
+        b.cd = rand(5, 7); T.glare = 0.6; T.slow = 1.5; T.icicles.push({ t: 0, y: CY + R + 40 });
+        sfx.iceBreak(); sfx.heatWarn(); floater('ICICLE!  BREAK IT', CX, CY + R + 70, '#9ff0ff');
+      }
+    }
+  }
+  // icicles fly at you in slow motion: knock them out of the air or lose a heart and freeze 6s
+  for (const ic of T.icicles) {
+    ic.t += rdt; const u = clamp(ic.t / 1.5, 0, 1); ic.y = CY + R + 40 + (KNIFE_Y - 14 - (CY + R + 40)) * Math.pow(u, 1.3);
+    if (u >= 1 && !ic.dead) {
+      ic.dead = true; T.slow = 0;
+      if (state === 'play') { fail({ y: KNIFE_Y, wood: true, done: false }); stunT = Math.max(stunT, 6); stunMax = 6; T.frozenT = 6; floater('FROZEN SOLID  6s', CX, KNIFE_Y - 60, '#9ff0ff'); sfx.iceBreak(); }
+    }
+  }
+  T.icicles = T.icicles.filter(ic => !ic.dead);
+  T.slow = Math.max(0, T.slow - rdt); frostSlowF = T.slow > 0 ? 0.35 : 1;
+  // the core: three seconds before the ice reaches it
+  if (T.layer === 'core' && state === 'play') { T.coreT += rdt; if (T.coreT >= FROST_CORE_T) { startFrostReach(t); return; } }
+  if (!flying.length && state === 'play') frostSync(t);
+}
+// ---------- hits ----------
+function frostShatter(x, y, n = 22) { burst(x, y, n, ['#ffffff', '#dff4ff', '#9ff0ff', '#5a8cc4'], 460, 50, 2.6, 0.5); for (let i = 0; i < 6; i++) debris.push({ kind: 'iceshard', r: rand(4, 9), x, y, vx: rand(-380, 380), vy: rand(-480, -150), rot: rand(TAU), vr: rand(-14, 14) }); }
+function frostFlightHit(k, t) {
+  const T = t.frost; if (!T || T.hide) return false;
+  const tip = k.y, a = normA(HALF - t.rot);
+  if (T.layer === 'core') {
+    if (tip <= CY + 24) { k.done = true; startFrostDeath(t); }
+    return true;
+  }
+  for (const ic of T.icicles) if (!ic.dead && Math.abs(tip - ic.y) < 26) {
+    ic.dead = true; T.slow = 0; k.done = true; knivesLeft++; score++; frostShatter(CX, ic.y, 26); floater('ICICLE SHATTERED  +1', CX + 60, ic.y, '#9ff0ff'); sfx.iceBreak(); sfx.clang(); buzz(12); return true;
+  }
+  const Tn = T.tent;
+  if (Tn && Tn.st === 'reach') { const tipY = CY + R + 20 + (KNIFE_Y - 20 - CY - R) * clamp(Tn.t / 0.8, 0, 1); if (tip <= tipY + 30) { Tn.st = 'recoil'; Tn.t = 0; Tn.cd = 4; Tn.hp--; k.done = true; knivesLeft++; score++; burst(CX, tipY, 24, ['#c4a8ff', '#ffffff', '#9ff0ff'], 400, 30, 2.6, 0.45); floater('PARRIED!  +1', CX + 60, tipY, '#c4a8ff'); sfx.clang(); sfx.squelch(); if (Tn.hp <= 0) { T.tent = null; score += 2; floater('TENTACLES TORN OFF  +2', CX, CY + R + 80, '#7cff4f'); } return true; } }
+  const stung = T.hornet && Math.abs(T.hornet.x - CX) < 18 && Math.abs(T.hornet.y - tip) < 30;
+  if (k.crystal && (stung || tip <= CY + R + 34)) { frostGlass(k, tip); return true; }
+  if (stung) { deflect(k); stunT = Math.max(stunT, 2); stunMax = 2; burst(CX, tip, 16, ['#ffd23f', '#08080a', '#ffffff'], 300, 20, 2.5, 0.35); floater('STUNG  2s', CX, KNIFE_Y - 40, '#ffd23f'); sfx.sting(); sfx.stun(); return true; }
+  if (k.ability) return false;
+  for (const q of T.arts) {
+    if (!inArc(a, q.a, q.kind === 'species' ? 0.24 : 0.2) || tip > CY + R + (q.kind === 'species' ? 34 : 30)) continue;
+    q.hp--; q.hitT = 1; k.done = true; knivesLeft++; score++; const [x, y] = worldAt(t, q.a, R + 16); frostShatter(x, y, 16 + 6 * (q.max - q.hp)); sfx.iceCrack(); shake = Math.max(shake, 6);
+    if (q.hp <= 0) { T.arts.splice(T.arts.indexOf(q), 1); frostShatter(x, y, 40); sfx.iceBreak(); if (q.kind === 'species') frostRelease(t, q, x, y); else floater('ARTIFACT SHATTERED', x, y - 30, '#9ff0ff'); }
+    else floater(q.kind === 'species' ? 'CRACKED' : 'CRACK  ' + q.hp + ' LEFT', x, y - 30, '#dff4ff');
+    return true;
+  }
+  if (T.layer === 'ice') for (const c of T.crystals) {
+    if (c.t < 1.6 || c.t > c.life || !inArc(a, c.a, 0.17) || tip > CY + R + 26) continue;
+    T.crystals.splice(T.crystals.indexOf(c), 1); T.arts.push({ kind: 'crystal', a: c.a, hp: 3, max: 3, seed: c.seed, hitT: 1 }); k.done = true; knivesLeft++;
+    const [x, y] = worldAt(t, c.a, R + 14); frostShatter(x, y, 24); shocks(x, y, 1, 70); floater('FROZEN INTO THE CRYSTAL', x, y - 30, '#9ff0ff'); floater('3 HITS TO BREAK', x, y - 12, '#dff4ff'); sfx.iceBreak(); sfx.stun(); buzz([20, 20, 20]);
+    return true;
+  }
+  if (T.layer === 'raw') for (const b of T.breaks) {
+    if (!inArc(a, b.a, 0.2) || tip > CY + R + 34) continue;
+    b.hp--; k.done = true; knivesLeft++; const [x, y] = worldAt(t, b.a, R + 18); frostShatter(x, y, 22); sfx.iceCrack();
+    if (b.hp <= 0) { T.breaks.splice(T.breaks.indexOf(b), 1); frostShatter(x, y, 40); floater('BREAKAWAY SMASHED', x, y - 30, '#9ff0ff'); sfx.iceBreak(); }
+    return true;
+  }
+  return false;
+}
+// a crystallized knife does nothing: it bursts like glass on whatever it meets, and costs no heart
+function frostGlass(k, y) { k.done = true; knivesLeft++; frostShatter(CX, y, 18); floater('GLASS KNIFE SHATTERS', CX + 50, y + 20, '#9ff0ff'); sfx.glassShatter(); }
+// a knife meeting a knife already in the ice
+function frostKnifeHit(k, t, s, px, py) {
+  if (!t.frost) return false;
+  if (k.crystal) { frostGlass(k, py); return true; }
+  if (!s.frozen || k.ability) return false;
+  const T = t.frost; t.stuck.splice(t.stuck.indexOf(s), 1); k.done = true; knivesLeft++; score++;
+  if (T.iceHP > 0) { T.iceHP--; T.flashHP = 0.25; floater('-1 ICE', px + 40, py, '#dff4ff'); }
+  const w = t.rot + s.a; debris.push({ kind: 'knife', x: px, y: py, vx: Math.cos(w) * 380, vy: Math.sin(w) * 380 - 240, rot: w - HALF, vr: rand(-16, 16) });
+  frostShatter(px, py, 26); floater('ARTIFACT SHATTERED', px, py - 26, '#9ff0ff'); sfx.iceBreak(); sfx.clang(); shake = Math.max(shake, 7);
+  return true;
+}
+// the knife reached the surface. Returns true if it did not go in.
+function frostSurfaceHit(k, t, a) {
+  const T = t.frost; if (!T) return false;
+  if (T.layer === 'ice' && T.iceHP <= 0 && !k.ability) { deflect(k, undefined, 0.9); frostShatter(CX, CY + R, 10); floater('BRITTLE: BREAK THE ARTIFACTS', CX, CY + R + 56, '#9ff0ff'); sfx.clang(); return true; }
+  if (T.layer === 'raw') { const p = T.partial.find(p => inArc(a, p.a, p.w)); if (p) {
+    p.hp--; k.done = true; knivesLeft++; const [x, y] = worldAt(t, p.a, R - 6); frostShatter(x, y, 18); sfx.iceCrack();
+    if (p.hp <= 0) { T.partial.splice(T.partial.indexOf(p), 1); frostShatter(x, y, 36); sfx.iceBreak(); floater(T.partial.length ? 'PATCH BROKEN' : 'PARTIAL ICE CLEARED', x, y - 30, '#7cff4f'); if (!T.partial.length) T.partialT = 0; }
+    return true; } }
+  return false;
+}
+function frostStuck(t, s, a) {
+  const T = t.frost, dbl = T.bfly > 0 ? 2 : 1; knivesLeft++;   // the HP is kept in T: give the throw back if (T.bfly > 0) { T.bfly--; floater('WONDER  x2', CX + 50, CY + R + 40, '#ffd23f'); }
+  const [x, y] = worldAt(t, a, R); burst(x, y, 14, ['#ffffff', '#dff4ff', '#9ff0ff'], 300, 40, 2.4, 0.4);
+  if (t.marks && t.marks.length) t.marks.pop();   // ice cracks, it does not split like wood
+  T.hits = (T.hits || 0) + 1; t.hit = 0.6;
+  if (T.layer === 'ice') { T.iceHP = Math.max(0, T.iceHP - dbl); s.freeze = 0.001; T.flashHP = 0.25; sfx.iceCrack(); if (T.iceHP === 0) floater('ICE SPENT: SHATTER EVERY ARTIFACT', CX, CY - R - 44, '#9ff0ff'); }
+  else if (T.layer === 'raw') {
+    T.rawHP = Math.max(0, T.rawHP - dbl); T.rawHits++; T.flashHP = 0.25;
+    if (T.rawHits % 4 === 0 && T.breaks.length < 2 && T.rawHP > 0) { const b = { a: frostFree(t, 0.45), hp: 2, cd: 2.5, grow: 0, seed: rand(99) }; T.breaks.push(b); const [bx, by] = worldAt(t, b.a, R + 10); frostShatter(bx, by, 24); floater('BREAKAWAY!', bx, by - 30, '#9ff0ff'); sfx.iceBreak(); }
+  }
+}
+function frostRelease(t, q, x, y) {
+  const T = t.frost, S = SPECIES[q.sp]; T.released.push(q.sp);
+  floater(S.name, x, y - 40, S.good ? '#7cff4f' : '#ff7a1a'); floater(S.txt, CX, CY + R + 70, S.good ? '#7cff4f' : '#ffd23f');
+  kick(0.12, 0.04, 0.9, 0.5); shocks(x, y, 2, 110);
+  if (q.sp === 'cicada') { T.cicada = 9; sfx.bees(); }
+  if (q.sp === 'hornet') { T.hornet = { t: 0, life: 16, x, y, ph: rand(TAU) }; sfx.hornetBuzz(); }
+  if (q.sp === 'butterfly') { heal1(); T.bfly = 3; sfx.heal(); }
+  if (q.sp === 'tentacle') { T.tent = { a: q.a, st: 'idle', t: 0, cd: 2.5, hp: 3 }; sfx.squelch(); }
+  if (q.sp === 'lanternfly') { T.lantern = 12; T.lanternT = 1; sfx.flare(); }
+}
+
+// ---------- HP bookkeeping ----------
+// The fight keeps its own HP (ice, artifacts, raw log). knivesLeft mirrors it so the HUD, the throw lock and clearStage
+// all work as usual. Every frost handler gives the throw back, so any other drop in knivesLeft between syncs came from
+// something else (an ability, a set piece) and is dealt to whatever layer is up.
+function frostDamage(t, n) {
+  const T = t.frost; if (n <= 0) return;
+  if (T.layer === 'ice') {
+    const d = Math.min(n, T.iceHP); T.iceHP -= d; n -= d; T.flashHP = 0.25;
+    while (n > 0) {
+      const s = t.stuck.find(q => q.frozen) || t.stuck.find(q => q.freeze !== undefined);
+      if (s) { t.stuck.splice(t.stuck.indexOf(s), 1); const [x, y] = worldAt(t, s.a, R + 24); frostShatter(x, y, 20); n--; continue; }
+      const q = T.arts[0]; if (!q) break;
+      const d2 = Math.min(n, q.hp); q.hp -= d2; n -= d2; q.hitT = 1;
+      if (q.hp <= 0) { T.arts.shift(); const [x, y] = worldAt(t, q.a, R + 16); frostShatter(x, y, 36); if (q.kind === 'species') frostRelease(t, q, x, y); }
+    }
+  } else if (T.layer === 'raw') { T.rawHP = Math.max(0, T.rawHP - n); T.flashHP = 0.25; }
+}
+function frostSync(t) {
+  const T = t.frost;
+  if (T.lastK !== undefined && knivesLeft < T.lastK) frostDamage(t, T.lastK - knivesLeft);
+  if (T.layer === 'ice') knivesLeft = T.iceHP + frostArtHP(T) + t.stuck.filter(s => s.freeze !== undefined).length;
+  else if (T.layer === 'raw') knivesLeft = T.rawHP;
+  else knivesLeft = 1;
+  T.lastK = knivesLeft;
+}
+// clearStage lands here when the mirrored HP reaches zero
+function frostClear(t) {
+  const T = t.frost; if (T.dead || frostBusy()) return;
+  frostSync(t); if (knivesLeft > 0) return;
+  if (T.layer === 'ice') startFrostBreak(t);
+  else if (T.layer === 'raw') startFrostCore(t);
+}
+function frostCalm(T) { T.icicles = []; T.slow = 0; frostSlowF = 1; T.glare = 0; T.aval = 0; }
+
+// ---------- the shell breaks: ice -> raw ----------
+function startFrostBreak(t) {
+  const T = t.frost; frostCalm(T); T.crystals = []; T.tent = null;
+  fx = { type: 'frostbreak', t: 0, lt: 0, freeze: 0.18, x: CX, y: CY, lines: impactLinesFor(26, 900), tg: t };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.16); sfx.iceCrack(); sfx.rumble(); buzz(30);
+}
+function updateFrostBreak(t) {
+  const tg = fx.tg, T = tg.frost; tscale = 0.35;
+  if (!fx.boom) T.crackU = clamp((t - 0.18) / 1.0, 0, 1);
+  if (t < 1.2) { shake = Math.max(shake, 3 + 12 * T.crackU); if (Math.floor(t * 9) !== fx.z) { fx.z = Math.floor(t * 9); sfx.iceCrack(); } T.s = 1 + 0.03 * T.crackU + Math.sin(t * 70) * 0.008 * T.crackU; }
+  if (t >= 1.2 && !fx.boom) {
+    fx.boom = true; T.s = 1; T.crackU = 0; T.layer = 'raw'; tg.tex = null; tg.pal = FROST_RAW_PAL; T.shell = 1;
+    for (const s of tg.stuck) { const w = tg.rot + s.a, sp = rand(260, 520); debris.push({ kind: 'knife', x: CX + Math.cos(w) * (R - EMBED), y: CY + Math.sin(w) * (R - EMBED), vx: Math.cos(w) * sp, vy: Math.sin(w) * sp - 260, rot: w - HALF, vr: rand(-9, 9) }); }
+    tg.stuck = []; T.arts = [];
+    for (let i = 0; i < 46; i++) { const a = rand(TAU), sp = rand(300, 980); debris.push({ kind: 'iceshard', r: rand(5, 14), x: CX + Math.cos(a) * R * 0.92, y: CY + Math.sin(a) * R * 0.92, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 260, rot: rand(TAU), vr: rand(-16, 16) }); }
+    burst(CX, CY, 70, ['#ffffff', '#dff4ff', '#9ff0ff', '#5a8cc4'], 820, 80, 3.4, 0.7);
+    shocks(CX, CY, 3, 280); kick(0.45, 0.1, 0.9, 1.0); shake = 30; pfxRing(CX, CY, '#9ff0ff', 300, 0.45);
+    scheduleScreenHits(8, ['#dff4ff', '#9ff0ff', '#5a8cc4'], 1.1);
+    sfx.iceBreak(); sfx.glassShatter(); sfx.subDrop(); buzz([60, 30, 90]);
+    floater('THE ICE BREAKS', CX, CY - R - 40, '#9ff0ff');
+    T.avalNext = 7; T.rawHits = 0; T.lastK = undefined;
+  }
+  T.shell = Math.max(0, (T.shell || 0) - (t - (fx.lt || 0)) * 1.6); fx.lt = t;
+  if (t > 2.1) { endFx('play'); floater('THE RAW LOG  ' + T.rawHP + ' HITS', CX, CY + R + 70, '#9ff0ff'); }
+}
+// ---------- too slow: the partial ice spreads and the shell grows back ----------
+function startFrostRefreeze(t) {
+  const T = t.frost; frostCalm(T);
+  fx = { type: 'frostrefreeze', t: 0, lt: 0, freeze: 0, tg: t, from: T.partial.map(p => p.a) };
+  if (!fx.from.length) fx.from = [normA(HALF - t.rot)];
+  state = 'fx'; cinema(true, 0.8); camFocus(CX, CY, 1.12); sfx.rumble(); sfx.whoosh(); sfx.iceCrack();
+  floater('TOO SLOW: IT FREEZES OVER', CX, CY - R - 44, '#9ff0ff');
+}
+function updateFrostRefreeze(t) {
+  const tg = fx.tg, T = tg.frost; tscale = 0.3;
+  T.refU = clamp(t / 1.4, 0, 1); T.refFrom = fx.from;
+  if (t < 1.4) { shake = Math.max(shake, 2 + 4 * T.refU); if (Math.floor(t * 7) !== fx.z) { fx.z = Math.floor(t * 7); sfx.iceCrack(); } }
+  if (t >= 1.4 && !fx.done) {
+    fx.done = true; T.layer = 'ice'; T.form++; tg.tex = null; tg.pal = FROST_PAL; T.iceHP = FROST_ICE; T.refU = 0;
+    T.partial = []; T.breaks = []; T.rawHits = 0; T.crystalNext = 3; T.lastK = undefined;
+    for (const s of tg.stuck) { s.freeze = 1; s.frozen = true; }   // the knives already in it are swallowed whole
+    if (!T.arts.some(q => q.kind === 'species')) frostSpecies(tg);
+    burst(CX, CY, 50, ['#ffffff', '#dff4ff', '#9ff0ff'], 600, 60, 3, 0.6); shocks(CX, CY, 2, 220); pfxRing(CX, CY, '#9ff0ff', 260, 0.4);
+    shake = 22; kick(0.3, 0.06, 1.2, 0.8); sfx.iceBreak(); sfx.stamp(); buzz([40, 20, 60]);
+    floater('THE ICE IS BACK  ' + FROST_ICE, CX, CY + R + 66, '#9ff0ff');
+  }
+  if (t > 2.2) endFx('play');
+}
+// ---------- the raw log splits: the core is all that is left ----------
+function startFrostCore(t) {
+  const T = t.frost; frostCalm(T); T.breaks = []; T.partial = []; T.tent = null; T.hornet = null; T.crystalKnives = 0;
+  stunT = 0; T.frozenT = 0;
+  fx = { type: 'frostcore', t: 0, lt: 0, freeze: 0.24, x: CX, y: CY, lines: impactLinesFor(30, 1100), tg: t };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.22); sfx.rumble(); sfx.iceCrack(); sfx.voltRise();
+}
+function updateFrostCore(t) {
+  const tg = fx.tg, T = tg.frost; tscale = 0.4;
+  if (t < 1.1) { T.crackU = clamp(t / 1.1, 0, 1); shake = Math.max(shake, 4 + 14 * T.crackU); T.s = 1 + Math.sin(t * 60) * 0.012 * T.crackU; if (Math.floor(t * 10) !== fx.z) { fx.z = Math.floor(t * 10); sfx.iceCrack(); } }
+  if (t >= 1.1 && !fx.boom) {
+    fx.boom = true; T.crackU = 0; T.s = 1; breakTarget(tg, 2.2); tg.stuck = []; tg.apples = [];
+    T.layer = 'core'; T.coreT = 0; T.forms = Array.from({ length: 9 }, (_, i) => ({ a: i / 9 * TAU + rand(-0.18, 0.18) - HALF, seed: rand(99), len: rand(0.9, 1.1) }));
+    for (let i = 0; i < 30; i++) { const a = rand(TAU), sp = rand(300, 900); debris.push({ kind: 'iceshard', r: rand(4, 11), x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 240, rot: rand(TAU), vr: rand(-16, 16) }); }
+    shocks(CX, CY, 4, 320); kick(0.6, 0.12, 1.3, 1.4); shake = 40; pfxRing(CX, CY, '#9ff0ff', 320, 0.5);
+    sfx.logExplode(); sfx.iceBreak(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 2.2) { endFx('play'); T.coreT = 0; floater('HIT THE CORE', CX, CY + 70, '#ffffff'); sfx.heatWarn(); }
+}
+// out of time: the ice reaches the core, then you
+function startFrostReach(t) {
+  const T = t.frost; T.dead = true;
+  fx = { type: 'frostreach', t: 0, lt: 0, freeze: 0, tg: t };
+  state = 'fx'; cinema(true, 1); camFocus(CX, (CY + KNIFE_Y) / 2, 1.05); sfx.iceBreak(); sfx.rumble();
+}
+function updateFrostReach(t) {
+  const tg = fx.tg, T = tg.frost; tscale = 0.5; T.reachU = clamp((t - 0.35) / 0.5, 0, 1);
+  shake = Math.max(shake, 4 + 18 * T.reachU);
+  if (t >= 0.35 && !fx.go) { fx.go = true; sfx.whoosh(); sfx.screech(); }
+  if (t >= 0.85 && !fx.hit) { fx.hit = true; burst(CX, KNIFE_Y, 40, ['#ffffff', '#9ff0ff', '#5a8cc4'], 600, 40, 3, 0.6); sfx.iceBreak(); sfx.glassShatter(); kick(0.5, 0.12, 1.6, 1.2); buzz([120, 40, 200]); }
+  if (t > 1.5) { endFx('play'); loseGame('THE PERMAFROST TOOK YOU'); }
+}
+// ---------- death: the core is struck, the ice lets go ----------
+function startFrostDeath(t) {
+  const T = t.frost; T.dead = true; frostCalm(T);
+  fx = { type: 'frostdeath', t: 0, lt: 0, freeze: 0.3, x: CX, y: CY, lines: impactLinesFor(34, 1200), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.35); sfx.iceBreak(); sfx.subDrop(); sfx.starHit(); bloomBoost = 0.7; buzz(40);
+}
+function updateFrostDeath(t) {
+  const tg = fx.tg, T = tg.frost; tscale = t < 1.2 ? 0.4 : 0.7; T.dieU = clamp((t - 0.3) / 0.9, 0, 1);
+  if (t < 1.2) { shake = Math.max(shake, 3 + 10 * T.dieU); if (Math.floor(t * 8) !== fx.z) { fx.z = Math.floor(t * 8); sfx.iceCrack(); } }
+  if (t >= 1.2 && !fx.boom) {
+    fx.boom = true; T.layer = 'gone';
+    for (const f of T.forms || []) for (let i = 0; i < 6; i++) { const d = 200 + i * 40, x = CX + Math.cos(f.a) * d, y = CY + Math.sin(f.a) * d; debris.push({ kind: 'iceshard', r: rand(6, 14), x, y, vx: Math.cos(f.a) * rand(100, 500), vy: Math.sin(f.a) * rand(100, 500) - 200, rot: rand(TAU), vr: rand(-14, 14) }); }
+    for (let i = 0; i < 40; i++) { const a = rand(TAU), sp = rand(200, 900); debris.push({ kind: 'iceshard', r: rand(3, 9), x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 220, rot: rand(TAU), vr: rand(-16, 16) }); }
+    burst(CX, CY, 80, ['#ffffff', '#dff4ff', '#9ff0ff', '#2ad8ff'], 900, 60, 3.6, 0.8);
+    scheduleScreenHits(12, ['#dff4ff', '#9ff0ff', '#5a8cc4'], 1.2); shocks(CX, CY, 5, 360); kick(0.8, 0.16, 2.4, 2.4); shake = 50; pfxRing(CX, CY, '#9ff0ff', 380, 0.6);
+    floater('PERMAFROST THAWS', CX, CY - 60, '#9ff0ff'); setMusic('main'); tgt = null;
+    sfx.logExplode(); sfx.iceBreak(); sfx.glassShatter(); sfx.unfreeze(); buzz([100, 40, 160]);
+  }
+  if (t > 1.35 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 2.9) endFx('clearing');
+}
+
+// ======================= PERMAFROST intro, cut to frost.mp3 =======================
+// 1.2 the star; 2.4 the northern shelf under the aurora; 6.0 down through the ice sheet to something glowing far below;
+// 9.6 its core lights and a crack runs up at you; 12.0, 14.4, 16.8 three more blows, each one wider, the title on the
+// first; at 16.8 the sheet gives and the log rises into the wind, and it lands on the drop at 19.2.
+const TF = { star: 1.2, cave: 2.4, deep: 6.0, impact: 9.6, c1: 12.0, c2: 14.4, c3: 16.8, drop: 19.2 };
+const FSHOT = { reveal: TF.drop };
+const TF_CUES = ['star', 'cave', 'deep', 'impact', 'c1', 'c2', 'c3'];
+function startFrostIntro(t) {
+  fx = { type: 'frostintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0, cr: frostScreenCracks() }; state = 'fx';
+  const T = t.frost; T.hide = true; T.ox = T.oy = 0; T.s = 1; cinema(true, 1); setHD(true);
+  cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+  slamMusic('frost');
+}
+function skipFrostIntro() { if (fx && fx.type === 'frostintro' && fx.t < TF.drop - 0.35) { fx.t = TF.drop - 0.35; fx.skipped = true; for (const k of TF_CUES) fx.cuts[k] = true; fx.tg.frost.hide = false; } }
+// four jagged cracks across the screen, from a point over the core out to the edges, each with a few branches
+function frostScreenCracks() {
+  const out = [], rnd = mulberry(4417);
+  for (let i = 0; i < 4; i++) {
+    const n = 3 + i, set = [];
+    for (let j = 0; j < n; j++) {
+      const a = (i * 1.7 + j / n * TAU) + (rnd() - 0.5) * 0.6, pts = [[CX + (rnd() - 0.5) * 16, 330 + (rnd() - 0.5) * 16]];
+      let x = pts[0][0], y = pts[0][1];
+      for (let k = 0; k < 9; k++) { const step = 34 + rnd() * 40, aa = a + (rnd() - 0.5) * 0.9; x += Math.cos(aa) * step; y += Math.sin(aa) * step; pts.push([x, y]); }
+      const br = []; for (let k = 2; k < 8; k += 3) { const [bx, by] = pts[k], ba = a + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.5); br.push([[bx, by], [bx + Math.cos(ba) * 40, by + Math.sin(ba) * 40], [bx + Math.cos(ba + 0.3) * 70, by + Math.sin(ba + 0.3) * 70]]); }
+      set.push({ pts, br });
+    }
+    out.push(set);
+  }
+  return out;
+}
+function updateFrostIntro(t) {
+  tscale = 0; const tg = fx.tg, T = tg.frost, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  const mp = introMusicClock('frost');
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.35) { fx.wait += d; fx.t = 0; fx.lt = 0; return; }
+  if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
+  const at = k => cineCue(k, TF[k]);
+  if (at('star')) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.2, 0.5); shocks(CX, CY + 40, 2, 300); }
+  if (at('cave')) { sfx.whoosh(); }
+  if (at('deep')) { sfx.rumble(); sfx.whoosh(); }
+  if (at('impact')) { sfx.iceCrack(); sfx.subDrop(); shake = 18; bloomBoost = 0.6; kick(0.16, 0.04, 1, 0.6); buzz(40); }
+  for (const k of ['c1', 'c2', 'c3']) if (at(k)) { sfx.iceCrack(); sfx.iceBreak(); shake = k === 'c3' ? 26 : 16; kick(0.16, 0.04, 1, 0.6); buzz([30, 20, 40]); if (k === 'c3') { sfx.glassShatter(); sfx.rumble(); for (let i = 0; i < 40; i++) { const a = rand(TAU), sp = rand(300, 900); debris.push({ kind: 'iceshard', r: rand(6, 16), x: CX + rand(-80, 80), y: 330 + rand(-60, 60), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, rot: rand(TAU), vr: rand(-14, 14) }); } } }
+  if (t >= TF.c3 && t < TF.drop) {
+    T.hide = false; const u = clamp((t - TF.c3) / (TF.drop - TF.c3), 0, 1);
+    T.s = u < 0.8 ? 0.55 + 0.3 * ease3(u / 0.8) : 0.85 + 0.07 * easeOutBack(clamp((u - 0.8) / 0.2, 0, 1));
+    T.oy = 40 * (1 - ease3(Math.min(1, u * 1.3))); T.wind = 0.4 + 0.6 * u; T.gust = u > 0.5 ? 1 : 0;
+    if (Math.floor(t * 4) !== fx.wz) { fx.wz = Math.floor(t * 4); if (u > 0.3) sfx.whoosh(); }
+  }
+  if (t >= TF.drop && !fx.landed) {
+    fx.landed = true; T.hide = false; T.s = 1; T.ox = T.oy = 0; T.wind = 0.6; T.windT = 0.6; T.gust = 0;
+    cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+    tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.25;
+    shake = 24; kick(0.25, 0.05, 0.5, 0.4); shocks(CX, CY, 1, 300); pfxRing(CX, CY, '#9ff0ff', 280, 0.45);
+    sfx.iceBreak(); sfx.stamp(); sfx.subDrop(); sfx.knifeRise(); buzz([60, 30, 90]);
+    for (let i = 0; i < 40; i++) { const a = rand(TAU), sp = rand(240, 640); parts.push({ x: CX + Math.cos(a) * (R + 8), y: CY + Math.sin(a) * (R + 8), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.3, 0.6), max: 0.6, c: ['#ffffff', '#9ff0ff', '#dff4ff'][i % 3], s: 3, rot: 0, vr: 0 }); }
+    endFx('play'); floater('BREAK THE ICE. MIND THE WIND.', CX, CY + R + 80, '#9ff0ff');
+  }
+  fxFilter = null;
+}
+
+// ---------- PERMAFROST, drawn ----------
+// The face: pale blue ice with frozen growth rings, a thick faceted sky-blue rim, a dark blue six-point star at the
+// centre with a white heart, and cracks running from the star's points to the rim. Under it, once the shell goes, the
+// raw log: deep navy wood with frost still in the grain and the star burning faintly.
+function frostJag(g, x0, y0, a, len, rnd, w = 1) {   // a jagged crack path from (x0,y0) heading a
+  let x = x0, y = y0; g.beginPath(); g.moveTo(x, y);
+  const n = Math.max(2, Math.round(len / 9));
+  for (let i = 0; i < n; i++) { const aa = a + (rnd() - 0.5) * 0.9 * w; x += Math.cos(aa) * len / n; y += Math.sin(aa) * len / n; g.lineTo(x, y); }
+  return [x, y];
+}
+function frostStar(g, r0, r1, n = 6) { g.beginPath(); for (let i = 0; i < n * 2; i++) { const a = -HALF + i / (n * 2) * TAU, r = i % 2 ? r1 : r0; g[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); }
+function makeFrostTexture(t) {
+  const T = t.frost, raw = T && T.layer !== 'ice', key = raw ? 'texRaw' : 'texIce';
+  if (T && T[key]) return T[key];
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX);
+  const rnd = mulberry(raw ? 911 : 577); g.lineCap = 'round'; g.lineJoin = 'round';
+  const RIM = R * 0.8;
+  if (!raw) {
+    const fg = g.createRadialGradient(-R * 0.25, -R * 0.3, 4, 0, 0, RIM); fg.addColorStop(0, '#d2ecff'); fg.addColorStop(0.45, '#9ccdf2'); fg.addColorStop(1, '#6aa9de');
+    g.fillStyle = fg; g.beginPath(); g.arc(0, 0, RIM, 0, TAU); g.fill();
+    // frozen growth rings, each a slightly wavering loop with a soft blue shadow under a white line
+    for (let i = 0; i < 6; i++) {
+      const r = R * (0.3 + i * 0.085); g.beginPath();
+      for (let k = 0; k <= 72; k++) { const a = k / 72 * TAU, rr = r + Math.sin(a * 5 + i * 1.3) * 1.5 + Math.sin(a * 11 + i) * 0.8; g[k ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr); }
+      g.closePath(); g.strokeStyle = 'rgba(46,120,190,.22)'; g.lineWidth = 2.6; g.stroke(); g.strokeStyle = `rgba(255,255,255,${0.55 - i * 0.05})`; g.lineWidth = 1; g.stroke();
+    }
+    // frost feathers in the ice
+    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 0.7;
+    for (let i = 0; i < 26; i++) { const a = rnd() * TAU, r = R * (0.25 + rnd() * 0.5), x = Math.cos(a) * r, y = Math.sin(a) * r, b = rnd() * TAU; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(b) * 9, y + Math.sin(b) * 9); for (let k = 1; k < 4; k++) { const px = x + Math.cos(b) * k * 2.4, py = y + Math.sin(b) * k * 2.4; g.moveTo(px, py); g.lineTo(px + Math.cos(b + 0.7) * 3, py + Math.sin(b + 0.7) * 3); g.moveTo(px, py); g.lineTo(px + Math.cos(b - 0.7) * 3, py + Math.sin(b - 0.7) * 3); } g.stroke(); }
+    // trapped bubbles
+    for (let i = 0; i < 30; i++) { const a = rnd() * TAU, r = R * (0.22 + rnd() * 0.55), s = 0.6 + rnd() * 1.6; g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.arc(Math.cos(a) * r, Math.sin(a) * r, s, 0, TAU); g.fill(); g.fillStyle = 'rgba(40,110,180,.25)'; g.beginPath(); g.arc(Math.cos(a) * r + s * 0.4, Math.sin(a) * r + s * 0.4, s * 0.6, 0, TAU); g.fill(); }
+    // the thick sky-blue rim: faceted blocks of glacier ice
+    const N = 24;
+    for (let i = 0; i < N; i++) {
+      const a0 = i / N * TAU + (rnd() - 0.5) * 0.05, a1 = (i + 1) / N * TAU, r0 = RIM - 1, r1 = R + 0.5, am = (a0 + a1) / 2, lit = 0.5 + 0.5 * Math.cos(am + 2.3);
+      const col = `rgb(${Math.round(70 + 70 * lit)},${Math.round(160 + 60 * lit)},${Math.round(225 + 25 * lit)})`;
+      g.fillStyle = col; g.beginPath(); g.arc(0, 0, r1, a0, a1); g.arc(0, 0, r0, a1, a0, true); g.closePath(); g.fill();
+      g.fillStyle = `rgba(255,255,255,${0.12 + 0.3 * lit})`; g.beginPath(); g.moveTo(Math.cos(a0) * r0, Math.sin(a0) * r0); g.lineTo(Math.cos(am) * (r0 + 6), Math.sin(am) * (r0 + 6)); g.lineTo(Math.cos(a1) * r0, Math.sin(a1) * r0); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(20,70,140,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(Math.cos(a0) * r0, Math.sin(a0) * r0); g.lineTo(Math.cos(a0) * r1, Math.sin(a0) * r1); g.stroke();
+    }
+    g.strokeStyle = '#effbff'; g.lineWidth = 1.6; g.beginPath(); g.arc(0, 0, RIM, 0, TAU); g.stroke();
+    g.strokeStyle = '#1f5f9e'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, R - 0.5, 0, TAU); g.stroke();
+    // the star core
+    const sg = g.createRadialGradient(0, 0, 2, 0, 0, R * 0.42); sg.addColorStop(0, 'rgba(26,58,138,.5)'); sg.addColorStop(1, 'rgba(26,58,138,0)'); g.fillStyle = sg; g.beginPath(); g.arc(0, 0, R * 0.42, 0, TAU); g.fill();
+    frostStar(g, R * 0.33, R * 0.15); const st = g.createRadialGradient(0, 0, 2, 0, 0, R * 0.33); st.addColorStop(0, '#2a5cc4'); st.addColorStop(0.6, '#1a3a8a'); st.addColorStop(1, '#0d2260'); g.fillStyle = st; g.fill();
+    g.strokeStyle = '#7fc4ff'; g.lineWidth = 1.2; g.stroke();
+    for (let i = 0; i < 6; i++) { const a = -HALF + i / 6 * TAU; g.strokeStyle = 'rgba(160,220,255,.45)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * R * 0.31, Math.sin(a) * R * 0.31); g.stroke(); }
+    const wc = g.createRadialGradient(0, 0, 0, 0, 0, R * 0.12); wc.addColorStop(0, '#ffffff'); wc.addColorStop(0.5, '#e8f8ff'); wc.addColorStop(1, 'rgba(160,220,255,0)'); g.fillStyle = wc; g.beginPath(); g.arc(0, 0, R * 0.12, 0, TAU); g.fill();
+    // cracks from the star's points to the rim
+    for (let i = 0; i < 6; i++) {
+      const a = -HALF + i / 6 * TAU + (rnd() - 0.5) * 0.2, x0 = Math.cos(a) * R * 0.33, y0 = Math.sin(a) * R * 0.33;
+      g.strokeStyle = 'rgba(20,70,140,.45)'; g.lineWidth = 2.4; const e = frostJag(g, x0, y0, a, RIM - R * 0.33, mulberry(i * 31 + 5)); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1; frostJag(g, x0, y0, a, RIM - R * 0.33, mulberry(i * 31 + 5)); g.stroke();
+      if (i % 2 === 0) { const b = a + (rnd() < 0.5 ? -0.6 : 0.6), bx = (x0 + e[0]) / 2, by = (y0 + e[1]) / 2; g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 0.8; frostJag(g, bx, by, b, 18, mulberry(i * 7 + 2)); g.stroke(); }
+    }
+  } else {
+    const fg = g.createRadialGradient(-R * 0.2, -R * 0.25, 4, 0, 0, R); fg.addColorStop(0, '#2a4c84'); fg.addColorStop(0.5, '#16264a'); fg.addColorStop(0.9, '#0c1630'); fg.addColorStop(1, '#070d1c');
+    g.fillStyle = fg; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+    // the grain: dark rings with frost caught in them
+    for (let i = 0; i < 9; i++) {
+      const r = R * (0.24 + i * 0.075); g.beginPath();
+      for (let k = 0; k <= 72; k++) { const a = k / 72 * TAU, rr = r + Math.sin(a * 4 + i * 1.7) * 1.8 + (rnd() - 0.5) * 0.9; g[k ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr); }
+      g.closePath(); g.strokeStyle = 'rgba(3,8,20,.6)'; g.lineWidth = 2; g.stroke(); g.strokeStyle = 'rgba(120,170,230,.12)'; g.lineWidth = 0.8; g.stroke();
+    }
+    for (let i = 0; i < 70; i++) { const a = rnd() * TAU, r = R * (0.2 + rnd() * 0.75); g.fillStyle = `rgba(200,236,255,${0.15 + rnd() * 0.35})`; g.fillRect(Math.cos(a) * r, Math.sin(a) * r, 1 + rnd() * 1.4, 1 + rnd() * 1.4); }
+    // a ragged rim of dark bark with shreds of the shell still frozen to it
+    g.strokeStyle = '#050a18'; g.lineWidth = 9; g.beginPath(); g.arc(0, 0, R - 4.5, 0, TAU); g.stroke();
+    g.strokeStyle = '#1f3560'; g.lineWidth = 1.2; g.beginPath(); g.arc(0, 0, R - 9, 0, TAU); g.stroke();
+    for (let i = 0; i < 16; i++) { const a = rnd() * TAU, w = 0.06 + rnd() * 0.14; g.fillStyle = 'rgba(140,200,245,.55)'; g.beginPath(); g.arc(0, 0, R + 0.5, a, a + w); g.arc(0, 0, R - 4 - rnd() * 4, a + w, a, true); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(Math.cos(a + w / 2) * (R - 2), Math.sin(a + w / 2) * (R - 2), 1.5, 1.5); }
+    // the star, sunk and dim
+    frostStar(g, R * 0.3, R * 0.14); g.fillStyle = '#0a1638'; g.fill(); g.strokeStyle = 'rgba(127,196,255,.45)'; g.lineWidth = 1; g.stroke();
+    const wc = g.createRadialGradient(0, 0, 0, 0, 0, R * 0.1); wc.addColorStop(0, 'rgba(220,244,255,.9)'); wc.addColorStop(1, 'rgba(120,200,255,0)'); g.fillStyle = wc; g.beginPath(); g.arc(0, 0, R * 0.1, 0, TAU); g.fill();
+    for (let i = 0; i < 6; i++) { const a = -HALF + i / 6 * TAU + 0.3; g.strokeStyle = 'rgba(2,6,16,.8)'; g.lineWidth = 2; frostJag(g, Math.cos(a) * R * 0.3, Math.sin(a) * R * 0.3, a, R * 0.5, mulberry(i * 17 + 9)); g.stroke(); }
+  }
+  if (T) T[key] = c;
+  return c;
+}
+// crack sets used for damage and for the breaking cutscenes: one line per hit, star to rim
+function frostCracks(T) {
+  if (T.crk) return T.crk;
+  const rnd = mulberry(1777); T.crk = [];
+  for (let i = 0; i < 18; i++) { const a = rnd() * TAU, pts = [[Math.cos(a) * R * 0.3, Math.sin(a) * R * 0.3]]; let x = pts[0][0], y = pts[0][1]; for (let k = 0; k < 7; k++) { const aa = a + (rnd() - 0.5) * 0.8, l = (R * 0.68) / 7; x += Math.cos(aa) * l; y += Math.sin(aa) * l; pts.push([x, y]); } T.crk.push(pts); }
+  return T.crk;
+}
+function strokePts(pts, u = 1) { const n = Math.max(1, Math.round((pts.length - 1) * u)); ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i <= n; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke(); }
+// a cluster of hexagonal ice prisms standing on y=0 and pointing up (-y)
+function drawCrystalCluster(sc, seed, glow = 0, alpha = 1) {
+  const rnd = mulberry(Math.floor(seed * 1000) + 3);
+  ctx.save(); ctx.globalAlpha *= alpha;
+  if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(0, -14 * sc, 2, 0, -14 * sc, 40 * sc); g.addColorStop(0, `rgba(160,236,255,${0.5 * glow})`); g.addColorStop(1, 'rgba(90,180,255,0)'); ctx.fillStyle = g; ctx.fillRect(-40 * sc, -54 * sc, 80 * sc, 80 * sc); ctx.restore(); }
+  for (const [ang, h, w] of [[-0.42, 0.62, 0.8], [0.38, 0.7, 0.85], [0.05, 1, 1], [-0.15, 0.5, 0.7]]) {
+    const H = (30 + rnd() * 6) * h * sc, Wd = 7 * w * sc;
+    ctx.save(); ctx.rotate(ang);
+    ctx.fillStyle = '#2a78c4'; ctx.beginPath(); ctx.moveTo(-Wd, 2); ctx.lineTo(-Wd, -H); ctx.lineTo(0, -H - Wd * 1.6); ctx.lineTo(Wd, -H); ctx.lineTo(Wd, 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9fdcff'; ctx.beginPath(); ctx.moveTo(-Wd * 0.2, 2); ctx.lineTo(-Wd * 0.2, -H); ctx.lineTo(0, -H - Wd * 1.6); ctx.lineTo(Wd, -H); ctx.lineTo(Wd, 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e8fbff'; ctx.beginPath(); ctx.moveTo(-Wd * 0.2, 2); ctx.lineTo(-Wd * 0.2, -H); ctx.lineTo(0, -H - Wd * 1.6); ctx.lineTo(Wd * 0.35, -H); ctx.lineTo(Wd * 0.35, 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-Wd, 2); ctx.lineTo(-Wd, -H); ctx.lineTo(0, -H - Wd * 1.6); ctx.lineTo(Wd, -H); ctx.lineTo(Wd, 2); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+// what is trapped in a frozen-species block, drawn about (0,0), roughly 30 wide
+function drawSpecies(sp, ph = 0) {
+  ctx.save(); ctx.lineCap = 'round';
+  if (sp === 'cicada') {
+    ctx.fillStyle = 'rgba(210,240,255,.55)'; for (const s of [-1, 1]) { ctx.save(); ctx.scale(s, 1); ctx.rotate(0.35); ctx.beginPath(); ctx.ellipse(7, 2, 5, 15, 0.2, 0, TAU); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = '#3a4a2a'; ctx.beginPath(); ctx.ellipse(0, 2, 6, 12, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#56683a'; ctx.beginPath(); ctx.ellipse(0, -8, 7, 5, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ff3a3a'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(s * 6, -9, 2.2, 0, TAU); ctx.fill(); }
+    ctx.strokeStyle = '#1a2410'; ctx.lineWidth = 1; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(-5, 4 + i * 4); ctx.lineTo(5, 4 + i * 4); ctx.stroke(); }
+  } else if (sp === 'hornet') {
+    ctx.fillStyle = 'rgba(210,240,255,.5)'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * 9, -4, 9, 4, s * -0.4, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.ellipse(0, 6, 6, 10, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#08080a'; for (let i = 0; i < 3; i++) ctx.fillRect(-6, 1 + i * 5, 12, 2.2);
+    ctx.fillStyle = '#3a2a10'; ctx.beginPath(); ctx.ellipse(0, -6, 5, 5, 0, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.moveTo(-2, 15); ctx.lineTo(0, 21); ctx.lineTo(2, 15); ctx.fill();
+    ctx.fillStyle = '#b04020'; ctx.beginPath(); ctx.arc(0, -12, 4, 0, TAU); ctx.fill();
+  } else if (sp === 'butterfly') {
+    const f = 0.75 + 0.25 * Math.sin(ph * 6);
+    for (const s of [-1, 1]) { ctx.save(); ctx.scale(s * f, 1); const g1 = ctx.createLinearGradient(0, -14, 16, 6); g1.addColorStop(0, '#ff7ad9'); g1.addColorStop(0.5, '#7ad9ff'); g1.addColorStop(1, '#ffe680'); ctx.fillStyle = g1; ctx.beginPath(); ctx.moveTo(0, -2); ctx.quadraticCurveTo(18, -20, 15, -2); ctx.quadraticCurveTo(14, 4, 0, 1); ctx.fill(); ctx.beginPath(); ctx.moveTo(0, 1); ctx.quadraticCurveTo(14, 4, 9, 13); ctx.quadraticCurveTo(4, 14, 0, 4); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(10, -8, 1.8, 0, TAU); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = '#16161b'; ctx.fillRect(-1.2, -8, 2.4, 18); ctx.strokeStyle = '#16161b'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(-4, -14); ctx.moveTo(0, -8); ctx.lineTo(4, -14); ctx.stroke();
+  } else if (sp === 'tentacle') {
+    for (let k = 0; k < 3; k++) { ctx.strokeStyle = ['#5a3a9c', '#7a4ac4', '#6a40b0'][k]; ctx.lineWidth = 6 - k; ctx.beginPath(); ctx.moveTo(-8 + k * 8, 16); ctx.bezierCurveTo(-14 + k * 10, 4, 6 + k * 3, -2, -2 + k * 5, -14 + k * 2); ctx.stroke(); }
+    ctx.fillStyle = '#e2c8ff'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(-4 + (i % 3) * 7, 10 - i * 3.6, 1.2, 0, TAU); ctx.fill(); }
+  } else if (sp === 'lanternfly') {
+    for (const s of [-1, 1]) { ctx.save(); ctx.scale(s, 1); ctx.fillStyle = '#c8c8be'; ctx.beginPath(); ctx.moveTo(1, -8); ctx.quadraticCurveTo(16, -6, 14, 8); ctx.lineTo(2, 4); ctx.fill(); ctx.fillStyle = '#e8384a'; ctx.beginPath(); ctx.moveTo(2, 2); ctx.quadraticCurveTo(13, 6, 11, 13); ctx.lineTo(2, 8); ctx.fill(); ctx.fillStyle = '#16161b'; for (const [x, y] of [[6, -3], [10, 1], [7, 3]]) { ctx.beginPath(); ctx.arc(x, y, 1.1, 0, TAU); ctx.fill(); } ctx.restore(); }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(0, 6, 1, 0, 6, 14); g.addColorStop(0, 'rgba(255,226,120,.8)'); g.addColorStop(1, 'rgba(255,180,40,0)'); ctx.fillStyle = g; ctx.fillRect(-14, -8, 28, 28); ctx.restore();
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.ellipse(0, 6, 3, 7, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#16161b'; ctx.beginPath(); ctx.arc(0, -6, 3, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+// a translucent block of ice standing on y=0, (w x h), with cracks for damage
+function drawIceBlock(w, h, dmg, seed) {
+  const g = ctx.createLinearGradient(-w / 2, -h, w / 2, 0); g.addColorStop(0, 'rgba(232,251,255,.75)'); g.addColorStop(0.5, 'rgba(150,215,250,.45)'); g.addColorStop(1, 'rgba(70,150,220,.6)');
+  ctx.fillStyle = 'rgba(10,40,90,.35)'; ctx.fillRect(-w / 2 + 2, -h + 2, w, h);
+  ctx.fillStyle = g; ctx.fillRect(-w / 2, -h, w, h);
+  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.moveTo(-w / 2, -h); ctx.lineTo(w / 2, -h); ctx.lineTo(w / 2 - 5, -h + 5); ctx.lineTo(-w / 2 + 5, -h + 5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(-w / 2, -h, 4, h);
+  ctx.strokeStyle = '#effbff'; ctx.lineWidth = 1.2; ctx.strokeRect(-w / 2, -h, w, h);
+  if (dmg > 0) { const rnd = mulberry(Math.floor(seed * 100) + 7); ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1; for (let i = 0; i < dmg * 3; i++) { const x = (rnd() - 0.5) * w * 0.8, y = -rnd() * h; ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 3; k++) ctx.lineTo(x + (rnd() - 0.5) * 18, y + (rnd() - 0.5) * 18); ctx.stroke(); } }
+}
+// the face layer: rim light, the core pulsing to the song, crystal streaks, the frozen artifacts on the rim
+function drawFrostLive(t) {
+  const T = t.frost; if (!T) return;
+  const B = beatInfo('frost'), ice = T.layer === 'ice', crk = frostCracks(T);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  if (ice) {
+    const p = 0.35 + 0.35 * B.pulse + (T.iceHP <= 0 ? 0.3 * (0.5 + 0.5 * Math.sin(time * 9)) : 0);
+    ctx.strokeStyle = `rgba(160,236,255,${0.25 * p})`; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0, 0, R - 9, 0, TAU); ctx.stroke();
+    const cg = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.36); cg.addColorStop(0, `rgba(255,255,255,${0.2 + 0.25 * B.pulse})`); cg.addColorStop(1, 'rgba(120,200,255,0)'); ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, R * 0.36, 0, TAU); ctx.fill();
+  } else {
+    const cg = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.3); cg.addColorStop(0, `rgba(160,236,255,${0.25 + 0.3 * B.pulse})`); cg.addColorStop(1, 'rgba(60,140,255,0)'); ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, R * 0.3, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  // a glint sweeping round the shell
+  if (ice) { const ga = time * 0.7 % TAU; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R - 5, ga - t.rot, ga - t.rot + 0.35); ctx.stroke(); ctx.restore(); }
+  // damage: one crack per hit taken on this layer, the newest flashing
+  const dmg = ice ? FROST_ICE - T.iceHP : T.layer === 'raw' ? FROST_RAW - T.rawHP : 0;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = 0; i < Math.min(dmg, crk.length); i++) {
+    if (ice) { ctx.strokeStyle = 'rgba(20,70,140,.5)'; ctx.lineWidth = 2.4; strokePts(crk[i]); ctx.strokeStyle = i === dmg - 1 && T.flashHP > 0 ? '#ffffff' : 'rgba(255,255,255,.85)'; ctx.lineWidth = 1; strokePts(crk[i]); }
+    else { ctx.strokeStyle = 'rgba(2,6,16,.9)'; ctx.lineWidth = 2.6; strokePts(crk[i]); ctx.strokeStyle = `rgba(120,220,255,${0.45 + 0.4 * B.pulse})`; ctx.lineWidth = 1; strokePts(crk[i]); }
+  }
+  // the cutscene cracks: the whole shell going at once
+  if (T.crackU > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(200,244,255,${0.5 + 0.5 * T.crackU})`; ctx.lineWidth = 1.6 + T.crackU * 1.5;
+    for (let i = 0; i < crk.length; i++) strokePts(crk[i], clamp(T.crackU * 1.6 - i / crk.length * 0.6, 0, 1));
+    ctx.restore();
+  }
+  // refreezing: ice spreading out over the dark wood from where the partial ice was
+  if (T.refU > 0 && T.refFrom) {
+    ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.clip();
+    for (const a of T.refFrom) { const sp = Math.PI * T.refU * 1.05; const g = ctx.createRadialGradient(Math.cos(a) * R, Math.sin(a) * R, 4, Math.cos(a) * R, Math.sin(a) * R, R * 2 * T.refU + 10); g.addColorStop(0, 'rgba(200,236,255,.95)'); g.addColorStop(0.8, 'rgba(120,190,240,.75)'); g.addColorStop(1, 'rgba(120,190,240,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a - sp, a + sp); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+  }
+  // crystallized ice: a streak cracks out from the core, then the crystal grows where it meets the rim
+  for (const c of T.crystals) {
+    const u = clamp(c.t / 1.6, 0, 1), melt = clamp((c.t - c.life) / 1, 0, 1);
+    ctx.save(); ctx.rotate(c.a);
+    ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - melt)})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(R * 0.3, 0); let x = R * 0.3; const rnd = mulberry(Math.floor(c.seed * 100));
+    while (x < R * 0.3 + (R * 0.7) * u) { x += 7; ctx.lineTo(x, (rnd() - 0.5) * 6); } ctx.stroke();
+    if (u < 1) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(200,244,255,.8)'; ctx.beginPath(); ctx.arc(x, 0, 3 + 2 * Math.sin(time * 30), 0, TAU); ctx.fill(); ctx.restore(); }
+    ctx.restore();
+    if (c.grown) { const gr = ease3(clamp((c.t - 1.6) / 0.35, 0, 1)) * (1 - melt * 0.6); ctx.save(); ctx.rotate(c.a + HALF); ctx.translate(0, -R + 4); ctx.scale(gr, gr * (1 - melt * 0.4)); drawCrystalCluster(1, c.seed, 0.5 + 0.5 * B.pulse, 1 - melt); ctx.restore(); }
+  }
+  // the frozen artifacts on the rim
+  for (const q of T.arts) {
+    q.hitT = Math.max(0, (q.hitT || 0) - 1 / 60);
+    const jx = q.hitT > 0 ? Math.sin(time * 70) * 2.5 * q.hitT : 0;
+    ctx.save(); ctx.rotate(q.a + HALF); ctx.translate(jx, -R + 6);
+    if (q.kind === 'species') {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(0, -24, 4, 0, -24, 46); g.addColorStop(0, `rgba(160,236,255,${0.25 + 0.2 * B.pulse})`); g.addColorStop(1, 'rgba(90,180,255,0)'); ctx.fillStyle = g; ctx.fillRect(-46, -70, 92, 92); ctx.restore();
+      ctx.save(); ctx.translate(0, -23); ctx.scale(0.95, 0.95); ctx.globalAlpha = 0.85; drawSpecies(q.sp, 0); ctx.restore();
+      drawIceBlock(46, 46, q.max - q.hp, q.seed);
+    } else {
+      // a knife frozen solid in crystal
+      ctx.save(); ctx.translate(0, -6); ctx.rotate(Math.PI); ctx.scale(0.55, 0.55); ctx.globalAlpha = 0.7; drawKnife(); ctx.restore();
+      drawCrystalCluster(1.25, q.seed, 0.6, 0.85);
+      if (q.max - q.hp > 0) { const rnd = mulberry(Math.floor(q.seed * 50)); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; for (let i = 0; i < (q.max - q.hp) * 3; i++) { const x = (rnd() - 0.5) * 22, y = -rnd() * 36; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (rnd() - 0.5) * 14, y + (rnd() - 0.5) * 14); ctx.stroke(); } }
+      for (let i = 0; i < q.hp; i++) { ctx.fillStyle = '#ffffff'; ctx.fillRect(-7 + i * 6, 6, 4, 3); }
+    }
+    ctx.restore();
+  }
+  // partial ice: patches of new shell to smash before they spread
+  for (const p of T.partial) {
+    const pul = 0.5 + 0.5 * Math.sin(time * 6), age = time - p.born, grow = ease3(clamp(age / 0.5, 0, 1));
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(160,236,255,${0.3 + 0.3 * pul})`; ctx.lineWidth = 16; ctx.beginPath(); ctx.arc(0, 0, R - 6, p.a - p.w * grow, p.a + p.w * grow); ctx.stroke(); ctx.restore();
+    const g = ctx.createRadialGradient(0, 0, R - 16, 0, 0, R + 6); g.addColorStop(0, '#7cc4f0'); g.addColorStop(0.6, '#bfe8ff'); g.addColorStop(1, '#e8fbff');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R + 4, p.a - p.w * grow, p.a + p.w * grow); ctx.arc(0, 0, R - 15, p.a + p.w * grow, p.a - p.w * grow, true); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; ctx.stroke();
+    for (let i = -2; i <= 2; i++) { const a = p.a + i / 2.5 * p.w * grow; ctx.save(); ctx.rotate(a + HALF); ctx.translate(0, -R - 3); ctx.fillStyle = '#e8fbff'; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(0, -7 - (i % 2 ? 0 : 4)); ctx.lineTo(3, 0); ctx.fill(); ctx.restore(); }
+    if (p.hp < p.max) { const rnd = mulberry(Math.floor(p.a * 100)); ctx.strokeStyle = '#1f5f9e'; ctx.lineWidth = 1.2; for (let i = 0; i < (p.max - p.hp) * 3; i++) { const a = p.a + (rnd() - 0.5) * p.w * 1.6, r = R - 12 + rnd() * 12; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); ctx.lineTo(Math.cos(a + 0.06) * (r + 5), Math.sin(a + 0.06) * (r + 5)); ctx.stroke(); } }
+  }
+  // breakaways: jagged outcrops breathing cold light
+  for (const b of T.breaks) {
+    const gr = ease3(b.grow || 0), face = angDiff(t.rot + b.a, HALF) < 0.6 ? 1 - angDiff(t.rot + b.a, HALF) / 0.6 : 0;
+    ctx.save(); ctx.rotate(b.a + HALF); ctx.translate(0, -R + 6);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; const ag = ctx.createRadialGradient(0, -20, 4, 0, -20, 64 + 30 * face); ag.addColorStop(0, `rgba(170,240,255,${0.35 + 0.4 * face + 0.15 * B.pulse})`); ag.addColorStop(1, 'rgba(60,160,255,0)'); ctx.fillStyle = ag; ctx.fillRect(-100, -120, 200, 200); ctx.restore();
+    ctx.scale(gr, gr);
+    const rnd = mulberry(Math.floor(b.seed * 100));
+    ctx.fillStyle = '#1f5f9e'; ctx.beginPath(); ctx.moveTo(-20, 6); for (let i = 0; i <= 6; i++) { const x = -20 + i * 6.6, h = (i % 2 ? 22 : 40) + rnd() * 10 - Math.abs(i - 3) * 4; ctx.lineTo(x, -h); } ctx.lineTo(20, 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9fdcff'; ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-6, -30); ctx.lineTo(0, -44); ctx.lineTo(6, -26); ctx.lineTo(13, 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#effbff'; ctx.beginPath(); ctx.moveTo(-4, 2); ctx.lineTo(0, -44); ctx.lineTo(4, 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+    if (b.hp < 2) { ctx.strokeStyle = '#08204a'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-10, -8); ctx.lineTo(0, -20); ctx.lineTo(8, -14); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+// the ice creeping up a stuck knife (drawn in the knife's own frame: +y runs out along the handle)
+function drawFrozenCoat(k) {
+  const f = k.frozen ? 1 : clamp(k.freeze || 0, 0, 1); if (f <= 0) return;
+  const y0 = EMBED + (k.pen || 0) - 4, len = (KL - EMBED - (k.pen || 0) + 12) * ease3(f), w = 10 + 6 * f;
+  const g = ctx.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, 'rgba(90,170,235,.75)'); g.addColorStop(0.45, 'rgba(210,244,255,.6)'); g.addColorStop(1, 'rgba(60,140,220,.75)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-w, y0); ctx.lineTo(-w * 0.85, y0 + len); ctx.lineTo(0, y0 + len + 8 * f); ctx.lineTo(w * 0.85, y0 + len); ctx.lineTo(w, y0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = k.frozen ? `rgba(255,255,255,${0.7 + 0.3 * Math.sin(time * 6 + k.a * 3)})` : 'rgba(255,255,255,.6)'; ctx.lineWidth = k.frozen ? 1.6 : 1; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fillRect(-w * 0.6, y0 + 2, 2.5, len - 4);
+  if (k.frozen) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(120,220,255,.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-w - 1, y0); ctx.lineTo(-w * 0.85 - 1, y0 + len); ctx.lineTo(0, y0 + len + 10); ctx.lineTo(w * 0.85 + 1, y0 + len); ctx.lineTo(w + 1, y0); ctx.stroke(); ctx.restore();
+    const gp = (time * 0.8 + k.a) % 1; if (gp < 0.25) star(0, y0 + len * gp * 4, 4 * Math.sin(gp * 4 * Math.PI), 'rgba(255,255,255,.9)');
+  }
+}
+// ---------- the world around the log ----------
+function frostXY(t, a, r) { const T = t.frost, w = t.rot + a; return [CX + T.ox + Math.cos(w) * r * T.s, CY + T.oy + Math.sin(w) * r * T.s - 7 * (t.hit || 0)]; }
+function drawTentacles(t) {
+  const T = t.frost, Tn = T.tent; if (!Tn) return;
+  const w = t.rot + Tn.a, [bx, by] = frostXY(t, Tn.a, R - 4), out = [Math.cos(w), Math.sin(w)], side = [-out[1], out[0]];
+  const reach = Tn.st === 'reach' ? ease3(clamp(Tn.t / 0.8, 0, 1)) : Tn.st === 'retract' ? 1 - ease3(clamp(Tn.t / 0.5, 0, 1)) : Tn.st === 'recoil' ? Math.max(0, 0.6 - Tn.t * 1.6) : 0;
+  ctx.save(); ctx.lineCap = 'round';
+  for (let k = 0; k < 3; k++) {
+    const main = k === 1, L = 56 + k * 8, sw = Math.sin(time * 2.2 + k * 2) * 14, pts = [];
+    let ex = bx + out[0] * L + side[0] * (sw + (k - 1) * 16), ey = by + out[1] * L + side[1] * (sw + (k - 1) * 16);
+    if (main && reach > 0) { ex += (CX - ex) * reach; ey += (KNIFE_Y - 6 - ey) * reach; }
+    const mx = (bx + ex) / 2 + side[0] * Math.sin(time * 3 + k) * 18, my = (by + ey) / 2 + side[1] * Math.sin(time * 3 + k) * 18;
+    for (let i = 0; i <= 12; i++) { const u = i / 12; pts.push([(1 - u) * (1 - u) * bx + 2 * u * (1 - u) * mx + u * u * ex, (1 - u) * (1 - u) * by + 2 * u * (1 - u) * my + u * u * ey]); }
+    for (const [col, wd] of [['#140826', 4], [null, 0], ['#c8a8ff', -0.7]]) for (let i = 0; i < 12; i++) { const u = i / 12, base = (main ? 14 : 10) * (1 - u * 0.75); ctx.strokeStyle = col || (Tn.st === 'recoil' ? '#c43a6a' : i % 2 ? '#7a4ac4' : '#6a40b0'); ctx.lineWidth = wd < 0 ? base * 0.28 : base + wd; ctx.beginPath(); ctx.moveTo(pts[i][0] + (wd < 0 ? -1 : 0), pts[i][1] + (wd < 0 ? -1 : 0)); ctx.lineTo(pts[i + 1][0] + (wd < 0 ? -1 : 0), pts[i + 1][1] + (wd < 0 ? -1 : 0)); ctx.stroke(); }
+    ctx.fillStyle = '#e2c8ff'; for (let i = 2; i < 11; i += 2) { ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], 1.6, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = 'rgba(232,251,255,.9)'; for (let i = 1; i < 12; i += 3) ctx.fillRect(pts[i][0] - 1, pts[i][1] - 3, 2, 3);   // rime on the skin
+  }
+  if (Tn.st === 'reach') { const p = 0.5 + 0.5 * Math.sin(time * 30); text('PARRY!', CX, KNIFE_Y - 70, 11, p > 0.5 ? '#c4a8ff' : '#ffffff', 'center', 700); }
+  ctx.restore();
+}
+function drawFrostCore(t) {
+  const T = t.frost, B = beatInfo('frost'), u = T.layer === 'core' ? clamp(T.coreT / FROST_CORE_T, 0, 1) : 1, die = T.dieU || 0;
+  const reach = T.reachU || 0;
+  // the formations crawling in from the edges
+  for (const f of T.forms || []) {
+    const ca = Math.cos(f.a), sa = Math.sin(f.a), D = Math.min(ca > 0.01 ? (W - CX) / ca : ca < -0.01 ? -CX / ca : 1e4, sa > 0.01 ? (H - CY) / sa : sa < -0.01 ? -CY / sa : 1e4) + 10, tip = D - (D - 30) * Math.min(1, Math.pow(u, 1.15) * f.len), rnd = mulberry(Math.floor(f.seed * 100)), c = Math.cos(f.a), s = Math.sin(f.a), nx = -s, ny = c;
+    const pt = (d, o) => [CX + c * d + nx * o, CY + s * d + ny * o];
+    ctx.save(); ctx.globalAlpha = 1 - die * 0.5;
+    ctx.fillStyle = '#1f5f9e'; ctx.beginPath(); let p = pt(D + 60, -46); ctx.moveTo(p[0], p[1]);
+    for (let i = 0; i <= 8; i++) { const d = D + 60 - (D + 60 - tip) * i / 8, wd = 46 * (1 - i / 8) + (i % 2 ? 10 : 0) * (1 - i / 8); p = pt(d, -wd); ctx.lineTo(p[0], p[1]); }
+    p = pt(tip - 6, 0); ctx.lineTo(p[0], p[1]);
+    for (let i = 8; i >= 0; i--) { const d = D + 60 - (D + 60 - tip) * i / 8, wd = 46 * (1 - i / 8) + (i % 2 ? 0 : 12) * (1 - i / 8); p = pt(d, wd); ctx.lineTo(p[0], p[1]); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9fdcff'; ctx.beginPath(); p = pt(D + 60, -20); ctx.moveTo(p[0], p[1]); p = pt(tip, 0); ctx.lineTo(p[0], p[1]); p = pt(D + 60, 14); ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#effbff'; ctx.lineWidth = 1.4; ctx.beginPath(); p = pt(D + 60, -4); ctx.moveTo(p[0], p[1]); p = pt(tip, 0); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    for (let i = 0; i < 3; i++) { const d = tip + 40 + i * 60 + rnd() * 20, sd = rnd() < 0.5 ? -1 : 1, q0 = pt(d, sd * 20), q1 = pt(d + 10, sd * (44 + rnd() * 16)); ctx.fillStyle = '#7cc4f0'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); const q2 = pt(d + 22, sd * 18); ctx.lineTo(q2[0], q2[1]); ctx.closePath(); ctx.fill(); }
+    if (die > 0) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; for (let i = 0; i < 4; i++) { const a0 = pt(tip + 30 + i * 70, -18), a1 = pt(tip + 60 + i * 70, 16); ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.lineTo(a1[0], a1[1]); ctx.stroke(); } }
+    ctx.restore();
+  }
+  // the final spear, down the lane at the knife
+  if (reach > 0) {
+    const y1 = CY + 30 + (KNIFE_Y - 4 - CY - 30) * ease3(reach);
+    ctx.fillStyle = '#1f5f9e'; ctx.beginPath(); ctx.moveTo(CX - 26, CY + 10); ctx.lineTo(CX, y1); ctx.lineTo(CX + 26, CY + 10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#bfe8ff'; ctx.beginPath(); ctx.moveTo(CX - 9, CY + 10); ctx.lineTo(CX, y1); ctx.lineTo(CX + 12, CY + 10); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(CX, CY + 10); ctx.lineTo(CX, y1); ctx.stroke();
+  }
+  // the core: a small light-blue outline with a white heart
+  const pul = 0.5 + 0.5 * B.pulse, r = 20 * (1 + 0.6 * die);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(CX, CY, 2, CX, CY, 80 + 40 * die); g.addColorStop(0, `rgba(200,244,255,${0.55 + 0.25 * pul})`); g.addColorStop(0.4, 'rgba(90,180,255,.25)'); g.addColorStop(1, 'rgba(40,120,255,0)'); ctx.fillStyle = g; ctx.fillRect(CX - 130, CY - 130, 260, 260);
+  for (let i = 0; i < 6; i++) beam(CX, CY, -HALF + i / 6 * TAU + time * 0.4, 70 + 30 * pul, 1, 5, `rgba(160,236,255,${0.12 + 0.1 * pul})`);
+  ctx.restore();
+  ctx.save(); ctx.translate(CX, CY); ctx.rotate(time * 0.6);
+  ctx.strokeStyle = '#9ff0ff'; ctx.lineWidth = 3; frostStar(ctx, r * 1.25, r * 0.85); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, r * 0.7, 0, TAU); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(CX, CY, 7 + 2 * pul + 6 * die, 0, TAU); ctx.fill();
+  // the timer, a ring burning down around it
+  if (T.layer === 'core' && !T.dead) {
+    const left = Math.max(0, FROST_CORE_T - T.coreT), k = left / FROST_CORE_T;
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(CX, CY, 38, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = k > 0.35 ? '#9ff0ff' : Math.sin(time * 24) > 0 ? '#ff5a7a' : '#ffffff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(CX, CY, 38, -HALF, -HALF + TAU * k); ctx.stroke();
+    dtext(left.toFixed(1), CX, CY - 64, 22, k > 0.35 ? '#dff4ff' : '#ff5a7a', 'center');
+  }
+}
+function drawFrostFront(t) {
+  const T = t.frost; if (!T || T.hide) return;
+  if (T.layer === 'core' || T.layer === 'gone') { drawFrostCore(t); return; }
+  const B = beatInfo('frost'), om = t.pat(t.t), dir = Math.sign(om) || 1, aw = Math.abs(T.wind);
+  // frost wind: streaks wrapping the log in the spin direction, more and brighter the harder it blows
+  const n = 3 + Math.round(7 * aw);
+  ctx.save(); ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const r = (R + 14 + hash(i, 3, 1) * 56) * T.s, sp = 0.4 + hash(i, 3, 2) * 0.7, a0 = hash(i, 3, 3) * TAU + time * dir * (1.2 + 2.4 * aw) * (0.8 + hash(i, 3, 4) * 0.5);
+    ctx.strokeStyle = `rgba(220,244,255,${0.1 + 0.32 * aw})`; ctx.lineWidth = 1 + hash(i, 3, 5) * 1.6;
+    ctx.beginPath(); ctx.arc(CX + T.ox, CY + T.oy, r, dir > 0 ? a0 - sp : a0, dir > 0 ? a0 : a0 + sp); ctx.stroke();
+    const ea = dir > 0 ? a0 : a0; ctx.fillStyle = `rgba(255,255,255,${0.3 + 0.4 * aw})`; ctx.fillRect(CX + T.ox + Math.cos(ea) * r - 1, CY + T.oy + Math.sin(ea) * r - 1, 2, 2);
+  }
+  ctx.restore();
+  drawTentacles(t);
+  // released species
+  if (T.cicada > 0) {
+    const [x, y] = frostXY(t, -HALF - t.rot, R + 4), j = Math.sin(time * 90) * 1.2;
+    ctx.save(); ctx.translate(x + j, y - 10); drawSpecies('cicada'); ctx.restore();
+    ctx.strokeStyle = `rgba(200,255,160,${0.3 + 0.2 * Math.sin(time * 20)})`; ctx.lineWidth = 1.5; for (let i = 0; i < 3; i++) { const rr = 14 + ((time * 60 + i * 12) % 36); ctx.beginPath(); ctx.arc(x, y - 10, rr, -Math.PI * 0.9, -Math.PI * 0.1); ctx.stroke(); }
+  }
+  if (T.hornet) { const H = T.hornet, fl = Math.min(1, H.t * 2, (H.life - H.t) * 2); ctx.save(); ctx.globalAlpha = fl; ctx.translate(H.x, H.y); ctx.scale(1.3, 1.3); ctx.rotate(Math.sin(H.t * 2.6) * 0.3); drawSpecies('hornet'); ctx.fillStyle = 'rgba(200,240,255,.35)'; ctx.beginPath(); ctx.arc(0, 0, 18 + 3 * Math.sin(time * 40), 0, TAU); ctx.fill(); ctx.restore(); }
+  if (T.lantern > 0) { const a = time * 1.6, x = CX + Math.cos(a) * (R + 46), y = CY + Math.sin(a) * (R + 30) - 10; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(x, y, 2, x, y, 60); g.addColorStop(0, 'rgba(255,220,120,.45)'); g.addColorStop(1, 'rgba(255,170,40,0)'); ctx.fillStyle = g; ctx.fillRect(x - 60, y - 60, 120, 120); ctx.restore(); ctx.save(); ctx.translate(x, y); ctx.rotate(a + HALF); drawSpecies('lanternfly'); ctx.restore(); }
+  if (T.bfly > 0) { const x = CX + 34 + Math.sin(time * 2) * 8, y = KNIFE_Y - 34 + Math.sin(time * 3.1) * 6; ctx.save(); ctx.translate(x, y); ctx.scale(0.8, 0.8); drawSpecies('butterfly', time); ctx.restore(); text('x2 ' + T.bfly, x, y + 18, 7, '#ffd23f', 'center', 700); }
+  // icicles flying at you
+  for (const ic of T.icicles) {
+    ctx.save(); ctx.translate(CX, ic.y);
+    ctx.fillStyle = 'rgba(200,240,255,.25)'; ctx.fillRect(-2, -70, 4, 56);
+    const g = ctx.createLinearGradient(-8, 0, 8, 0); g.addColorStop(0, '#5aa8e8'); g.addColorStop(0.5, '#effbff'); g.addColorStop(1, '#2a78c4');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-9, -24); ctx.lineTo(0, 24); ctx.lineTo(9, -24); ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = `rgba(160,236,255,${0.5 + 0.5 * Math.sin(time * 40)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+}
+// screen weather: snow on the wind, a cold vignette in the gusts, the avalanche, the breakaway glare, a frozen knife
+function drawFrostWeather(t) {
+  const T = t.frost; if (!T || T.hide) return;
+  const aw = Math.abs(T.wind), av = T.aval > 0 ? Math.min(1, T.aval, (4 - T.aval) * 3) : 0, n = Math.round(14 + 50 * aw + 70 * av);
+  ctx.fillStyle = `rgba(240,250,255,${0.55 + 0.25 * av})`;
+  for (let i = 0; i < n; i++) { const s = 1 + hash(i, 21, 3) * 2.2, x = (((hash(i, 21, 1) * (W + 120) + time * T.wind * (260 + 400 * hash(i, 21, 4)) * (1 + av)) % (W + 120)) + W + 120) % (W + 120) - 60, y = ((hash(i, 21, 2) * (H + 40) + time * (50 + 70 * hash(i, 21, 5)) * (1 + 2 * av)) % (H + 40)) - 20; ctx.fillRect(x, y, s, s); }
+  if (aw > 0.55 || av > 0) { ctx.strokeStyle = `rgba(220,244,255,${0.1 + 0.2 * Math.max(aw - 0.55, av)})`; ctx.lineWidth = 1; ctx.beginPath(); for (let i = 0; i < 8 + 10 * av; i++) { const y = (hash(i, 22, 1) * H + time * 30) % H, x = ((hash(i, 22, 2) * (W + 300) + time * Math.sign(T.wind || 1) * 900) % (W + 300) + W + 300) % (W + 300) - 150; ctx.moveTo(x, y); ctx.lineTo(x + Math.sign(T.wind || 1) * 60, y + 4); } ctx.stroke(); }
+  const vg = Math.max(clamp((aw - 0.6) / 0.35, 0, 1) * (T.gust > 0 ? 1 : 0.6), av, T.slow > 0 ? 0.8 : 0);
+  if (vg > 0.02) { ctx.save(); ctx.globalAlpha = Math.min(1, vg); blit(bakeSprite('frVig', -60, -60, W + 120, H + 120, g => { const v = g.createRadialGradient(CX, H * 0.5, 160, CX, H * 0.5, 520); v.addColorStop(0, 'rgba(120,200,255,0)'); v.addColorStop(0.6, 'rgba(120,200,255,.18)'); v.addColorStop(1, 'rgba(170,225,255,.62)'); g.fillStyle = v; g.fillRect(-60, -60, W + 120, H + 120); })); ctx.restore(); }
+  if (av > 0) { ctx.fillStyle = `rgba(190,225,255,${0.2 * av})`; fillView(); }
+  if (T.glare > 0) { const a = T.glare / 0.6; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(CX, CY + R + 20, 10, CX, CY + R + 20, 300); g.addColorStop(0, `rgba(170,230,255,${0.5 * a})`); g.addColorStop(1, 'rgba(90,170,255,0)'); ctx.fillStyle = g; ctx.fillRect(CX - 300, CY + R - 280, 600, 600); ctx.restore(); }
+  if (T.slow > 0) text('SLOW-MO: BREAK THE ICICLE', CX, KNIFE_Y + KL + 26, 9, Math.sin(time * 16) > 0 ? '#9ff0ff' : '#ffffff', 'center', 700);
+  if (T.frozenT > 0 && stunT > 0) {
+    const y0 = KNIFE_Y - 10, h = KL + 20;
+    ctx.save(); ctx.translate(CX, y0 + h);
+    drawIceBlock(40, h, 0, 1); ctx.restore();
+    text('FROZEN  ' + Math.ceil(T.frozenT) + 's', CX, y0 - 14, 9, '#9ff0ff', 'center', 700);
+  }
+  if (T.crystalKnives > 0 && state === 'play') {
+    ctx.save(); ctx.globalAlpha = 0.55 + 0.2 * Math.sin(time * 5); ctx.translate(CX, KNIFE_Y);
+    ctx.fillStyle = 'rgba(200,240,255,.5)'; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(9, 20); ctx.lineTo(7, KL); ctx.lineTo(-7, KL); ctx.lineTo(-9, 20); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(0, KL); ctx.moveTo(-9, 20); ctx.lineTo(9, 40); ctx.stroke();
+    ctx.restore(); text('GLASS KNIFE x' + T.crystalKnives, CX, KNIFE_Y + KL + 14, 8, '#9ff0ff', 'center', 700);
+  }
+}
+function drawFrostHUD() {
+  const t = tgt; if (!t || !t.frost || t.frost.hide) return;
+  const T = t.frost, x0 = CX - 100, y = 104;
+  let fill = 1; if (fx && fx.type === 'frostintro') fill = clamp((fx.t - FSHOT.reveal - 0.4) / 0.9, 0, 1);
+  if (T.layer === 'core' || T.layer === 'gone') { text('THE CORE', CX, y + 4, 11, '#ffffff', 'center', 700); text('ONE HIT. BEFORE THE ICE GETS THERE.', CX, y + 20, 8, '#9ff0ff', 'center', 700); return; }
+  const ice = T.layer === 'ice', max = ice ? FROST_ICE : FROST_RAW, hp = ice ? T.iceHP : T.rawHP, cw = 200 / max;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  for (let i = 0; i < max; i++) { const on = i < Math.min(hp, Math.floor(max * fill)); ctx.fillStyle = on ? (T.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : ice ? (i % 2 ? '#9fdcff' : '#5ab4f2') : (i % 2 ? '#3a6ab0' : '#24467c')) : '#141a26'; ctx.fillRect(x0 + i * cw, y, cw - 1.5, 8); }
+  text(ice ? (hp > 0 ? 'ICE' : 'BRITTLE') : 'RAW', x0 - 22, y + 4, 8, ice ? '#9ff0ff' : '#7aa8e8', 'center', 700);
+  const sy = y + 20;
+  if (ice) {
+    // FROZEN ARTIFACTS: every knife the ice has taken, the species block, knives sealed in crystal
+    const knives = t.stuck.filter(s => s.freeze !== undefined), items = [];
+    for (const s of knives) items.push({ k: 'knife', f: s.frozen ? 1 : s.freeze });
+    for (const q of T.arts) items.push({ k: q.kind, hp: q.hp, max: q.max, sp: q.sp });
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, sy - 3, 208, 22);
+    text('FROZEN ARTIFACTS  ' + items.length, x0, sy + 3, 7, items.length ? '#dff4ff' : '#5a7a9a', 'left', 700);
+    const show = items.slice(0, 13);
+    show.forEach((it, i) => {
+      const x = x0 + 4 + i * 15, yy = sy + 9;
+      if (it.k === 'knife') { ctx.fillStyle = '#c3c3ca'; ctx.fillRect(x - 1, yy, 2, 9); ctx.fillStyle = `rgba(160,220,255,${0.3 + 0.6 * it.f})`; ctx.fillRect(x - 4, yy + 9 - 9 * it.f, 8, 9 * it.f); if (it.f >= 1) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.strokeRect(x - 4, yy, 8, 9); } }
+      else if (it.k === 'species') { ctx.fillStyle = 'rgba(190,232,255,.7)'; ctx.fillRect(x - 5, yy - 1, 10, 10); ctx.fillStyle = SPECIES[it.sp].good ? '#7cff4f' : '#ff7a1a'; ctx.fillRect(x - 2, yy + 2, 4, 4); }
+      else { ctx.fillStyle = '#9fdcff'; ctx.beginPath(); ctx.moveTo(x - 4, yy + 9); ctx.lineTo(x, yy - 2); ctx.lineTo(x + 4, yy + 9); ctx.closePath(); ctx.fill(); for (let k = 0; k < it.hp; k++) ctx.fillRect(x - 4 + k * 3, yy + 11, 2, 2); }
+    });
+    if (items.length > show.length) text('+' + (items.length - show.length), x0 + 4 + 13 * 15 + 2, sy + 13, 7, '#dff4ff', 'left', 700);
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, sy - 3, 208, 12);
+    text('BREAKAWAYS ' + T.breaks.length + '/2', x0, sy + 3, 7, T.breaks.length ? '#9ff0ff' : '#5a7a9a', 'left', 700);
+    text('NEXT IN ' + (4 - T.rawHits % 4), x0 + 200, sy + 3, 7, '#5a7a9a', 'right', 700);
+    if (T.partial.length) {
+      const k = clamp(T.partialT / FROST_REFREEZE, 0, 1), py = sy + 14, crit = T.partialT < 8;
+      ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, py - 3, 208, 18); ctx.fillStyle = '#141a26'; ctx.fillRect(x0, py, 200, 5);
+      ctx.fillStyle = crit && Math.sin(time * 16) > 0 ? '#ffffff' : '#9ff0ff'; ctx.fillRect(x0, py, 200 * k, 5);
+      text('PARTIAL ICE: REFREEZE IN ' + Math.ceil(T.partialT) + 's', CX, py + 11, 7, crit ? '#ff9ab0' : '#dff4ff', 'center', 700);
+    }
+  }
+  // the frost wind gauge: a compass ring with the wind's direction and strength
+  const gx = W - 52, gy = 196, r = 30, w = T.wind, aw = Math.abs(w), gust = T.gust > 0;
+  const bz = ctx.createRadialGradient(gx - 9, gy - 11, 2, gx, gy, r + 8); bz.addColorStop(0, '#f2fbff'); bz.addColorStop(0.6, '#7cb8e0'); bz.addColorStop(1, '#1a3a6a');
+  ctx.fillStyle = '#050a14'; ctx.beginPath(); ctx.arc(gx + 1, gy + 2, r + 8, 0, TAU); ctx.fill();
+  ctx.fillStyle = bz; ctx.beginPath(); ctx.arc(gx, gy, r + 7, 0, TAU); ctx.fill();
+  ctx.fillStyle = gust ? '#0c2448' : '#06122a'; ctx.beginPath(); ctx.arc(gx, gy, r + 3, 0, TAU); ctx.fill();
+  for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.fillStyle = 'rgba(200,236,255,.5)'; ctx.fillRect(gx + Math.cos(a) * (r - 2) - 0.8, gy + Math.sin(a) * (r - 2) - 0.8, 1.6, 1.6); }
+  const sweep = Math.PI * 1.6 * aw, a0 = -HALF;
+  ctx.strokeStyle = aw > 0.75 ? '#ffffff' : '#9ff0ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(gx, gy, r - 7, w >= 0 ? a0 : a0 - sweep, w >= 0 ? a0 + sweep : a0); ctx.stroke();
+  const ea = w >= 0 ? a0 + sweep : a0 - sweep, ex = gx + Math.cos(ea) * (r - 7), ey = gy + Math.sin(ea) * (r - 7), dir = w >= 0 ? 1 : -1;
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(ex - Math.sin(ea) * 6 * dir, ey + Math.cos(ea) * 6 * dir); ctx.lineTo(ex + Math.cos(ea) * 4, ey + Math.sin(ea) * 4); ctx.lineTo(ex - Math.cos(ea) * 4, ey - Math.sin(ea) * 4); ctx.closePath(); ctx.fill();
+  ctx.save(); ctx.translate(gx, gy); ctx.rotate(time * 3 * w); ctx.strokeStyle = '#dff4ff'; ctx.lineWidth = 1.2; for (let i = 0; i < 6; i++) { ctx.rotate(TAU / 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -9); ctx.moveTo(0, -5); ctx.lineTo(-2.5, -7.5); ctx.moveTo(0, -5); ctx.lineTo(2.5, -7.5); ctx.stroke(); } ctx.restore();
+  text(Math.round(aw * 100) + '', gx, gy + 14, 8, '#ffffff', 'center', 700);
+  text(gust ? 'GUST!' : w >= 0 ? 'CLOCKWISE' : 'COUNTER', gx, gy + r + 16, 7, gust ? (Math.sin(time * 16) > 0 ? '#ffffff' : '#9ff0ff') : '#9ff0ff', 'center', 700);
+  text('FROST WIND', gx, gy + r + 26, 6, '#7aa8e8', 'center', 700);
+  // what to do now
+  let msg = ice ? (T.iceHP > 0 ? 'BREAK THE ICE  /  SHATTER WHAT IT FREEZES' : 'BRITTLE: SHATTER EVERY ARTIFACT') : 'BREAK THE RAW LOG  /  SMASH PARTIAL ICE', col = '#7aa8e8';
+  if (T.tent && T.tent.st === 'reach') { msg = 'TENTACLES: PARRY NOW!'; col = Math.sin(time * 14) > 0 ? '#c4a8ff' : '#ffffff'; }
+  else if (T.icicles.length) { msg = 'ICICLE: KNOCK IT OUT OF THE AIR'; col = '#ffffff'; }
+  else if (T.aval > 0) { msg = 'AVALANCHE WINDS'; col = '#dff4ff'; }
+  else if (T.crystals.some(c => c.grown)) { msg = 'CRYSTALS FREEZE ANY KNIFE THAT TOUCHES THEM'; col = '#9ff0ff'; }
+  text(msg, CX, sy + (ice ? 30 : T.partial.length ? 40 : 20), 7, col, 'center', 700);
+}
+
+// ======== PERMAFROST background: a glacier under the aurora, run by the song ========
+// Quiet parts: still sky, a thin curtain, slow snow. As the song climbs the aurora widens and brightens, the snow
+// thickens and runs with the frost wind, the ice pillars light on the beat; the drops bring a falling-shard storm and
+// the curtains surge on every downbeat.
+const frStarsFn = g => { const rnd = mulberry(77); for (let i = 0; i < 160; i++) { const s = rnd() < 0.1 ? 1.6 : 0.9; g.fillStyle = `rgba(220,240,255,${0.3 + rnd() * 0.6})`; g.fillRect(-20 + rnd() * (W + 40), -40 + rnd() * 360, s, s); } };
+const frMountFn = g => { const rnd = mulberry(901), peaks = []; let x = -40; while (x < W + 40) { const w = 40 + rnd() * 60, h = 40 + rnd() * 90; peaks.push([x, w, h]); x += w; }
+  g.fillStyle = '#0a1c36'; g.beginPath(); g.moveTo(-40, 400); for (const [x0, w, h] of peaks) { g.lineTo(x0 + w / 2, 400 - h); g.lineTo(x0 + w, 400 - h * 0.3); } g.lineTo(W + 40, 400); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(200,232,255,.5)'; for (const [x0, w, h] of peaks) { g.beginPath(); g.moveTo(x0 + w / 2, 400 - h); g.lineTo(x0 + w / 2 - 9, 400 - h + 16); g.lineTo(x0 + w / 2 + 2, 400 - h + 11); g.lineTo(x0 + w / 2 + 10, 400 - h + 18); g.closePath(); g.fill(); } };
+// the aurora: tinted strips hung on a moving sine. list: [colour with A for alpha, y, amplitude, speed, weight]
+function frostCurtains(list, a, ph0, grow = 0) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round';
+  for (const [c, y0, amp, sp, k] of list) {
+    const al = Math.min(1, a * k); if (al < 0.01) continue;
+    const ph = ph0 * sp, N = 22, xs = [], ys = [], hs = [];
+    for (let i = 0; i <= N; i++) { xs.push(-80 + i * (W + 160) / N); ys.push(y0 + Math.sin(i * 0.38 + ph * 3) * amp + Math.sin(i * 0.9 + ph * 5) * amp * 0.35); hs.push((105 + 55 * Math.sin(i * 0.5 + ph * 4)) * (0.8 + 0.4 * grow)); }
+    const edge = (top) => { ctx.moveTo(xs[0], ys[0] - (top ? hs[0] : 0)); for (let i = 1; i < N; i++) { const mx = (xs[i] + xs[i + 1]) / 2, my = (ys[i] + ys[i + 1]) / 2 - (top ? (hs[i] + hs[i + 1]) / 2 : 0); ctx.quadraticCurveTo(xs[i], ys[i] - (top ? hs[i] : 0), mx, my); } ctx.lineTo(xs[N], ys[N] - (top ? hs[N] : 0)); };
+    const g = ctx.createLinearGradient(0, y0 - amp - 160, 0, y0 + amp); g.addColorStop(0, c.replace('A', '0')); g.addColorStop(0.55, c.replace('A', (0.18 * al).toFixed(3))); g.addColorStop(1, c.replace('A', (0.5 * al).toFixed(3)));
+    ctx.fillStyle = g; ctx.beginPath(); edge(false); for (let i = N; i >= 0; i--) ctx.lineTo(xs[i], ys[i] - hs[i]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = c.replace('A', (0.12 * al).toFixed(3)); ctx.lineWidth = 1; ctx.beginPath(); for (let i = 0; i <= N; i++) { const x = xs[i] + 6; ctx.moveTo(x, ys[i] + 2); ctx.lineTo(x, ys[i] - hs[i] * 0.85); } ctx.stroke();
+    ctx.strokeStyle = c.replace('A', (0.22 * al).toFixed(3)); ctx.lineWidth = 7; ctx.beginPath(); edge(false); ctx.stroke();
+    ctx.strokeStyle = c.replace('A', (0.75 * al).toFixed(3)); ctx.lineWidth = 1.8; ctx.beginPath(); edge(false); ctx.stroke();
+  }
+  ctx.restore();
+}
+BG.frost = (B, px, py) => {
+  const T = tgt && tgt.frost, F = musicFeel('frost'), hot = clamp((F.sec - 0.35) / 0.42, 0, 1), cold = clamp((0.32 - F.sec) / 0.14, 0, 1);
+  const wind = T ? T.wind : 0.5;
+  bgFill('frost57', [[0, '#01040d'], [0.3, '#061a3a'], [0.5, '#0c2e5c'], [0.62, '#06182e'], [1, '#020810']]);
+  // stars
+  ctx.save(); ctx.translate(px * 0.05, py * 0.05);
+  blit(bakeSprite('frStars', -20, -40, W + 40, 360, frStarsFn));
+  ctx.restore();
+  // the aurora: tinted strips hung on a moving sine, widening and brightening with the song
+  ctx.save(); ctx.translate(px * 0.12, py * 0.12);
+  const ab = 0.22 + 0.5 * hot + 0.25 * B.pulse * (0.3 + hot) + 0.3 * F.drop * B.down;
+  frostCurtains([['rgba(79,255,196,A)', 190, 34, 0.25, 1], ['rgba(42,216,255,A)', 230, 26, -0.18, 0.8], ['rgba(170,120,255,A)', 160, 40, 0.12, 0.5 * hot]], ab, time + B.b * 0.02, hot);
+  ctx.restore();
+  // far mountains and the glacier shelf
+  ctx.save(); ctx.translate(px * 0.1, py * 0.1);
+  blit(bakeSprite('frMount', -40, 260, W + 80, 140, frMountFn));
+  ctx.restore();
+  ctx.save(); ctx.translate(px * 0.25, py * 0.25);
+  blit(bakeSprite('frShelf', -60, 340, W + 120, 120, g => { const rnd = mulberry(313); const gg = g.createLinearGradient(0, 360, 0, 460); gg.addColorStop(0, '#173860'); gg.addColorStop(1, '#06122a'); g.fillStyle = gg; g.beginPath(); g.moveTo(-60, 460); let x = -60; g.lineTo(x, 400); while (x < W + 60) { const w = 14 + rnd() * 30; x += w; g.lineTo(x, 380 + rnd() * 30); } g.lineTo(W + 60, 460); g.closePath(); g.fill(); g.strokeStyle = 'rgba(200,240,255,.3)'; g.lineWidth = 1.2; x = -60; const r2 = mulberry(313); g.beginPath(); g.moveTo(x, 400); while (x < W + 60) { const w = 14 + r2() * 30; x += w; g.lineTo(x, 380 + r2() * 30); } g.stroke(); g.strokeStyle = 'rgba(120,190,240,.25)'; for (let i = 0; i < 30; i++) { const xx = -60 + rnd() * (W + 120); g.beginPath(); g.moveTo(xx, 400); g.lineTo(xx + (rnd() - 0.5) * 10, 460); g.stroke(); } }));
+  ctx.restore();
+  // the frozen lake: the aurora in its surface, cracks lit on the downbeat once the song is up
+  ctx.save(); ctx.translate(px * 0.4, py * 0.4);
+  blit(bakeSprite('frLake', -60, 440, W + 120, 380, g => { const gg = g.createLinearGradient(0, 440, 0, 820); gg.addColorStop(0, '#0f2e52'); gg.addColorStop(0.25, '#081c38'); gg.addColorStop(1, '#030a16'); g.fillStyle = gg; g.fillRect(-60, 440, W + 120, 380); const rnd = mulberry(55); g.strokeStyle = 'rgba(160,220,255,.22)'; g.lineWidth = 1; for (let i = 0; i < 14; i++) { let x = -40 + rnd() * (W + 80), y = 460 + rnd() * 320; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 60; y += (rnd() - 0.3) * 30; g.lineTo(x, y); } g.stroke(); } g.fillStyle = 'rgba(255,255,255,.05)'; for (let i = 0; i < 8; i++) { g.beginPath(); g.ellipse(-40 + rnd() * (W + 80), 470 + rnd() * 300, 60 + rnd() * 50, 6, 0, 0, TAU); g.fill(); } }));
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(0.6, ab * 0.5); ctx.fillStyle = 'rgba(79,255,196,.25)'; ctx.fillRect(-60, 444, W + 120, 30); ctx.fillStyle = 'rgba(42,216,255,.15)'; ctx.fillRect(-60, 476, W + 120, 40); ctx.restore();
+  if (hot > 0.3 && B.down > 0.05) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = B.down * hot; ctx.strokeStyle = '#9ff0ff'; ctx.lineWidth = 1.5; const rnd = mulberry(B.bar % 7 + 3); ctx.beginPath(); for (let i = 0; i < 4; i++) { let x = rnd() * W, y = 480 + rnd() * 220; ctx.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 70; y += (rnd() - 0.3) * 34; ctx.lineTo(x, y); } } ctx.stroke(); ctx.restore(); }
+  ctx.restore();
+  // ice pillars either side: crystal resonators that ring on the beat, roaring on the downbeat when it is loud
+  ctx.save(); ctx.translate(px * 0.6, py * 0.6);
+  const fire = Math.max(B.pulse * (0.25 + 0.75 * hot), F.drop * B.half);
+  for (const [x, s, y] of [[16, 1.05, 600], [W - 14, 1.1, 610], [52, 0.6, 560], [W - 50, 0.55, 556]]) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    if (fire > 0.1) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(0, -30, 4, 0, -30, 70); g.addColorStop(0, `rgba(160,236,255,${0.3 * fire})`); g.addColorStop(1, 'rgba(60,160,255,0)'); ctx.fillStyle = g; ctx.fillRect(-70, -100, 140, 140); ctx.restore(); }
+    blit(bakeSprite('frPillar', -30, -80, 60, 90, g => { drawCrystalCluster(1.9, 0.37, 0, 1); g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(6,20,48,.5)'; g.fillRect(-30, -80, 60, 90); }));
+    ctx.restore();
+  }
+  ctx.restore();
+  // snow on the frost wind, thicker with the song; on the drops, shards of ice fall
+  const ns = Math.round(30 + 50 * hot), dir = Math.sign(wind || 1);
+  ctx.fillStyle = `rgba(230,246,255,${0.4 + 0.2 * hot})`;
+  for (let i = 0; i < ns; i++) { const s = 1 + hash(i, 31, 3) * 1.8, x = (((hash(i, 31, 1) * (W + 100) + time * wind * (80 + 160 * hash(i, 31, 4))) % (W + 100)) + W + 100) % (W + 100) - 50, y = ((hash(i, 31, 2) * H + time * (30 + 50 * hash(i, 31, 5)) * (1 + hot)) % (H + 20)) - 10; ctx.fillRect(x, y, s, s); }
+  if (F.drop > 0.3) { ctx.fillStyle = 'rgba(200,240,255,.7)'; for (let i = 0; i < 10; i++) { const x = hash(i, B.bar, 1) * W, y = ((hash(i, 32, 2) * H + time * 500) % (H + 40)) - 20; ctx.beginPath(); ctx.moveTo(x - 2, y); ctx.lineTo(x + dir * 3, y + 14); ctx.lineTo(x + 2, y); ctx.fill(); } }
+  if (cold > 0.02) { ctx.fillStyle = `rgba(1,4,12,${0.4 * cold})`; fillView(); }
+  bgFlash('#7cc4f0', 0.08 * B.down * (0.3 + 0.7 * hot));
+  if (B.u < 0.1 && hot > 0.5) bloomBoost = Math.max(bloomBoost, 0.1 + 0.2 * hot * B.pulse);
+  bgStage();
+};
+
+// ---------- the intro, drawn ----------
+function fiTundra(t) {
+  const s = t - TF.cave, D = TF.deep - TF.cave, u = s / D, z = 1 + 0.12 * easeIO(u);
+  ctx.save(); ctx.translate(CX, 420); ctx.scale(z, z); ctx.translate(-CX - 20 + 40 * easeIO(u), -420);
+  const sky = ctx.createLinearGradient(0, 0, 0, 460); sky.addColorStop(0, '#01040d'); sky.addColorStop(0.6, '#0a2244'); sky.addColorStop(1, '#16406e'); ctx.fillStyle = sky; ctx.fillRect(-60, -60, W + 120, 520);
+  blit(bakeSprite('frStars', -20, -40, W + 40, 360, frStarsFn));
+  frostCurtains([['rgba(79,255,196,A)', 170, 30, 0.3, 0.9], ['rgba(42,216,255,A)', 210, 22, -0.2, 0.7]], clamp(s / 1.2, 0, 1), s);
+  blit(bakeSprite('frMount', -40, 260, W + 80, 140, frMountFn));
+  ctx.translate(0, 40);
+  const gg = ctx.createLinearGradient(0, 400, 0, H); gg.addColorStop(0, '#9cc4e6'); gg.addColorStop(0.15, '#4a78a8'); gg.addColorStop(1, '#081830'); ctx.fillStyle = gg; ctx.fillRect(-60, 400, W + 120, H);
+  ctx.fillStyle = 'rgba(220,240,255,.35)'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.ellipse(hash(i, 40, 1) * W, 440 + i * 50, 90 + hash(i, 40, 2) * 80, 8 + i * 2, 0, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  // blowing snow
+  ctx.fillStyle = 'rgba(240,250,255,.7)'; for (let i = 0; i < 90; i++) { const x = ((hash(i, 41, 1) * (W + 200) + s * (300 + 300 * hash(i, 41, 2))) % (W + 200)) - 100, y = (hash(i, 41, 3) * H + s * 40) % H, sz = 1 + hash(i, 41, 4) * 2; ctx.fillRect(x, y, sz * 2.5, sz); }
+  if (s < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - s})`; fillView(); }
+  cineCaption('THE NORTHERN SHELF  //  -52°C', s, 690, '#9ff0ff', 10, 0.8, D);
+}
+function fiDeep(t) {
+  const s = t - TF.deep, D = TF.impact - TF.deep, u = s / D;
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0e3a6e'); g.addColorStop(0.5, '#06203f'); g.addColorStop(1, '#010814'); ctx.fillStyle = g; fillView();
+  // strata of old ice scrolling up past the camera
+  for (let i = 0; i < 9; i++) { const y = ((i * 96 - s * (140 - 60 * u)) % (H + 96) + H + 96) % (H + 96) - 48; ctx.fillStyle = `rgba(120,190,240,${0.06 + 0.04 * (i % 3)})`; ctx.beginPath(); ctx.moveTo(-20, y); for (let x = -20; x <= W + 20; x += 30) ctx.lineTo(x, y + Math.sin(x * 0.03 + i) * 8); ctx.lineTo(W + 20, y + 22); ctx.lineTo(-20, y + 22); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(200,240,255,.18)'; ctx.lineWidth = 1; ctx.beginPath(); for (let x = -20; x <= W + 20; x += 30) ctx[x === -20 ? 'moveTo' : 'lineTo'](x, y + Math.sin(x * 0.03 + i) * 8); ctx.stroke(); }
+  // frozen bubbles drifting past
+  ctx.fillStyle = 'rgba(220,244,255,.5)'; for (let i = 0; i < 40; i++) { const x = hash(i, 42, 1) * W, y = ((hash(i, 42, 2) * H - s * (90 + 80 * hash(i, 42, 3))) % H + H) % H, r = 1 + hash(i, 42, 4) * 3; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+  // something huge far below, its core glowing up through the ice
+  const ly = 760 - 330 * easeIO(u), lr = 60 + 70 * easeIO(u);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const lg = ctx.createRadialGradient(CX, ly, 4, CX, ly, lr * 2.6); lg.addColorStop(0, `rgba(200,244,255,${0.35 + 0.3 * u})`); lg.addColorStop(0.4, 'rgba(60,140,240,.15)'); lg.addColorStop(1, 'rgba(20,60,160,0)'); ctx.fillStyle = lg; ctx.fillRect(CX - lr * 2.6, ly - lr * 2.6, lr * 5.2, lr * 5.2); ctx.restore();
+  ctx.fillStyle = 'rgba(3,10,26,.75)'; ctx.beginPath(); ctx.arc(CX, ly, lr, 0, TAU); ctx.fill();
+  ctx.strokeStyle = `rgba(160,220,255,${0.25 + 0.3 * u})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, ly, lr * 0.95, 0, TAU); ctx.stroke();
+  ctx.save(); ctx.translate(CX, ly); ctx.rotate(s * 0.2); frostStar(ctx, lr * 0.33, lr * 0.15); ctx.fillStyle = 'rgba(26,58,138,.9)'; ctx.fill(); ctx.strokeStyle = `rgba(160,220,255,${0.4 + 0.4 * u})`; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+  ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * u})`; ctx.beginPath(); ctx.arc(CX, ly, 3 + 5 * u, 0, TAU); ctx.fill();
+  if (s < 0.5) { ctx.fillStyle = `rgba(0,0,0,${1 - s / 0.5})`; fillView(); }
+  cineCaption('340 M DOWN  //  IT NEVER THAWED', s, 690, '#9ff0ff', 10, 0.8, D);
+}
+// the log seen through the sheet: each blow cracks the glass of ice between you and it
+function fiSheet(t, tg) {
+  const s = t - TF.impact, hits = t >= TF.c3 ? 4 : t >= TF.c2 ? 3 : t >= TF.c1 ? 2 : 1, last = [TF.impact, TF.c1, TF.c2, TF.c3][hits - 1], hs = t - last;
+  const z = [0.95, 1.1, 1.25, 1.4][hits - 1] + 0.05 * Math.exp(-hs * 5), cy = 330;
+  const g = ctx.createRadialGradient(CX, cy, 20, CX, cy, 520); g.addColorStop(0, '#16406e'); g.addColorStop(0.6, '#06203f'); g.addColorStop(1, '#010814'); ctx.fillStyle = g; fillView();
+  ctx.save(); ctx.translate(CX, cy); ctx.scale(z, z); ctx.rotate(s * 0.12);
+  drawFace(tg);
+  ctx.restore();
+  // the core flashing on each hit
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const fl = Math.exp(-hs * 4); const cg = ctx.createRadialGradient(CX, cy, 2, CX, cy, 160 * z); cg.addColorStop(0, `rgba(200,244,255,${0.25 + 0.5 * fl})`); cg.addColorStop(1, 'rgba(60,140,255,0)'); ctx.fillStyle = cg; ctx.fillRect(CX - 170 * z, cy - 170 * z, 340 * z, 340 * z); ctx.restore();
+  // the sheet of ice in front of the lens
+  ctx.fillStyle = `rgba(150,200,240,${0.42 - 0.08 * hits})`; fillView();
+  blit(bakeSprite('frSheet', -40, -40, W + 80, H + 80, g2 => { const rnd = mulberry(612); g2.strokeStyle = 'rgba(255,255,255,.12)'; g2.lineWidth = 1; for (let i = 0; i < 40; i++) { const x = rnd() * W, y = rnd() * H, b = rnd() * TAU; g2.beginPath(); g2.moveTo(x, y); g2.lineTo(x + Math.cos(b) * 30, y + Math.sin(b) * 30); g2.stroke(); } g2.fillStyle = 'rgba(255,255,255,.18)'; for (let i = 0; i < 60; i++) { g2.beginPath(); g2.arc(rnd() * W, rnd() * H, 0.5 + rnd() * 2, 0, TAU); g2.fill(); } }));
+  // the cracks, one more set per blow, the newest racing out from the core
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let k = 0; k < hits; k++) {
+    const grow = k === hits - 1 ? ease3(clamp(hs / 0.35, 0, 1)) : 1;
+    for (const c of fx.cr[k]) {
+      ctx.strokeStyle = 'rgba(10,40,90,.55)'; ctx.lineWidth = 3.4; strokePts(c.pts, grow);
+      ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.3; strokePts(c.pts, grow);
+      if (grow >= 1) { ctx.lineWidth = 0.9; for (const b of c.br) strokePts(b); }
+    }
+  }
+  if (hs < 0.25) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(160,220,255,${0.25 * (1 - hs / 0.25)})`; fillView(); ctx.restore(); }
+  if (t >= TF.c1) cineTitle('PERMAFROST', 'BREAK THE ICE  /  SHATTER THE FROZEN  /  STRIKE THE CORE', t - TF.c1 - 0.2, '#9ff0ff', '#2a78c4', 600);
+  else cineCaption('SOMETHING IS AWAKE', s, 690, '#dff4ff', 10, 0.5, TF.c1 - TF.impact);
+}
+// the live room as the log rises into the wind: dark at the edges, the wind spiralling in
+function fiRise(t, tg) {
+  const s = t - TF.c3, u = clamp(s / (TF.drop - TF.c3), 0, 1), T = tg.frost, r = R * T.s;
+  const g = ctx.createRadialGradient(CX, CY + T.oy, r * 0.6, CX, CY + T.oy, r + 220); g.addColorStop(0, 'rgba(1,4,12,0)'); g.addColorStop(0.45, `rgba(1,4,12,${0.75 * (1 - u * 0.6)})`); g.addColorStop(1, `rgba(1,4,12,${0.92 * (1 - u * 0.5)})`); ctx.fillStyle = g; fillView();
+  ctx.save(); ctx.lineCap = 'round';
+  for (let i = 0; i < 16; i++) { const a0 = hash(i, 50, 1) * TAU + s * (2 + 3 * u), rr = r + 20 + (1 - ((s * 0.6 + hash(i, 50, 2)) % 1)) * 260; ctx.strokeStyle = `rgba(220,244,255,${0.15 + 0.3 * u})`; ctx.lineWidth = 1 + 1.5 * hash(i, 50, 3); ctx.beginPath(); ctx.arc(CX, CY + T.oy, rr, a0, a0 + 0.5 + 0.4 * u); ctx.stroke(); }
+  ctx.restore();
+  if (s < 0.25) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(160,220,255,${0.3 * (1 - s / 0.25)})`; fillView(); ctx.restore(); }
+  text(u < 0.6 ? 'THE ICE GIVES' : 'IT RISES', CX, CY + R + 120, 12, '#9ff0ff', 'center', 700);
+}
+function drawFrostIntro(t) {
+  const tg = fx.tg, live = t >= TF.c3;
+  ctx.save();
+  if (!live) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= TF.cave && t < TF.deep) fiTundra(t);
+  else if (t >= TF.deep && t < TF.impact) fiDeep(t);
+  else if (t >= TF.impact && t < TF.c3) fiSheet(t, tg);
+  else if (live && t < TF.drop) fiRise(t, tg);
+  if (t >= TF.star && t < TF.cave + 0.4) drawIntroStar(t, TF.star, 'frost');
+  if (!live) {
+    blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); }));
+    drawGrain(0.1);
+  }
+  ctx.restore();
+  if (!live) cineSkipHint();
+}
+
 // ======================= WIRE CLUMP cinematic =======================
 // ======================= FEEL + VFX (build 48) =======================
 // Screen shake as trauma: shake (pixels, as the game has always set it) maps to trauma 0..1, and the offset is
@@ -10908,7 +12102,7 @@ function update(dt) {
   updateAbility(dt);
   lightIn = Math.max(0, lightIn - dt);                    // real time: boss intros freeze game time
   if (updateFx(dt)) return;                               // ability hit-stop freeze
-  dt *= tscale * ixSlow();
+  dt *= tscale * ixSlow() * frostSlow();
   if (state === 'impact') {
     impactT = Math.max(0, impactT - dt);
     const el = IMPACT_TOTAL - impactT;
@@ -10955,6 +12149,7 @@ function update(dt) {
     if (t.tire) updateTire(t, dt);
     if (t.nest) updateNest(t, dt);
     if (t.wire) updateWire(t, dt);
+    if (t.frost) updateFrost(t, dt);
     if (t.nestPending && state === 'play' && !fx) { t.nestPending = false; startNestIntro(t); }
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
@@ -10996,7 +12191,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   updatePieces(dt);
 }
@@ -11100,7 +12295,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide)) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone'))) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -11112,8 +12307,9 @@ function drawTarget() {
   if (t.tire) { ctx.translate(t.tire.ox, t.tire.oy); ctx.scale(t.tire.s, t.tire.s); }
   if (t.nest) { ctx.translate(t.nest.ox, t.nest.oy); ctx.scale(t.nest.s, t.nest.s); }
   if (t.wire) { ctx.translate(t.wire.ox, t.wire.oy); ctx.scale(t.wire.s, t.wire.s); }
+  if (t.frost) { ctx.translate(t.frost.ox, t.frost.oy); ctx.scale(t.frost.s, t.frost.s); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
-  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0) - (k.pen || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); ctx.restore(); }
+  for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0) - (k.pen || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); if (k.freeze !== undefined) drawFrozenCoat(k); ctx.restore(); }
   drawLogSide(t);
   ctx.save(); ctx.translate(plx.x * 0.45, 8 + plx.y * 0.45); ctx.scale(1.12, 1.12);
   blit(bakeSprite('logShadow', -R - 40, -R - 26, 2 * R + 80, 2 * R + 80, g => {
@@ -11262,7 +12458,7 @@ function drawHUD() {
     ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(x, ty, now ? 7.5 : 6, 0, TAU); ctx.fill();
     ctx.fillStyle = done ? '#ffd23f' : now ? '#ffffff' : '#38383f'; ctx.beginPath(); ctx.arc(x, ty, now ? 5.5 : 4, 0, TAU); ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 48, 11, bossName ? '#ff8a95' : 'rgba(255,255,255,.75)', 'center', 700);
   drawTypeMeter();
   comboPop = Math.max(0, comboPop - 0.06);
@@ -11277,9 +12473,9 @@ function drawHUD() {
     ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
   drawAbilFeed();
-  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD();
+  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire))) drawMagazine();
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost))) drawMagazine();
 }
 
 // the knife magazine: a slotted steel rack, lit knives still to throw, empty slots spent, the next one up highlighted
@@ -11747,6 +12943,7 @@ function drawScene() {
   if (tgt && tgt.tire) drawTireLoose(tgt);
   if (tgt && tgt.nest) drawNestFront(tgt);
   if (tgt && tgt.wire) drawWireFront(tgt);
+  if (tgt && tgt.frost) drawFrostFront(tgt);
   if (tgt && tgt.tank && !tgt.tank.hide) drawTankRobot(tgt);
   if (bossBgKey(tgt) === 'boss') drawTankFore();
   drawTankArrival();
@@ -11782,6 +12979,7 @@ function drawScene() {
   if (fx && fx.type === 'gearintro') drawGearIntro(fx.t);
   if (fx && fx.type === 'tireintro') drawTireIntro(fx.t);
   if (fx && fx.type === 'wireintro') drawWireIntro(fx.t);
+  if (fx && fx.type === 'frostintro') drawFrostIntro(fx.t);
   if (fx && fx.type === 'tiredeflate') drawTireDeflate(fx.t);
   if (fx && fx.type === 'nestintro') drawNestIntro(fx.t);
   if (fx && fx.type === 'abkill') drawAbKill(fx.t);
@@ -11805,6 +13003,7 @@ function drawScene() {
   drawFxp();
   if (abil.pauseT > 0 && (state === 'play' || state === 'fx')) drawBeeSwarm(KNIFE_Y);
   drawZap();
+  if (tgt && tgt.frost && state !== 'menu') drawFrostWeather(tgt);
 
   if (state !== 'menu') drawForeground();
   ctx.restore();
@@ -11812,7 +13011,7 @@ function drawScene() {
   if (ixq.length && state !== 'menu') drawIxTitles();
   if (sporeT > 0 && state !== 'menu') drawSporeHaze();
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -12329,11 +13528,12 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of five bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of five bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
-  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of five bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
-  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of five bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of five bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of six bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of six bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
+  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of six bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
+  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of six bosses, at random). THE ICE LAYER takes 15 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). A FROZEN SPECIES block may sit on the rim: break it to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry them. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin. The RAW LOG takes 15 more: AVALANCHE winds drop PARTIAL ICE (break it within 35s or the shell regrows) and BREAKAWAYS fire icicles (break them in the slow motion or freeze for 6s). Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
+  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of six bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of six bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -12361,6 +13561,7 @@ function demoFor(e) {
   if (e.type === 'blackout') { const D = t.f.dark; D.hold = 0; D.lvl = 1; D.lamps = [{ a: 0.2, w: 0.5, t: 0.6, dur: 1e9, seed: 1 }, { a: 2.9, w: 0.4, t: 0.6, dur: 1e9, seed: 2 }]; t.stuck = [{ a: 0.4 }, { a: 1.7 }, { a: 4.4 }]; }
   if (e.nest) { setupNest(t); t.nest.hide = false; t.stuck = [{ a: 0.4, inf: 1 }, { a: 2.6, inf: 1 }]; t.nest.breaches.push({ a: 4.4, spent: false, born: -9, seed: 3 }); }
   if (e.wire) { setupWire(t); const T = t.wire; T.hide = false; T.grounds = [{ a: 1.4, t: 0, life: 1e9, grow: 1, seed: 1 }]; T.cutters = [{ a: 3.7, t: 1.5, dur: 1e9, in: 1 }]; T.volt = 0.5; }
+  if (e.frost) { setupFrost(t); const T = t.frost; T.hide = false; t.stuck = [{ a: 0.5, freeze: 1, frozen: true }, { a: 2.5, freeze: 0.55 }]; T.arts = [{ kind: 'species', sp: 'tentacle', a: 4.3, hp: 2, max: 2, seed: 3, hitT: 0 }]; T.crystals = [{ a: 1.5, t: 3, life: 1e9, seed: 2, grown: true }]; T.wind = 0.7; }
   if (e.tire) { setupTire(t); t.tire.dents = [{ a: 1.2, life: 6, born: 0 }, { a: 3.0, life: 8, born: 0 }]; t.stuck = [{ a: 0.3 }, { a: 2.1 }, { a: 5.2 }]; }
   if (e.tanker) { setupTanker(t); t.tank.leaks = [{ a: 1, age: 9 }, { a: 3.6, age: 2 }]; t.tank.flood = 40; }
   return t;
@@ -12741,7 +13942,7 @@ function drawEncyScreen() {
 function drawDemoLog(t, x, y, s) {
   const saved = tgt; tgt = t;
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.translate(-CX, -CY);
-  drawTarget(); if (t.nest) drawNestFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
+  drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
   if (ENTRIES[ui.idx].apple) { ctx.save(); ctx.translate(CX, CY); ctx.scale(2.4, 2.4); drawApple(); ctx.restore(); }
   ctx.restore(); tgt = saved;
 }
@@ -12759,7 +13960,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 56', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 57', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -12954,6 +14155,7 @@ view.addEventListener('pointerdown', e => {
   if (fx && fx.type === 'tireintro') { skipTireIntro(); return; }
   if (fx && fx.type === 'nestintro') { skipNestIntro(); return; }
   if (fx && fx.type === 'wireintro') { skipWireIntro(); return; }
+  if (fx && fx.type === 'frostintro') { skipFrostIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -12962,7 +14164,7 @@ view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (e.p
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
   if (adminOpen) return;
-  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
@@ -13000,7 +14202,7 @@ function frame(now) {
 // ======================= ADMIN PANEL =======================
 // A gear button in the corner opens it (the game pauses): pick the next log type and the next boss, jump around, cheat.
 let adminOpen = false, adminNextType = null, adminNextBoss = null, adminGod = false;
-const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump']];
+const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost']];
 function syncAdmin() {
   const ty = document.getElementById('admType'), bo = document.getElementById('admBoss'), note = document.getElementById('admNote');
   if (!ty) return;
@@ -13014,7 +14216,7 @@ function adminJump(n) {
   flying = []; debris = []; parts = []; pieces = []; impactT = 0; gray = 0; frac = null; gridFrac = null; finale = false; stunT = 0; zapT = 0; lightIn = 0;
   if (lives <= 0) lives = MAX_LIVES;
   stage = n; setMusic('main'); newStage();
-  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
+  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
 }
 function setAdmin(open) {
   adminOpen = open; const pn = document.getElementById('adm');

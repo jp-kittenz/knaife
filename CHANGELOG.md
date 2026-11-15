@@ -2,6 +2,50 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 57
+- **New boss: PERMAFROST.** It joins the stage-5 roster, so there are now six bosses picked at random. It has its own track (assets/frost.mp3).
+- **Phase 1, THE ICE LAYER (15 hits):** a glowing sky-blue shell with a dark blue star core.
+  - **Frozen artifacts.** Every knife that sticks in the ice slowly freezes. Once frozen it counts as a FROZEN ARTIFACT (HUD meter under the HP bar).
+    - Shattering a frozen knife costs no heart, and chips 1 ice while the shell still has HP.
+    - The shell only breaks once its ice is gone and every artifact is shattered. With no ice left the surface goes BRITTLE and knives bounce off it.
+  - **Frozen species.** A big ice block may start on the rim (it is never spawned later). Two hits free a random species:
+    - Frozen Cicada: faster spin for 9s.
+    - Ancient Hornet: flies across your lane; hitting it stuns you for 2s.
+    - Wonder Butterfly: +1 heart and your next 3 hits count double.
+    - Glacier Lanternfly: thaws a stuck knife every 3s for 12s.
+    - Trapped Tentacles: they stay on the log.
+  - **Trapped tentacles.** When the spin points them at you, they reach for your knife.
+    - If they reach it, your next 3 knives are crystallized: glass knives do no damage, shatter on whatever they hit, and cost no heart.
+    - Throwing while they reach parries them. Three parries tear them off.
+  - **Crystallized ice.** A crack streak runs from the core to the rim and a crystal grows there, then melts after a while.
+    - A knife that touches a crystal costs no heart, but it is frozen into a new 3-hit artifact.
+  - **Frost wind.** It sets the direction and speed of the spin and never holds steady. Gusts bring a cold vignette and snow across the screen. A gauge on the right shows direction and strength.
+- **Phase 2, THE RAW LOG (15 hits):** the dark blue log under the shell.
+  - **Avalanche winds.** About every 25s: 4s of blowing snow and screen shake, and 1 or 2 patches of PARTIAL ICE (3 hits each, no HP cost).
+    - Break them within 35s, or the whole shell grows back with new artifacts (the knives already in the log are frozen in, and a new species block appears).
+    - The raw log keeps its HP.
+    - The spin eases slightly as a patch comes round to you.
+  - **Breakaways.** Every 4 hits a breakaway forms, 2 at most.
+    - When one faces you its cold aura glares and it fires an icicle.
+    - You get 1.5s of slow motion to knock the icicle out of the air. If it lands you lose a heart and your knife is frozen for 6s.
+- **Phase 3, THE CORE:** the log bursts, leaving a small light-blue core with a white heart.
+  - Ice spears grow in from every edge of the screen.
+  - You have 3s to hit the core once. If the spears reach it first, they shoot down the lane and the run is over.
+- **Intro, music-locked:**
+  - 0:01.2: the star.
+  - 0:02.4: the northern shelf under the aurora.
+  - 0:06.0: down through the ice to a glow far below.
+  - 0:09.6, 0:12.0, 0:14.4 and 0:16.8: the core flashes and the ice sheet cracks wider each time, with the title on the second blow.
+  - The sheet gives on the fourth, the log rises into the wind, and it lands on the drop at 0:19.2 with no cut.
+- **Background follows the song:** a glacier under the aurora.
+  - The curtains widen and brighten as the song builds, and the ice pillars ring on the beat.
+  - Snow runs with the frost wind, and on the drops shards of ice fall and cracks light up in the frozen lake.
+- **Cutscenes** for the shell breaking, the refreeze, the log bursting to the core, the core shattering, and the ice reaching you.
+- **Abilities.**
+  - One new interaction per knife: AVALANCHE BREAKER, SURVEY LINE, ICE SCULPT, COLD SNAP CIRCUIT and THAW.
+  - 30 boss set pieces per knife (150 in total).
+  - Encyclopedia entry with a live demo. Admin panel option.
+
 ## Build 56
 - **750 boss set pieces: every knife ability has 30 special interactions with every boss.**
 - **How they work:**
