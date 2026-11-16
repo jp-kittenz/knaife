@@ -428,9 +428,9 @@ const sfx = {
 
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3', bot: 'assets/bot.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3', bot: 'assets/bot.mp3', twin: 'assets/twin.mp3' };
 // bar-aligned loop points (seconds, as Chromium decodes the files): the intro plays once, then the body loops on a crossfaded seam
-const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [52.14, 240.47], bot: [31.977, 153.77] };
+const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [52.14, 240.47], bot: [31.977, 153.77], twin: [18.366, 269.795] };
 function loopSrc(src, name) { const L = LOOPS[name]; if (L && src.buffer && src.buffer.duration > L[1] - 0.02) { src.loopStart = L[0]; src.loopEnd = Math.min(L[1], src.buffer.duration); } }
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
@@ -510,6 +510,7 @@ function updateMusic(rdt) {
   else if (fx && fx.type === 'wireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'frostintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'botintro') { rate = 1; cut = 20000; vol = 0.66; }
+  else if (fx && fx.type === 'twinintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
@@ -734,10 +735,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : t.bot ? makeBotTexture(t) : makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : t.bot ? makeBotTexture(t) : t.twin ? makeTwinTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else if (t.bot) drawBotLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else if (t.bot) drawBotLive(t); else if (t.twin) drawTwinLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -913,7 +914,7 @@ function menuTarget() {
 }
 
 function newStage() {
-  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost', 'bot'][Math.floor(rand(7))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
+  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost', 'bot', 'twin'][Math.floor(rand(8))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
   let admType = null; if (adminNextType && stage % 5 !== 0) { admType = adminNextType; adminNextType = null; syncAdmin(); }
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
@@ -923,10 +924,10 @@ function newStage() {
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
   setHD(true);
-  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage), botB = boss && isBotStage(stage);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage), botB = boss && isBotStage(stage), twinB = boss && isTwinStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
-  const type = tanker || gearB || tireB || wireB || frostB || botB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB || tireB || wireB || frostB || botB || twinB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   if (hasPassive('birdheart') && !boss && type !== 'branches' && stage > 1 && Math.random() < 0.3) {   // a bonus perch on any other log
     const taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a), (tgt.f.kegs || []).map(k => k.a), (tgt.f.ice || []).map(i => i.a), tgt.f.treehole ? [tgt.f.treehole.a] : [], tgt.f.bushes.map(b => b.a), tgt.f.moss.map(m => m.a));
@@ -946,6 +947,7 @@ function newStage() {
   if (wireB) { setupWire(tgt); knivesTotal = knivesLeft = WIRE_HP; banner.t = 0; startWireIntro(tgt); }
   if (frostB) { setupFrost(tgt); knivesTotal = knivesLeft = FROST_ICE; banner.t = 0; startFrostIntro(tgt); }
   if (botB) { setupBot(tgt); knivesTotal = knivesLeft = botTotal(tgt.bot); banner.t = 0; startBotIntro(tgt); }
+  if (twinB) { setupTwin(tgt); knivesTotal = knivesLeft = TWIN_HP * 2; banner.t = 0; startTwinIntro(tgt); }
   if (nestB) {   // in disguise: a branched log with one beehive on it
     const F = tgt.f, taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a));
     const far = () => { let best = 0, bd = -1; for (let i = 0; i < 72; i++) { const a = i / 72 * TAU, d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } } taken.push(best); return best; };
@@ -1015,6 +1017,7 @@ function stepKnife(k) {
   if (t.wire && wireFlightHit(k, t)) return;
   if (t.frost && frostFlightHit(k, t)) return;
   if (t.bot && botFlightHit(k, t)) return;
+  if (t.twin && twinFlightHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -1145,6 +1148,7 @@ function clearStage() {
   if (t.wire) { if (!t.wire.dead) { t.wire.dead = true; startWireDeath(t); } return; }
   if (t.frost) { frostClear(t); return; }
   if (t.bot) { botClear(t); return; }
+  if (t.twin) { twinClear(t); return; }
   if (t.nestBait) { if (t.nestGo && !fx) { t.nestPending = false; startNestIntro(t); } return; }
   if (t.nest && !t.nest.queen) { startQueenRise(t); return; }
   if (t.nest && !t.nest.dead) { t.nest.dead = true; startNestDeath(t); return; }
@@ -1737,6 +1741,11 @@ function updateFx(rdt) {
     case 'botvine': updateBotVine(t); break;
     case 'botfree': updateBotFree(t); break;
     case 'botdeath': updateBotDeath(t); break;
+    case 'twinintro': updateTwinIntro(t); break;
+    case 'twinflight': updateTwinFlight(t); break;
+    case 'twinsplit': updateTwinSplit(t); break;
+    case 'twincharge': updateTwinCharge(t); break;
+    case 'twindeath': updateTwinDeath(t); break;
     case 'nestintro': updateNestIntro(t); break;
     case 'queenrise': updateQueenRise(t); break;
     case 'nestdeath': updateNestDeath(t); break;
@@ -2057,6 +2066,7 @@ function stickNormal(k, t) {
   if (t.wire && wireSurfaceHit(k, t, a)) return;
   if (t.frost && frostSurfaceHit(k, t, a)) return;
   if (t.bot && botSurfaceHit(k, t, a)) return;
+  if (t.twin && twinSurfaceHit(k, t, a)) return;
   if (F && F.mag && magPoleHit(k, t, a)) return;
   if (F && F.vines && F.vines.length && vineSnag(k, t, a)) return;
   if (F && F.stone && F.stone.length && stoneHit(k, t, a)) return;
@@ -2067,6 +2077,7 @@ function stickNormal(k, t) {
   if (t.wire) wireStuck(t, s, a);
   if (t.frost) frostStuck(t, s, a);
   if (t.bot) botStuck(t, s, a);
+  if (t.twin) twinStuck(t, s, a);
   if (F && F.ice && F.ice.length) iceStick(t, s, a);
   if (F && F.shrooms && F.shrooms.length) shroomStick(t, s, a);
   if (F && F.runes) runeStick(t, s, a);
@@ -5081,7 +5092,7 @@ function abilityMeetsLog(t, id, a) {
 let stunShield = 0, abilFeed = [];
 const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice', 'type:lodestone', 'type:bramble', 'type:fungal', 'type:runestone', 'type:spiralwood', 'type:resinwood', 'type:petrified', 'type:embercore', 'type:ringwood',
   'sub:swirl', 'sub:fire', 'sub:hive', 'sub:wire', 'sub:linked', 'bird:song', 'bird:crow', 'bird:pecker', 'bird:owl', 'apples', 'hidden',
-  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:bot', 'boss:classic'];
+  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:bot', 'boss:twin', 'boss:classic'];
 const KNIFE_COL = { strong: '#ffffff', marker: '#ff2e45', carve: '#f2cf94', chain: '#2ad8ff', cook: '#ffa04a' };
 function feed(txt, id) { abilFeed.push({ txt, col: KNIFE_COL[id] || '#ffffff', t: -abilFeed.filter(f => f.t < 0.3).length * 0.16 }); if (abilFeed.length > 7) abilFeed.shift(); }
 function updateFeed(dt) { for (const f of abilFeed) f.t += dt; abilFeed = abilFeed.filter(f => f.t < 2.6); }
@@ -5102,7 +5113,7 @@ function heal1() { if (lives < MAX_LIVES) { lives++; abil.pop['heart' + (lives -
 function boostAbility(n) { abil.boost = (abil.boost || 0) + n; }
 function interKeys(t) {
   const ks = [], F = t.f || {};
-  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost'); else if (t.bot) ks.push('boss:bot');
+  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost'); else if (t.bot) ks.push('boss:bot'); else if (t.twin) ks.push('boss:twin');
   else if (t.nest) { ks.push('boss:nest'); if (t.nest.queen) ks.push('boss:queen'); }
   else if (t.boss) ks.push('boss:classic');
   else if (t.type) ks.push('type:' + t.type);
@@ -5170,6 +5181,7 @@ const INTER = {
     'boss:wire': ['SHORT CIRCUIT', 'The blast dumps the charge: voltage drops to safe, frying knives cool, every ground wire is blown off, +1 hit.', c => { const T = c.t.wire; T.vp = 'safe'; T.vt = 0; T.grounds = []; T.arcs = []; for (const s of c.t.stuck) s.fry = 0; c.dmg(1); }],
     'boss:frost': ['AVALANCHE BREAKER', 'The blast shatters every frozen knife on the rim and every grown crystal; in the raw log it clears the partial ice and the breakaways. +1 hit.', c => { const T = c.t.frost; if (!T || T.layer === 'core') return; for (const s of c.t.stuck.filter(q => q.frozen)) { c.t.stuck.splice(c.t.stuck.indexOf(s), 1); const [x, y] = worldAt(c.t, s.a, R + 24); frostShatter(x, y, 16); } T.crystals = T.crystals.filter(k => !k.grown); T.partial = []; T.partialT = 0; T.breaks = []; c.dmg(1); }],
     'boss:bot': ['VINE BREAKER', 'The blow rips every tentacle off the lilies, splits the flytraps and staggers the swing. +1 hit.', c => { const B = c.t.bot; if (!B) return; for (const L of [B.lily, ...B.spec]) if (L) { L.tent = null; L.tentAt = 99; L.guard = 0; } B.obs = B.obs.filter(o => o.kind !== 'flytrap'); B.swW = 0.5; B.swT = 4; c.dmg(1); }],
+    'boss:twin': ['GRAVITY SLING', 'The blow carries down the pith thread: the other twin takes 1 as well.', c => { const T = c.t.twin; if (!T || T.solo) return; const L = T.L[1 - T.lastI]; if (L && !L.dead) twinDamage(c.t, L, 1, false); }],
     'boss:nest': ['SHOCKWAVE', 'Two wasps are blown out of the air and an infested patch is scoured clean.', c => { V.wasps(c, 2); c.t.nest.spots.sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a)).shift(); }],
     'boss:queen': ['ROYAL CRASH', 'The queen is knocked out of the air: dazed, and the next hit is x2.', c => V.daze(c)],
     'boss:classic': ['HEARTWOOD', 'The blow reaches the heartwood: +3 score.', c => c.score(3)],
@@ -5193,6 +5205,7 @@ const INTER = {
     'boss:wire': ['FAULT LINE', 'A new braid twists in where it hit, and any closing cutters are wound back open.', c => { const T = c.t.wire; T.braids.push({ a: c.a, w: 0.2 }); if (T.braids.length > 7) T.braids.shift(); T.cutters.forEach(q => q.t = 0); T.nextCut += 4; }],
     'boss:frost': ['SURVEY LINE', 'The frost wind is pinned down: it holds steady for 8s, and every crack streak is erased before a crystal grows.', c => { const T = c.t.frost; if (!T) return; T.windT = T.wind; T.windNext = Math.max(T.windNext, 8); T.gust = 0; T.crystals = T.crystals.filter(k => k.grown); T.crystalNext += 4; T.bst = 'idle'; T.burstNext = Math.max(T.burstNext, 10); }],
     'boss:bot': ['BOTANIST', 'The bud is identified and blooms at once, and every status on your knife is cleared.', c => { const B = c.t.bot; if (!B) return; if (B.lily && !B.lily.mature) { B.lily.t = B.lily.grow; B.lily.tent = null; } B.st.bloom = 0; B.st.splinter = 0; B.st.noKnife = 0; B.st.blind = 0; }],
+    'boss:twin': ['BARYCENTRE', 'The mark finds their centre of mass: the orbit stalls for 4s and their next move waits.', c => { const T = c.t.twin; if (!T) return; T.still = 4; T.moveNext += 4; if (T.move) { T.move = null; T.eclipse = 0; } }],
     'boss:nest': ['FLY SWATTER', 'The wasp nearest the mark is swatted, and the infested patch there is cleared.', c => { V.wasps(c, 1); const T = c.t.nest; T.spots = T.spots.filter(s => angDiff(s.a, c.a) > 0.5); }],
     'boss:queen': ['EXPOSED', 'The queen is marked: the next hit on the nest is x2.', c => { c.t.nest.exposed = true; }],
     'boss:classic': ['TRUE STRIKE', '+3 score.', c => c.score(3)],
@@ -5216,6 +5229,7 @@ const INTER = {
     'boss:wire': ['SPLICE', 'Stability +15 and the nearest snapped cable is spliced back, ending any blackout.', c => { const T = c.t.wire; T.stab = Math.min(100, T.stab + 15); const cb = T.cables.find(q => q.snapped); if (cb) cb.snapped = false; T.blackout = 0; }],
     'boss:frost': ['ICE SCULPT', 'The nearest frozen artifact is carved free: a frozen knife pops out, a crystal seal is cut open, or the species block is split on the spot.', c => { const T = c.t.frost; if (!T) return; const s = c.t.stuck.filter(q => q.frozen).sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a))[0]; if (s) { c.t.stuck.splice(c.t.stuck.indexOf(s), 1); const [x, y] = worldAt(c.t, s.a, R + 24); frostShatter(x, y, 20); return; } const q = T.arts.slice().sort((p, r) => angDiff(p.a, c.a) - angDiff(r.a, c.a))[0]; if (q) { T.arts.splice(T.arts.indexOf(q), 1); const [x, y] = worldAt(c.t, q.a, R + 16); frostShatter(x, y, 30); if (q.kind === 'species') frostRelease(c.t, q, x, y); } }],
     'boss:bot': ['GARDEN SHEARS', 'Roses, floral vines, poison ivy and nightshade are sheared off the rim.', c => { const B = c.t.bot; if (!B) return; B.roses = []; B.flora = []; B.obs = B.obs.filter(o => o.kind === 'flytrap'); }],
+    'boss:twin': ['TWIN CARVING', 'The stronger twin is whittled down by 1, and every branch, spiral and ring comes off both.', c => { const T = c.t.twin; if (!T) return; for (const L of T.L) { L.br = []; L.spiral = null; L.ring = null; } if (!T.solo && T.L.every(L => !L.dead)) { const L = T.L[0].hp >= T.L[1].hp ? T.L[0] : T.L[1]; twinDamage(c.t, L, 1, false); } }],
     'boss:nest': ['FLY SWATTERS', 'Two carved swatters knock two wasps out of orbit.', c => V.wasps(c, 2)],
     'boss:queen': ['WOODEN CROWN', 'The queen is distracted: her next move waits 6s longer.', c => { c.t.nest.queen.next += 6; }],
     'boss:classic': ['CHIP AWAY', '+2 score and a wooden knife.', c => { c.score(2); const [x, y] = worldAt(c.t, c.a, R); V.wood(c, x, y); }],
@@ -5239,6 +5253,7 @@ const INTER = {
     'boss:wire': ['GROUND FAULT', 'Your chain earths the clump: the voltage stays safe for 8s more and the knife still counts +1.', c => { const T = c.t.wire; T.vp = 'safe'; T.vt = -8; for (const s of c.t.stuck) s.fry = 0; c.dmg(1); }],
     'boss:frost': ['COLD SNAP CIRCUIT', 'The current runs through the ice: every knife still freezing cracks loose before it sets, and the tentacles are shocked limp for 6s. +1 hit.', c => { const T = c.t.frost; if (!T) return; for (const s of c.t.stuck.filter(q => q.freeze !== undefined && !q.frozen)) c.t.stuck.splice(c.t.stuck.indexOf(s), 1); if (T.tent) { T.tent.cd = Math.max(T.tent.cd, 6); if (T.tent.st === 'reach') { T.tent.st = 'recoil'; T.tent.t = 0; } } c.dmg(1); }],
     'boss:bot': ['ROOT SHOCK', 'The current runs down the roots: vine tentacles fried, spat knives dropped, the hollow shuts its eyes. +1 hit.', c => { const B = c.t.bot; if (!B) return; B.vtent = []; B.spits = []; B.st.noKnife = 0; if (B.hollow) B.hollow.eyeT = Math.floor(B.hollow.eyeT / 5.5) * 5.5 + 3.6; c.dmg(1); }],
+    'boss:twin': ['THREAD CURRENT', 'The charge runs down the pith thread: both twins take 1 and the link burns out.', c => { const T = c.t.twin; if (!T) return; for (const L of T.L) L.link = 0; if (T.solo) { c.dmg(1); return; } for (const L of T.L) if (!L.dead) twinDamage(c.t, L, 1, false); }],
     'boss:nest': ['ZAPPER', 'Half the orbiting wasps are fried.', c => V.wasps(c, Math.ceil(c.t.nest.wasps.length / 2))],
     'boss:queen': ['TASER', 'The queen is stunned out of the air: dazed, next hit x2.', c => V.daze(c)],
     'boss:classic': ['CONDUCTED', '+3 score.', c => c.score(3)],
@@ -5262,6 +5277,7 @@ const INTER = {
     'boss:wire': ['HOT WIRE', 'The insulation melts: every wire cutter drips off and the lights come straight back. +2 score.', c => { const T = c.t.wire; T.cutters = []; T.blackout = 0; c.score(2); }],
     'boss:frost': ['THAW', 'The heat bites: -3 ice (or -2 on the raw log), every crystal melts, the partial ice steams away and a glass knife turns back to steel.', c => { const T = c.t.frost; if (!T) return; if (T.layer === 'ice') T.iceHP = Math.max(0, T.iceHP - 3); else if (T.layer === 'raw') T.rawHP = Math.max(0, T.rawHP - 2); for (const k of T.crystals) k.t = Math.max(k.t, k.life); T.partial = []; T.partialT = 0; T.crystalKnives = Math.max(0, T.crystalKnives - 1); T.flashHP = 0.3; }],
     'boss:bot': ['COMPOST', 'The heat brings back 40% sanity, and the surprise and electric lilies wither on the stem.', c => { const B = c.t.bot; if (!B) return; botSanity(B, 40); B.spec = B.spec.filter(L => LILIES[L.kind].good); }],
+    'boss:twin': ['TWIN STEW', '+1 heart (or +3 score), and their next move waits 5s.', c => { const T = c.t.twin; if (!heal1()) c.score(3); if (T) T.moveNext += 5; }],
     'boss:nest': ['HONEY TRAP', 'Three wasps leave to eat.', c => V.wasps(c, 3)],
     'boss:queen': ['ROYAL BANQUET', 'The queen stops to feast: her next move waits 8s.', c => { c.t.nest.queen.next += 8; }],
     'boss:classic': ['FEAST', '+1 heart, or +3 score if your hearts are full.', c => { if (!heal1()) c.score(3); }],
@@ -5291,7 +5307,7 @@ function entryKeys(e) {
   if (e.cat === 'LOG TYPE') return ['type:' + e.type];
   if (e.sub === 'bird') return ['bird:' + (e.kind || 'song')];
   if (e.cat === 'BRANCH') return e.sub === 'plain' ? ['type:branches'] : ['sub:' + e.sub];
-  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.bot) return ['boss:bot']; if (e.nest) return ['boss:nest', 'boss:queen'];
+  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.bot) return ['boss:bot']; if (e.twin) return ['boss:twin']; if (e.nest) return ['boss:nest', 'boss:queen'];
   if (e.boss !== undefined) return ['boss:classic'];
   if (e.name === 'APPLES') return ['apples']; if (e.hidden) return ['hidden'];
   return [];
@@ -5308,7 +5324,7 @@ function interCount(id) { return INTER_KEYS.filter(k => interText(id, k)).length
 // ones you have never seen first), each with its own title slamming in where it happens. Finds are remembered.
 const BIX = {}, BIX_IDS = ['strong', 'marker', 'carve', 'chain', 'cook'];
 let bixFound = load('knaife.bix', {});
-const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : t.bot ? 'bot' : null;
+const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : t.bot ? 'bot' : t.twin ? 'twin' : null;
 const bixCount = (b, id) => BIX[b] ? BIX[b][id].length : 0;
 const bixFoundN = (b, id) => BIX[b] ? BIX[b][id].filter((_, i) => bixFound[b + ':' + id + ':' + i]).length : 0;
 function bixCtx(t, id, a, c0) {
@@ -5360,7 +5376,7 @@ function bossSetPieces(t, id, a, c0) {
 }
 // encyclopedia: how many set pieces this knife has on this boss, and the ones you have found
 function bixLines(e, id) {
-  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.bot ? 'bot' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
+  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.bot ? 'bot' : e.twin ? 'twin' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
   const found = BIX[b][id].map((x, i) => bixFound[b + ':' + id + ':' + i] ? x[0] : null).filter(Boolean);
   return [{ text: bixCount(b, id) + ' BOSS SET PIECES  /  ' + found.length + ' FOUND', size: 6, col: KNIFE_COL[id] || '#ffd23f' }].concat(found.slice(-3).map(n => ({ text: '- ' + n, size: 6, col: '#c3c3ca' })));
 }
@@ -6238,7 +6254,7 @@ const IX_SFX = {
   'type:bark': () => sfx.barkBreak(), 'type:treehole': () => sfx.gulp(), 'type:saw': () => sfx.sawKick(), 'type:blackout': () => sfx.breaker(), 'type:tnt': () => sfx.kegBoom(), 'type:ice': () => sfx.iceBreak(), 'type:lodestone': () => sfx.magPulse(), 'type:bramble': () => sfx.rustle(), 'type:fungal': () => sfx.sporeBurst(), 'type:runestone': () => sfx.runeHit(), 'type:spiralwood': () => sfx.spiralShift(), 'type:resinwood': () => sfx.resinCrack(), 'type:petrified': () => sfx.stoneHit(), 'type:embercore': () => sfx.flare(), 'type:ringwood': () => sfx.ringRise(),
   'sub:swirl': () => sfx.boing(), 'sub:fire': () => sfx.whoosh(), 'sub:hive': () => sfx.bees(), 'sub:wire': () => sfx.zap(0.5), 'sub:linked': () => sfx.chain(),
   'bird:song': () => sfx.tweet(), 'bird:crow': () => sfx.caw(), 'bird:pecker': () => sfx.peck(), 'bird:owl': () => sfx.hoot(), 'apples': () => sfx.apple(), 'hidden': () => sfx.reveal(),
-  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:bot': () => { sfx.woodSplit(); sfx.rustle(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
+  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:bot': () => { sfx.woodSplit(); sfx.rustle(); }, 'boss:twin': () => { sfx.flare(); sfx.woodSplit(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
 };
 const SIG_SFX = { strong: () => sfx.subDrop(), marker: () => sfx.markerOn(), carve: () => sfx.carve(), chain: () => sfx.zap(0.35), cook: () => sfx.sizzle() };
 function updateIx(rdt) {
@@ -6294,6 +6310,7 @@ const IX_DRAW = {
   'boss:wire'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 9; i++) { const a = i / 9 * TAU + e.seed, L = 30 + ease3(Math.min(1, u * 1.8)) * 170; zapBolt(e.x, e.y, e.x + Math.cos(a) * L, e.y + Math.sin(a) * L, i + Math.floor(u * 14), { amp: 18, w: 1.3 - u, forks: 2 }); } zapRing(e.x, e.y, 20 + u * 60, 1 - u, e.seed); ctx.globalAlpha = 1; },
   'boss:frost'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + e.seed, d = 14 + ease3(Math.min(1, u * 1.6)) * 150, x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d; ctx.save(); ctx.translate(x, y); ctx.rotate(a + HALF); ctx.fillStyle = i % 2 ? '#dff4ff' : '#9ff0ff'; ctx.beginPath(); ctx.moveTo(-4, 6); ctx.lineTo(0, -12); ctx.lineTo(4, 6); ctx.closePath(); ctx.fill(); ctx.restore(); } ctx.strokeStyle = '#9ff0ff'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 80, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:bot'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + e.seed, d = 12 + ease3(Math.min(1, u * 1.6)) * 140; ctx.save(); ctx.translate(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d); ctx.rotate(a + u * 4); ctx.fillStyle = i % 3 ? '#ff2e45' : '#2f9a1f'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.5, 0, 0, TAU); ctx.fill(); ctx.restore(); } ctx.strokeStyle = '#2f9a1f'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 80, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
+  'boss:twin'(e, u) { ctx.globalAlpha = 1 - u * u; for (let k = 0; k < 2; k++) { const a = u * 6 + k * Math.PI + e.seed, d = 10 + ease3(Math.min(1, u * 1.4)) * 60; ctx.fillStyle = TWIN_COL[k]; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 9 * (1 - u * 0.5), 0, TAU); ctx.fill(); } ctx.strokeStyle = '#fde7b0'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 90, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:tire'(e, u) { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#08080a'; for (const sd of [-1, 1]) for (let i = 0; i < 10; i++) { const x = e.x - 160 + ease3(u) * 320 * (i / 10), y = e.y + sd * 26 + i * 3; ctx.fillRect(x, y, 16, 8); } ctx.fillStyle = '#5c5c66'; for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(e.x - 120 + i * 34, e.y - u * 40 - (i % 2) * 10, 8 + u * 22, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; },
   'boss:nest'(e, u) { for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + e.seed, r = 20 + ease3(u) * 160; ctx.globalAlpha = 1 - u; drawHornet(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, 0.9, a, time + i); } ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 4; for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4, r = 60 + 40 * u; const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r, s = 10 * Math.min(1, u * 4); ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); ctx.stroke(); } ctx.globalAlpha = 1; },
   'boss:queen'(e, u) { const fall = ease3(Math.min(1, u * 1.6)) * 70, cr = u > 0.6; ctx.save(); ctx.translate(e.x, e.y - 90 + fall); ctx.globalAlpha = 1 - Math.max(0, u - 0.7) / 0.3; ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(-30, 14); ctx.lineTo(-30, -10); ctx.lineTo(-15, 4); ctx.lineTo(0, -18); ctx.lineTo(15, 4); ctx.lineTo(30, -10); ctx.lineTo(30, 14); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(0, 4, 5, 0, TAU); ctx.fill(); if (cr) { ctx.strokeStyle = '#08080a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-4, -16); ctx.lineTo(3, -2); ctx.lineTo(-5, 6); ctx.lineTo(2, 14); ctx.stroke(); } ctx.restore(); ctx.globalAlpha = 1; },
@@ -6723,7 +6740,174 @@ BIX.bot = {
     G_('pin', 'cook'), G_('clean', 'cook'), G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'),
   ],
 };
-const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost || t.bot));
+// ---------- TWIN LOGS: 30 situations ----------
+const TWX = {
+  logs: c => c.T.L.filter(L => !L.dead),
+  pos: L => [L.x, L.y],
+  both(c, n) { if (c.T.solo) { c.hit(n); return; } for (const L of TWX.logs(c)) { twinDamage(c.t, L, n, false); burst(L.x, L.y, 16, ['#ffffff', TWIN_COL[L.i]], 300, 20, 2.4, 0.4); } },
+  strong(c, n) { if (c.T.solo) { c.hit(n); return; } const al = TWX.logs(c); if (al.length < 2) return; const L = al[0].hp >= al[1].hp ? al[0] : al[1]; twinDamage(c.t, L, n, false); floater('THE STRONGER TWIN  -' + n, L.x, L.y - TL_R - 20, TWIN_COL[L.i]); },
+  calm(c) { const T = c.T; if (T.move) { T.move = null; T.eclipse = 0; } T.moveNext = Math.max(T.moveNext, 4); },
+  still(c, s) { c.T.still = Math.max(c.T.still || 0, s); },
+  later(c, s) { c.T.moveNext += s; },
+  quiet(c, s) { for (const L of TWX.logs(c)) L.abNext += s; },
+  branches(c) { let n = 0; for (const L of TWX.logs(c)) for (const b of L.br) if (b.alive) { b.alive = false; n++; const w = L.rot + b.a; burst(L.x + Math.cos(w) * (TL_R + 14), L.y + Math.sin(w) * (TL_R + 14), 10, ['#c48a52', '#9fe06a'], 260, 20, 2.2, 0.4); } return n; },
+  unspiral(c) { for (const L of TWX.logs(c)) L.spiral = null; },
+  unring(c) { for (const L of TWX.logs(c)) if (L.ring) { L.ring = null; burst(L.x, L.y, 16, ['#ffd23f', '#c48a52'], 300, 20, 2.4, 0.4); } },
+  unlink(c) { for (const L of c.T.L) L.link = 0; },
+  knock(c, n) { let k = 0; for (const L of TWX.logs(c)) for (let j = 0; j < n && L.stuck.length; j++) { const s = L.stuck.splice(Math.floor(rand(L.stuck.length)), 1)[0], w = L.rot + s.a; debris.push({ kind: 'knife', x: L.x + Math.cos(w) * TL_R, y: L.y + Math.sin(w) * TL_R, vx: Math.cos(w) * 500, vy: Math.sin(w) * 500 - 300, rot: w - HALF, vr: rand(-20, 20) }); k++; } return k; },
+  turn(c) { if (!c.T.solo) { c.T.turn = 1 - c.T.turn; floater('THE TURN FLIPS', CX, CY + TL_OY + 30, '#ffd23f'); } },
+  stuckN: c => TWX.logs(c).reduce((s, L) => s + L.stuck.length, 0) + (c.T.solo ? c.t.stuck.length : 0),
+};
+const twAt = i => c => { const L = c.T.L[i]; return L && !L.dead ? [L.x, L.y] : null; }, twOrb = c => twinOrbitC(c.T);
+const twDuo = c => !c.T.solo && c.T.L.every(L => !L.dead), twMove = k => c => twDuo(c) && c.T.move && c.T.move.k === k && c.T.move.on;
+BIX.twin = {
+  sit: [
+    ['FULL ORBIT', c => twDuo(c) && c.T.L.every(L => L.hp >= 15), twOrb], ['MIDLIFE', c => twDuo(c) && twinSum(c.T) < 30 && twinSum(c.T) >= 14, twOrb], ['ONE LAST LOG', c => c.T.solo],
+    ['CASTOR\'S TURN', c => twDuo(c) && twinTarget(c.T) === 0, twAt(0)], ['POLLUX\'S TURN', c => twDuo(c) && twinTarget(c.T) === 1, twAt(1)],
+    ['IN BALANCE', c => twDuo(c) && twinDiff(c.T) === 0, twOrb], ['STRAINED', c => twDuo(c) && twinDiff(c.T) >= 4, twOrb], ['BREAKING POINT', c => twDuo(c) && twinDiff(c.T) >= TWIN_GAP, twOrb],
+    ['REVERSE', c => twDuo(c) && (twMove('reverse')(c) || c.T.flip > 0), twOrb], ['SWAP', twMove('swap'), twOrb], ['ECLIPSE', c => twDuo(c) && c.T.eclipse > 0.3, twOrb], ['WHIRL', twMove('whirl'), twOrb], ['PERIASTRON', twMove('plunge'), twOrb], ['SYZYGY', c => twDuo(c) && c.T.aligned > 0.5, twOrb],
+    ['BRANCHES', c => c.T.L.some(L => !L.dead && L.br.some(b => b.alive))], ['SPIRALWOOD', c => c.T.L.some(L => !L.dead && L.spiral)], ['RINGWOOD', c => c.T.L.some(L => !L.dead && L.ring)], ['PITH LINK', c => c.T.L.some(L => L.link > 0)],
+    ['CROWDED', c => TWX.stuckN(c) >= 8], ['BARE WOOD', c => TWX.stuckN(c) === 0], ['THE WEAKER TWIN', c => twDuo(c) && Math.min(c.T.L[0].hp, c.T.L[1].hp) <= 5], ['CRACKING', c => c.T.L.some(L => !L.dead && L.cracks.length >= 10)],
+    ['MIRROR TWINS', c => twDuo(c) && c.T.L[0].hp === c.T.L[1].hp && c.T.L[0].hp <= 12], ['CROSSFIRE', c => c.T.darts.length > 0],
+    ['FINAL WORDS', c => c.T.solo && knivesLeft <= 3], ['LAST HEART', c => lives === 1], ['FULL HEALTH', c => lives >= MAX_LIVES], ['STUNNED', c => stunT > 0], ['APPLE STASH', c => apples >= 3], ['PINCUSHION', c => c.T.solo && c.n() >= 3],
+  ],
+  strong: [
+    ['DOUBLE IMPACT', 'Full orbit: both twins take 1.', c => TWX.both(c, 1)],
+    ['GRAVITY ASSIST', 'Midlife: the orbit stalls for 3s.', c => TWX.still(c, 3)],
+    ['HAYMAKER', 'One last log: +1 damage.', c => c.hit(1)],
+    ['CASTOR CRUSH', 'Castor\'s turn: both twins take 1.', c => TWX.both(c, 1)],
+    ['POLLUX CRUSH', 'Pollux\'s turn: both twins take 1.', c => TWX.both(c, 1)],
+    ['EVEN BLOW', 'In balance: both twins take 1.', c => TWX.both(c, 1)],
+    ['TIP THE SCALE', 'Strained: the stronger twin takes 1.', c => TWX.strong(c, 1)],
+    ['COUNTERWEIGHT', 'Breaking point: the stronger twin takes 2.', c => TWX.strong(c, 2)],
+    ['BRAKE', 'Reverse: the orbit stalls for 2s.', c => { TWX.calm(c); TWX.still(c, 2); }],
+    ['INTERCEPT', 'Swap: the swap is knocked out of them.', c => TWX.calm(c)],
+    ['SUNBREAKER', 'Eclipse: the eclipse is broken, the stronger twin takes 1.', c => { TWX.calm(c); TWX.strong(c, 1); }],
+    ['DERAIL', 'Whirl: the whirl dies and the orbit stalls 2s.', c => { TWX.calm(c); TWX.still(c, 2); }],
+    ['PUSHBACK', 'Periastron: they are shoved back out.', c => TWX.calm(c)],
+    ['THROUGH AND THROUGH', 'Syzygy: the knife goes through the front twin into the back one: both take 1.', c => TWX.both(c, 1)],
+    ['TIMBER', 'Every branch is torn off, +1 score each.', c => c.pts(TWX.branches(c))],
+    ['UNWOUND', 'The spiral tracks seize and vanish.', c => TWX.unspiral(c)],
+    ['FLATTENED', 'The raised rings are hammered down.', c => TWX.unring(c)],
+    ['SEVERED', 'The pith link is cut.', c => TWX.unlink(c)],
+    ['SHAKE LOOSE', 'Crowded: 2 knives are blasted out of each twin.', c => TWX.knock(c, 2)],
+    ['CLEAN SWEEP', 'Bare wood: 2 ability charge.', c => c.charge(2)],
+    ['MERCY', 'The weaker twin\'s twin takes 1, closing the gap.', c => TWX.strong(c, 1)],
+    ['SPLIT WIDE', 'Cracking: both twins take 1.', c => TWX.both(c, 1)],
+    ['MIRROR BREAK', 'Mirror twins: both take 1.', c => TWX.both(c, 1)],
+    ['CROSSFIRE', 'Another knife in the air: +2 score.', c => c.pts(2)],
+    G_('last', 'strong'), G_('heart', 'strong'), G_('full', 'strong'), G_('stun', 'strong'), G_('apples', 'strong'), G_('pin', 'strong'),
+  ],
+  marker: [
+    ['SURVEYED', 'Full orbit: their next move waits 5s.', c => TWX.later(c, 5)],
+    ['PLOTTED', 'Midlife: the orbit stalls for 3s.', c => TWX.still(c, 3)],
+    ['DEAD CENTRE', 'One last log: +1 damage.', c => c.hit(1)],
+    ['MARK CASTOR', 'Castor\'s turn: both twins take 1.', c => TWX.both(c, 1)],
+    ['MARK POLLUX', 'Pollux\'s turn: both twins take 1.', c => TWX.both(c, 1)],
+    ['LEVEL', 'In balance: +3 score.', c => c.pts(3)],
+    ['PLUMB LINE', 'Strained: the stronger twin takes 1.', c => TWX.strong(c, 1)],
+    ['TRUE NORTH', 'Breaking point: the stronger twin takes 2.', c => TWX.strong(c, 2)],
+    ['READ THE SPIN', 'Reverse: the orbit stalls 2s.', c => TWX.still(c, 2)],
+    ['WATCHED', 'Swap: the turn flips back.', c => { TWX.turn(c); TWX.calm(c); }],
+    ['TRANSIT', 'Eclipse: the eclipse ends and their next move waits 4s.', c => { TWX.calm(c); TWX.later(c, 4); }],
+    ['TRACKED', 'Whirl: it winds down at once.', c => TWX.calm(c)],
+    ['APSIS', 'Periastron: the plunge is called off.', c => TWX.calm(c)],
+    ['ALIGNMENT', 'Syzygy: both take 1.', c => TWX.both(c, 1)],
+    ['PRUNED', 'Every branch snaps off.', c => TWX.branches(c)],
+    ['TRACKS LOCKED', 'The spiral tracks stop for good.', c => TWX.unspiral(c)],
+    ['LEVELLED', 'The rings sink back.', c => TWX.unring(c)],
+    ['UNLINKED', 'The pith link fades.', c => TWX.unlink(c)],
+    ['TALLY', 'Crowded: +1 score per 2 knives.', c => c.pts(Math.floor(TWX.stuckN(c) / 2))],
+    ['CLEAN SLATE', 'Bare wood: 2 ability charge.', c => c.charge(2)],
+    ['HANDICAP', 'The weaker twin\'s twin takes 1.', c => TWX.strong(c, 1)],
+    ['FAULT MAP', 'Cracking: both take 1.', c => TWX.both(c, 1)],
+    ['DOUBLE TAKE', 'Mirror twins: +4 score.', c => c.pts(4)],
+    ['SPOTTER', 'Another knife in the air: 1 ability charge.', c => c.charge(1)],
+    G_('last', 'marker'), G_('heart', 'marker'), G_('full', 'marker'), G_('stun', 'marker'), G_('apples', 'marker'), G_('pin', 'marker'),
+  ],
+  carve: [
+    ['MATCHED PAIR', 'Full orbit: both take 1.', c => TWX.both(c, 1)],
+    ['WHITTLE DOWN', 'Midlife: +1 apple, 1 ability charge.', c => { c.apple(1); c.charge(1); }],
+    ['LAST CARVING', 'One last log: +1 damage and a wooden knife.', c => { c.hit(1); c.wood(); }],
+    ['CASTOR CARVED', 'Castor\'s turn: a wooden knife.', c => c.wood()],
+    ['POLLUX CARVED', 'Pollux\'s turn: a wooden knife.', c => c.wood()],
+    ['BOOKMATCHED', 'In balance: both take 1.', c => TWX.both(c, 1)],
+    ['SHAVINGS', 'Strained: the stronger twin is planed down by 1.', c => TWX.strong(c, 1)],
+    ['RESHAPED', 'Breaking point: the stronger twin is planed down by 2.', c => TWX.strong(c, 2)],
+    ['WEDGE', 'Reverse: a wedge jams the orbit for 2s.', c => TWX.still(c, 2)],
+    ['DOVETAIL', 'Swap: they lock in place, the swap fails.', c => TWX.calm(c)],
+    ['SUNDIAL', 'Eclipse: carved into a sundial, +2 score.', c => { TWX.calm(c); c.pts(2); }],
+    ['SPINDLE', 'Whirl: turned on the lathe, +2 score.', c => c.pts(2)],
+    ['SHIM', 'Periastron: shimmed back to a circle.', c => TWX.calm(c)],
+    ['INLAY', 'Syzygy: both take 1.', c => TWX.both(c, 1)],
+    ['WHITTLED', 'The branches become a wooden knife.', c => { if (TWX.branches(c)) c.wood(); }],
+    ['PLANED FLAT', 'The spiral tracks are planed away.', c => TWX.unspiral(c)],
+    ['RINGS PINNED', 'The rings are pinned down.', c => TWX.unring(c)],
+    ['SEVERANCE', 'The pith link is carved through.', c => TWX.unlink(c)],
+    ['KNIFE RACK', 'Crowded: +1 apple per 3 knives.', c => c.apple(Math.floor(TWX.stuckN(c) / 3))],
+    ['BLANK', 'Bare wood: +1 apple and 1 ability charge.', c => { c.apple(1); c.charge(1); }],
+    ['EVEN CUT', 'The weaker twin\'s twin is cut down by 1.', c => TWX.strong(c, 1)],
+    ['GRAIN SPLIT', 'Cracking: both take 1.', c => TWX.both(c, 1)],
+    ['TWIN TOTEMS', 'Mirror twins: two wooden knives.', c => { c.wood(); c.wood(); }],
+    ['WOODCHIPS', 'Another knife in the air: +1 apple.', c => c.apple(1)],
+    G_('last', 'carve'), G_('heart', 'carve'), G_('full', 'carve'), G_('stun', 'carve'), G_('apples', 'carve'), G_('pin', 'carve'),
+  ],
+  chain: [
+    ['BINARY CURRENT', 'Full orbit: the arc jumps between them, both take 1.', c => TWX.both(c, 1)],
+    ['STATIC FIELD', 'Midlife: their next move waits 4s.', c => TWX.later(c, 4)],
+    ['GROUNDED', 'One last log: +1 damage.', c => c.hit(1)],
+    ['CASTOR SHOCKED', 'Castor\'s turn: both take 1 through the thread.', c => TWX.both(c, 1)],
+    ['POLLUX SHOCKED', 'Pollux\'s turn: both take 1 through the thread.', c => TWX.both(c, 1)],
+    ['CLOSED CIRCUIT', 'In balance: both take 1.', c => TWX.both(c, 1)],
+    ['SURGE', 'Strained: the stronger twin takes 1.', c => TWX.strong(c, 1)],
+    ['OVERLOAD', 'Breaking point: the stronger twin takes 2.', c => TWX.strong(c, 2)],
+    ['STALL', 'Reverse: the motor stalls 2s.', c => TWX.still(c, 2)],
+    ['SHORT', 'Swap: shorted out mid-swap.', c => TWX.calm(c)],
+    ['BLACKOUT', 'Eclipse: the corona shorts out.', c => TWX.calm(c)],
+    ['BRAKING FIELD', 'Whirl: braked to a stop for 2s.', c => { TWX.calm(c); TWX.still(c, 2); }],
+    ['REPULSION', 'Periastron: repelled back out.', c => TWX.calm(c)],
+    ['CONDUCTOR', 'Syzygy: both take 1.', c => TWX.both(c, 1)],
+    ['SCORCHED', 'The branches burn off.', c => TWX.branches(c)],
+    ['CURRENT SHIFT', 'The spiral tracks burn out, +1 score.', c => { TWX.unspiral(c); c.pts(1); }],
+    ['RING SURGE', 'The rings blow off.', c => TWX.unring(c)],
+    ['FEEDBACK', 'The pith link overloads: both take 1 and it fades.', c => { TWX.both(c, 1); TWX.unlink(c); }],
+    ['CHAIN GANG', 'Crowded: 1 knife blasted out of each twin.', c => TWX.knock(c, 1)],
+    ['STATIC', 'Bare wood: +2 score, 1 ability charge.', c => { c.pts(2); c.charge(1); }],
+    ['EQUALISER', 'The weaker twin\'s twin takes 1.', c => TWX.strong(c, 1)],
+    ['ARC THROUGH', 'Cracking: both take 1.', c => TWX.both(c, 1)],
+    ['PARALLEL', 'Mirror twins: both take 1.', c => TWX.both(c, 1)],
+    ['SPARK GAP', 'Another knife in the air: +2 score.', c => c.pts(2)],
+    G_('last', 'chain'), G_('heart', 'chain'), G_('full', 'chain'), G_('stun', 'chain'), G_('apples', 'chain'), G_('pin', 'chain'),
+  ],
+  cook: [
+    ['TWIN GRILL', 'Full orbit: both take 1.', c => TWX.both(c, 1)],
+    ['SLOW ROAST', 'Midlife: the orbit stalls 3s.', c => TWX.still(c, 3)],
+    ['LAST SUPPER', 'One last log: +1 damage.', c => c.hit(1)],
+    ['CASTOR TOAST', 'Castor\'s turn: +2 score.', c => c.pts(2)],
+    ['POLLUX TOAST', 'Pollux\'s turn: +2 score.', c => c.pts(2)],
+    ['BALANCED DIET', 'In balance: +1 heart, or +3 score.', c => c.heart()],
+    ['SIMMER', 'Strained: the stronger twin is cooked down by 1.', c => TWX.strong(c, 1)],
+    ['BOIL OVER', 'Breaking point: the stronger twin is cooked down by 2.', c => TWX.strong(c, 2)],
+    ['STIR', 'Reverse: +2 score.', c => c.pts(2)],
+    ['FLIP', 'Swap: the turn flips back.', c => { TWX.turn(c); TWX.calm(c); }],
+    ['SOLAR COOKER', 'Eclipse: the corona cooks them both for 1.', c => { TWX.both(c, 1); TWX.calm(c); }],
+    ['SPIN DRY', 'Whirl: +3 score.', c => c.pts(3)],
+    ['BROIL', 'Periastron: cooked as they swoop, both take 1.', c => TWX.both(c, 1)],
+    ['DOUBLE BOILER', 'Syzygy: both take 1.', c => TWX.both(c, 1)],
+    ['KINDLING', 'The branches go in the fire, +1 apple.', c => { TWX.branches(c); c.apple(1); }],
+    ['SWISS ROLL', 'The spiral tracks are eaten, +2 score.', c => { TWX.unspiral(c); c.pts(2); }],
+    ['LAYER CAKE', 'The rings are served, 2 ability charge.', c => { TWX.unring(c); c.charge(2); }],
+    ['FONDUE', 'The pith link melts.', c => TWX.unlink(c)],
+    ['SKEWERS', 'Crowded: 1 knife out of each twin, +1 apple.', c => { TWX.knock(c, 1); c.apple(1); }],
+    ['CLEAN PLATE', 'Bare wood: 2 ability charge.', c => c.charge(2)],
+    ['PORTION CONTROL', 'The weaker twin\'s twin is cooked by 1.', c => TWX.strong(c, 1)],
+    ['CRACKLING', 'Cracking: both take 1.', c => TWX.both(c, 1)],
+    ['TWO COURSES', 'Mirror twins: +1 heart, or +3 score.', c => c.heart()],
+    ['ROTISSERIE', 'Another knife in the air: +1 apple.', c => c.apple(1)],
+    G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'), G_('pin', 'cook'),
+  ],
+};
+const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost || t.bot || t.twin));
 let appleCase = null;
 function caseBanner(id, c, extra) {
   let sub = extra || CASE_SUB[c];
@@ -7550,7 +7734,7 @@ function drawTypeAmbience4(t) {
 
 // ======================= BEAT CLOCK + BOSS BACKGROUNDS =======================
 // Measured from the tracks: tempo, and where the first downbeat sits (seconds into the file).
-const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 198.8, down: 0.2303 }, bot: { bpm: 120.2, down: 0.03 }, main: { bpm: 120, down: 0 } };
+const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 198.8, down: 0.2303 }, bot: { bpm: 120.2, down: 0.03 }, twin: { bpm: 105.0, down: 0.0804 }, main: { bpm: 120, down: 0 } };
 // playback position of a track, advanced on the audio clock so the beat never drifts
 function trackPos(tr, dA) {
   if (tr.pos === undefined) tr.pos = 0;
@@ -7580,13 +7764,14 @@ function bossBgKey(t) {
   if (t && t.wire && fx && fx.type === 'wireintro' && fx.t >= TW.out) return 'wire';
   if (t && t.frost && fx && fx.type === 'frostintro' && fx.t >= TF.live) return 'frost';
   if (t && t.bot && fx && fx.type === 'botintro' && fx.t >= TB.live) return 'bot';
+  if (t && t.twin && fx && fx.type === 'twinintro' && fx.t >= TWN.live) return 'twin';
   if (t && t.nest && fx && fx.type === 'nestintro' && fx.t >= NM.macro + TN.down) return 'nest';
   if (t && t.tire && fx && fx.type === 'tireintro' && fx.t >= TT.air) return 'tire';
   if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
   if (t && t.tank && fx && fx.type === 'tankintro' && fx.t > TI.top - 0.3) return 'boss';
   if (!t || introCovering()) return null;
   if (t.tank && !t.tank.hide) return 'boss'; if (t.gear && !t.gear.hide) return 'gear'; if (t.tire && !t.tire.hide) return 'tire';
-  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost'; if (t.bot && !t.bot.hide) return 'bot';
+  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost'; if (t.bot && !t.bot.hide) return 'bot'; if (t.twin && !t.twin.hide) return 'twin';
   return null;
 }
 const BG = {};
@@ -7735,6 +7920,7 @@ MUSIC_MAP.queen = {"e":"vxytvwytyuwuvvvvyyxwxxxxxyzxyyyxxyxxxxxxxxzxwww","b":"sr
 MUSIC_MAP.wire = {"e":"ca988rqlhd89jrrjfb979jlhecaadsqkijiejtrnmjhknsrlkljgipommhhqquurpsvyztqnmoqtuvyzzwrnmmosuvtsstvzxutuwtttqqqsstvzyzxxtia7454nprtsooprtwvutsqpquwvustuvutttvvvtsts","b":"10110111011011111101111110111r1a1rqbqn19lnppan191qmb1n19n44tspmvuyuyumnssyuznpmutyuzupnrrxuyopkrtwvyurmnryvznpkuuzvzvq22144xvqmpqtsrunoomottlnppqttrtpknosqsoqmx","h":"12111223121dd223121113231227qn8gsmljlk7ijlkkkjcf9jok9nagplcosplqsouptoioqpsoymjpqqtnuolloqsnynjnrqtounosqprpsnkqsqsptl984j9qyozprsuzpnsmkpyztmultntzqqsmsrvzxpxp"};
 MUSIC_MAP.frost = {"e":"111222112223232232243224635844446689a9a9bbchrkllllkklklllklklllllkklljjkkjjijiighhfghggfghhhikjkkkklmmmonegerrrrrrqqqrqsqqqrrrssqrrrqrqssrrswwwwvvuustsqqrqsrssrrqtwsoompqtrwvwvwvwvwvwwwwwqwvwvwvwwwwwwvsqpwvvvvvvvvvvvwvurxxxwwwyyrnmoogknwvvvwvwvwwwwwwvqwvwvwwwwwwwwsmorwvwvvvtqvvvvvwxvxxwwwxyxvvuvuzuttstrtrtrtqtrsqtrsstrtrtrtruststrwvvvutsqqnnllkjilkkllmorvxwwljiryztzyzytpwusvztsuxtzyzyuuwuuwypvxzuzxzyusvutxzutvuwzzvzvvxyynkmryzsyyxyywwsqotvwuysyzzywuxuuuxpuztxwzvzzytxrvqyyyuwzywzxyxxuhjlrhbed977bdacc8549b7ab7549c8bc987cc9cc857bd8cb856cb9cc979ddaefecbmsrrstrtttrsqrsrrrtqstqprssrrlnntxxwxvvttsrqpqoopqrrrrruvooonqquuwwwwwwwxxxxwwwwvwwxwxwxxxxxxxxtxwwwwwwxxxxxxwvwwxxyxxwxxwxxvmoputxxwxxxxxxxwwwwwxxxxxwxxxxxxyytxwwwxwxwxxxxwwvwxyxwwwwwxwxwvqputvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvpvvvvvvvvvvvvvvvv","b":"00000000000000000000000000011111122233333344ufffffeffeffefedddddddedeeddddccdcbbcbabbbcbddeedfghhijllnnnr455nnoopqqqopproopoonopnoppoppoqmloqppnnnnnmmoooqonpmkigemqndcdebkdsstsstttutuuvuurustsustutttrstjirrssttttstusutssvvutuuyvqedsscbrsrssttttutuuuuvstststtuuutuuuqqsvqrrrrtrtsvsusquvustttvwqprqqrpqorpqosprorrrrrrrqrprpsqqorprqppopononoomnkkjigecca988bdhstuso45tyrmzzzzuvsopxzntuomzzzzvwlttqzkuzqmzzxzutqpqzyqqvrzyyszsgprtsecuztqtrlxvvsprppltvsptsrzxusrttslwzqtwyqzwvuustqsqqjmytluooihro56tr9976654334322132186321b737532153142100320311002217642174297431qututvuyswssqvrsqttrrvsrpvrrqm76noqoplmmmkjiggecbdddeedomgccecbkqqrqrqrqrqrqrqrqrqrssrrrrqrqqqpotqpppppqpqpqpopppqqwvqooqustthacsppqpqrpqqrsrpqoqqrrqqrqqqqprpqnorqroppqqrpqpoooptqomommqonnsdhkpqqrqsssrsrssrsqqrrstrsrrqtsssrqrsqqqsrsrssstssr","h":"1114321121121321212631124315311132233334767bna77898898779979797a887a8888879aa8779868a86797798779a87b9a77745dofceeegbhhccdchhgefinllmmhkmnpqrnonmpnpoqnpopopopqtutywrgjkyozrtpmrlqnqmqmomomomqmomrmrmqmpmhspoplpnqnrlsornqnkqprrsrosqghlofnqlpmqlqlqnqmpmqmompmqmqnpmpmpmniimonpmpkhmsoqonzqqpqpqqqsrmtnskrpoimhmfngngmgmgmhphmjngnhmhnimkoivqpoooporrsuvrtsttsqtstvvwxzu99anoqjlgrilksynpqspwukkgrilrtrrrsqslsmlgrilntyztqzqtotmpnpnssqo8hcnlrnomqrmjtojpvqmuzplnqplprlqkzpyrorrpjqlrxsoulqwtutpopotqrqm88ena975543422311123213110242243478a4341112522412136423121242242759nce7j9m9g8e6c8gbbbkadccflefghccinnponkklllnmooqpqotvwyyyuimxzzztzxsvrttsswswruuuqxpxpxrvswruqvrztvwurwqvovstqsturxywruuzwyzvrikoryssqyutrvrwptqwqvovqvpwsvpvsuqosuutvvvxuuuttssrrttsuzwtrvvzrzzvztqutvswtxuxrxsusvtxrwrtqwtxrussrvqwsxqxqvrsrwsw"};
 MUSIC_MAP.bot = {"e":"jgiadabdlgdeie99qmkgzshhpkhkqnihtmidwojenjeknjdfwrjetnnmnkgmooprrprwxvnvqrrrvrqstsktxsjxprquwnpvymdoqlfossrrtsrptsouzrppttnqvrqzyvmuwnjvrqponnpurrqxuspxttposoqwtwnzysuvstnnqlouwsouxtzwttorquwutsnuqpsutrqloirurrssxrstqrqzuszsqrntzpvrqoyxtfwpqotwoqsurmtzottqpsutlblnkhuvncpmhhppkhrqjbsslblnjhnmhcvug8upohomggpm","b":"oan8d64mrb8kk85emcncngerod9puj7ominslblmcb8qcb7nnfrolhmlca8qch7tjhtzluzwoyyywwstlwwvrwmzjzwyyxxzlaankg9uvxxyxxyzxyxutquxzyysyxyzyzyxvmbwtxtvuwvwxururmqxutpvxxwxuwuwxuvxxutsvrxqrssurowqvxqxvvqnttsywqxttssnwisnwxtsprwkwtsvvswmvtrxruxtwxzjthwjxxwxxsswwxtwixvwszuxp6nclinlh7qd9qosa6ojobufmgkgcqpdabri98njf9ldacod","h":"728h14dj8fghafgm77af9bcjgkjmigfi97ig48mhh7haf8hc27ig52hhobobiamgukuiskuiznvukussvkozhtrkylqmguwt47igd9cd3121111111141116743123a125c1229jynkltmijykkoymiiylkwgvxjwmltrklzlljzmmiykkryjejhkkzkulozmkylwxkzmkhzklgwlkruligymkulwnmyokykswizmqjwlsiyotlgvtpwipsccjkgbi9h71547f1abj9kbng8ig587i428i4gcggfag11122213522327"};
+MUSIC_MAP.twin = {"e":"3676a89dkkighghhkhjhefggjookmiggltsrutvqutrpsuvrsqrssuursttttvwuuwusxttswutqvtuuusqqurttwrtrvusutlnklmomorusrlnnpijkijlkmlrqonnlgabedefiswwxwxywvxwxxyxyzxuvwwxwyyuwwwwwta77d9a7c8b7a888b8cbd9e9d9caeacbgdeegdfcfgfceegfhigedefejca8dbbdltuvwvtqvtsputsrtqqssqurssursuwstvtsrrtuvtrswtutwttttstvvqtqustsm9aad979ozwywzxxxuwxxyxzxwuwuwwxzywwvwxvuzxtusuvtsuxzzzwsttzzvxvtusuvtwvqfggfddhhegefdddc9bedefkswvywyvwxywyywxyyzvwxvwwwvvwwxvvrrprsxwwwwxyzxzzzzwxvxyxyywzwyyxtssrttsrsrqsusus","b":"2222455efiddhhdheadgdfhfghffkjhgqlpcxllfnoodpkqenkrelklejwrjonrjvtrprspmqqusrknlpnmnklkossposwotrmlhlionujmgphlhpccfcfcdzcjhnehga256388aqprpzrypuqvqxsznppsptrwpoonmnmqqw2223422343444334323433342223233h3839283g3929293m4436455a64456bevrqkujogrpsejkmelljanjhbskkcqmlhsxunqptptnmrvtruutnrppstrnpnsklom2234569psnsuzstznrvyptrvononrntonomsomnsihhjinmjijprptpmnmippqmolnmrmnlkefgcecchciefcdda255677dpklqorsqwvttzqqpplnlppmnklmmmrmqvfifsnuqvpvuzvzrztoqotzrqorutnzppqnnnnqqnnnrxztu","h":"12212235999daacevo85444997555459iijhmnloojkiilmknijhklpmohmlnnmpjtztvwutsttrwpwtvsxurtxtvwuuuwvtz987788eh887699cg997899di897g99c8222689cmsyuyszrzxyuyxxsuvwvvuzstuzuwuxxtk726221443254314431444143435443d2726252c2727282db53232242123349kjnhlllmkhmkkmlllilikmnljkkkkmooktvwtrvwzvvpswtvutwuxsxvstttwutvw9a8968eluxzvyzsvtzsztysztvyuxwuvywrwsupymnjmlmkjlihljljimkjmlliijkhlmjgh66666676766667b7222878cmuvuwwvusxutvtxyyvvuxqxtuwvwuuysxeeelvzrtuwtuwyrvuwxyszrwuxzxwussyysstwtutuwvuuv"};
 const musicDec = {};
 function musicArr(name) {
   let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
@@ -13231,6 +13417,934 @@ function drawBotIntro(t) {
   if (!live) cineSkipHint();
 }
 
+// ======================= BOSS: TWIN LOGS (CASTOR & POLLUX) =======================
+// Two logs in a binary orbit, like a pair of neutron stars, with an eclipse burning behind them. You hit them by
+// turns: this throw homes in on one, the next on the other. Their piths are bound by a thread: let their HP drift
+// more than 6 apart and the stronger one charges you. They weaponise the orbit (reverse, swap places, eclipse each
+// other, whirl, plunge at you) and grow branches, spiral tracks, raised rings and pith links of their own. When one
+// dies, the other takes the centre and is just an ordinary log.
+const TWIN_HP = 20, TWIN_GAP = 6, TL_R = 54, TL_D = 112, TL_OY = 52, TL_KS = 0.6, TL_PROT = (KL - EMBED) * TL_KS, TL_DART = 2700, TL_BR = 30;
+const TWIN_COL = ['#ffb347', '#7fd4ff'], TWIN_RGB = ['255,179,71', '127,212,255'], TWIN_NAME = ['CASTOR', 'POLLUX'];
+const TWIN_PAL = { name: 'TWIN LOGS', style: 'twin', bark: '#8a5a2e', barkHi: '#c48a52', barkLo: '#3a200c', sap: '#ffe2a0', heart: '#6a3a14', ring: 'rgba(160,110,40,.35)', ray: 'rgba(255,255,255,.08)', light: '#fde7b0', dark: '#8a5a2e', knot: '#4a2a10' };
+const TWIN_MOVES = { reverse: 'REVERSE', swap: 'SWAP', eclipse: 'ECLIPSE', whirl: 'WHIRL', plunge: 'PLUNGE' };
+const TWIN_ABIL = { branches: 'BRANCHES', spiral: 'SPIRALWOOD', ring: 'RINGWOOD', link: 'PITH LINK' };
+const isTwinStage = n => isFirstBossSlot(n) && firstBoss === 'twin';
+const twinBusy = () => !!(fx && /^twin(intro|split|charge|death)/.test(fx.type));
+function setupTwin(t) {
+  const mk = i => ({ i, x: CX, y: CY, rot: rand(TAU), spin: (i ? -1 : 1) * 1.45, sp: 0, hp: TWIN_HP, stuck: [], br: [], ring: null, spiral: null, link: 0,
+    hit: 0, jolt: 0, flashHP: 0, cracks: [], sc: 1, depth: 0, dead: false, abNext: 8 + i * 5 + rand(2), flipNext: rand(9, 14), seed: 11 + i * 37, glare: 0 });
+  t.twin = { hide: true, dead: false, solo: false, ox: 0, oy: 0, s: 1, L: [mk(0), mk(1)], turn: 0, darts: [], lastI: 0, lastK: undefined,
+    ang: -0.35, dir: 1, dirS: 1, w: 0.85, wMul: 1, D: TL_D, ex: 1, ey: 1, cyo: 0, move: null, moveNext: 7, last: '', warn: 0, flip: 0,
+    introR: null, introW: null, still: 0, strain: 0, snapT: 0, pulse: 0, eclipse: 0, aligned: 0, soloT: 0, msg: '', msgT: 0, hits: 0 };
+  t.pal = TWIN_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pat = () => 0;
+  twinPlace(t.twin);
+}
+const twinAlive = T => T.L.filter(L => !L.dead);
+const twinSum = T => T.L.reduce((s, L) => s + (L.dead ? 0 : L.hp), 0);
+const twinDiff = T => Math.abs(T.L[0].hp - T.L[1].hp);
+const twinOrbitC = T => [CX, CY + (TL_OY + T.cyo) * (T.oyK === undefined ? 1 : T.oyK)];
+// ---------- the orbit ----------
+function twinPlace(T) {
+  const [cx, cy] = twinOrbitC(T), D = T.introR !== null ? T.introR : T.D;
+  const M = T.move;
+  for (const L of T.L) {
+    if (L.dead) continue;
+    const a = T.ang + L.i * Math.PI;
+    L.x = cx + Math.cos(a) * D * T.ex; L.y = cy + Math.sin(a) * D * T.ey; L.sc = 1; L.depth = 0;
+  }
+  if (M && M.k === 'swap' && M.on) {
+    // they trade places through the barycentre, one passing in front of the other
+    const e = ease3(clamp(M.u, 0, 1)), arc = Math.sin(e * Math.PI);
+    for (const L of T.L) { const [x0, y0] = M.from[L.i], [x1, y1] = M.from[1 - L.i], front = L.i === M.front; L.x = x0 + (x1 - x0) * e + (front ? 1 : -1) * arc * 26 * -Math.sin(M.axis); L.y = y0 + (y1 - y0) * e + (front ? 1 : -1) * arc * 26 * Math.cos(M.axis); L.sc = 1 + (front ? 0.2 : -0.24) * arc; L.depth = (front ? 1 : -1) * arc; }
+  }
+}
+function twinStartMove(t, k) {
+  const T = t.twin; T.move = { k, t: 0, u: 0, on: false, warn: k === 'reverse' ? 0.55 : 0.85 }; T.last = k; T.warn = 1;
+  const say = { reverse: 'THE ORBIT REVERSES', swap: 'THEY SWAP PLACES', eclipse: 'ECLIPSE: ONE SHIELDS THE OTHER', whirl: 'THEY WHIRL', plunge: 'PERIASTRON: THEY PLUNGE' }[k];
+  T.msg = say; T.msgT = 2.2; sfx.voltRise ? sfx.voltRise() : sfx.riser(); floater(say, CX, CY + TL_OY - 4, '#ff5a4a');
+}
+function twinPickMove(t) {
+  const T = t.twin, left = twinSum(T) / (TWIN_HP * 2), opts = ['reverse', 'reverse', 'swap', 'eclipse', 'whirl', 'plunge'];
+  if (left < 0.6) opts.push('swap', 'whirl', 'eclipse');
+  const pool = opts.filter(k => k !== T.last);
+  return pool[Math.floor(rand(pool.length))];
+}
+function twinUpdateMove(t, dt) {
+  const T = t.twin, M = T.move;
+  let wWant = 1, exW = 1, eyW = 1, cyW = 0;
+  if (T.still > 0) { T.still -= dt; wWant = 0; }
+  if (M) {
+    M.t += dt;
+    if (!M.on && M.t >= M.warn) {
+      M.on = true; M.t0 = M.t; shake = Math.max(shake, 6); kick(0.08, 0.03, 0.7, 0.3);
+      if (M.k === 'reverse') { T.dir *= -1; T.flip = 1; sfx.ratchet ? sfx.ratchet() : sfx.thunk(); sfx.whoosh(); pfxRing(CX, CY + TL_OY, '#ff5a4a', 220, 0.35); }
+      if (M.k === 'swap') { M.from = T.L.map(L => [L.x, L.y]); M.front = T.L[0].hp >= T.L[1].hp ? 0 : 1; M.axis = Math.atan2(T.L[1].y - T.L[0].y, T.L[1].x - T.L[0].x); M.u = 0; sfx.whoosh(); sfx.riser(); }
+      if (M.k === 'eclipse') { M.g = T.L[0].hp !== T.L[1].hp ? (T.L[0].hp > T.L[1].hp ? 0 : 1) : 1 - T.turn; M.want = HALF - M.g * Math.PI; sfx.flare(); }
+      if (M.k === 'whirl') { sfx.whoosh(); sfx.voltRise ? sfx.voltRise() : sfx.riser(); }
+      if (M.k === 'plunge') { sfx.subDrop(); sfx.whoosh(); }
+    }
+    if (M.on) {
+      const s = M.t - M.t0;
+      if (M.k === 'reverse' && s > 0.4) T.move = null;
+      if (M.k === 'swap') {
+        M.u = s / 0.85;
+        if (M.u >= 1) { T.ang += Math.PI; T.turn = 1 - T.turn; T.move = null; shake = Math.max(shake, 10); sfx.thunk(); floater('THE TURN IS SWAPPED', CX, CY + TL_OY + 30, '#ffd23f'); for (const L of T.L) if (!L.dead) burst(L.x, L.y, 14, ['#ffffff', TWIN_COL[L.i]], 260, 20, 2.4, 0.4); }
+      }
+      if (M.k === 'eclipse') {
+        const hold = s < 3.0, d = normA(M.want - T.ang + Math.PI) - Math.PI;
+        if (hold) { T.ang += d * Math.min(1, dt * 7); T.eclipse = Math.min(1, T.eclipse + dt * 3); wWant = 0; } else T.move = null;
+      }
+      if (M.k === 'whirl') { wWant = 3.1; if (s > 2.6) T.move = null; }
+      if (M.k === 'plunge') { exW = 0.8; eyW = 1.22; cyW = 8; if (s > 4.2) T.move = null; }
+    }
+  }
+  if (!M || M.k !== 'eclipse') T.eclipse = Math.max(0, T.eclipse - dt * 2);
+  T.wMul += (wWant - T.wMul) * Math.min(1, dt * (wWant > T.wMul ? 3 : 2));
+  T.ex += (exW - T.ex) * Math.min(1, dt * 2.5); T.ey += (eyW - T.ey) * Math.min(1, dt * 2.5); T.cyo += (cyW - T.cyo) * Math.min(1, dt * 2.5);
+  T.dirS += (T.dir - T.dirS) * Math.min(1, dt * 12);
+  if (!(T.move && T.move.k === 'swap' && T.move.on)) T.ang += T.w * T.wMul * T.dirS * dt * (1 + 0.12 * (1 - twinSum(T) / 40));
+  T.warn = Math.max(0, T.warn - dt * 1.4); T.flip = Math.max(0, T.flip - dt * 2);
+}
+// ---------- the logs' own abilities ----------
+function twinFree(L, gap = 0.34) {
+  const taken = L.stuck.map(s => s.a).concat(L.br.filter(b => b.alive).map(b => b.a));
+  let best = null, bd = -1;
+  for (let i = 0; i < 30; i++) { const a = rand(TAU), d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } }
+  return bd >= gap ? best : null;
+}
+function twinAbility(t, L) {
+  const T = t.twin, opts = ['branches', 'branches', 'spiral', 'ring', 'link'].filter(k => !(k === 'spiral' && L.spiral) && !(k === 'ring' && L.ring) && !(k === 'link' && (L.link > 0 || twinAlive(T).length < 2)) && !(k === 'branches' && L.br.filter(b => b.alive).length >= 3));
+  if (!opts.length) return;
+  const k = opts[Math.floor(rand(opts.length))];
+  if (k === 'branches') { let n = 0; for (let j = 0; j < 2; j++) { const a = twinFree(L); if (a !== null && L.br.filter(b => b.alive).length < 3) { L.br.push({ a, alive: true, grow: 0, seed: rand(99), leaf: Math.random() < 0.6 }); n++; } } if (n) { sfx.rustle(); twinSay(T, TWIN_NAME[L.i] + ' SPROUTS BRANCHES', TWIN_COL[L.i]); } }
+  if (k === 'spiral') { L.spiral = { t: 0, life: 18, hits: 0, every: 2, off: rand(TAU), glow: 0 }; sfx.spiralShift(); twinSay(T, TWIN_NAME[L.i] + ' TURNS TO SPIRALWOOD', '#c4a8ff'); }
+  if (k === 'ring') { L.ring = { t: 0, life: 7.5, rise: 0, rot: rand(TAU), sp: -L.spin * 0.8, gaps: [0, Math.PI] }; sfx.ringRise(); twinSay(T, TWIN_NAME[L.i] + ' RAISES A RING: AIM FOR THE GAPS', '#ffd23f'); }
+  if (k === 'link') { for (const M of T.L) M.link = 9; sfx.runeOn ? sfx.runeOn() : sfx.zap(0.5); twinSay(T, 'PITH LINK: EVERY HIT LANDS ON BOTH', '#ffffff'); }
+}
+function twinSay(T, m, col) { T.msg = m; T.msgT = 2.4; floater(m, CX, CY + TL_OY + R + 70, col); }
+function twinSpiralShift(t, L) {
+  const S = L.spiral; S.glow = 1; S.dirs = [0, 1, 2].map(i => (i % 2 ? -1 : 1) * (Math.random() < 0.5 ? -1 : 1) * rand(0.45, 0.9));
+  for (const s of L.stuck) { const k = Math.floor(normA(s.a - S.off) / (TAU / 3)) % 3; s.slide = { from: s.a, to: s.a + S.dirs[k], u: 0 }; }
+  sfx.spiralShift(); shake = Math.max(shake, 6); floater('THE SPIRAL SHIFTS', L.x, L.y - TL_R - 24, '#c4a8ff');
+}
+function twinUpdateLog(t, L, dt) {
+  const T = t.twin;
+  L.hit = Math.max(0, L.hit - dt * 6); L.jolt = Math.max(0, L.jolt - dt * 4); L.flashHP = Math.max(0, L.flashHP - dt); L.glare = Math.max(0, L.glare - dt);
+  L.flipNext -= dt; if (L.flipNext <= 0) { L.flipNext = rand(8, 13); L.spin = -L.spin; L.flipT = 0.5; }
+  const sp = L.spin * (1 + 0.35 * Math.sin(time * 0.7 + L.i * 2.1)) * (1 + 0.25 * (1 - twinSum(T) / 40));
+  L.sp += (sp - L.sp) * Math.min(1, dt * 3); L.rot += L.sp * dt;
+  for (const s of L.stuck) { if (s.wob) s.wob *= Math.exp(-dt * 4); if (s.pen) { s.penV = (s.penV || 0) + (-1100 * s.pen - 24 * (s.penV || 0)) * dt; s.pen += s.penV * dt; if (Math.abs(s.pen) < 0.05 && Math.abs(s.penV) < 2) s.pen = 0; } if (s.slide) { s.slide.u = Math.min(1, s.slide.u + dt * 2.2); s.a = s.slide.from + (s.slide.to - s.slide.from) * ease3(s.slide.u); if (s.slide.u >= 1) { s.a = normA(s.a); s.slide = null; } } if (s.ghost) s.ghost = Math.max(0.001, s.ghost - dt * 0.4); }
+  for (const b of L.br) b.grow = Math.min(1, b.grow + dt * 3);
+  L.br = L.br.filter(b => b.alive);
+  if (L.spiral) { L.spiral.t += dt; L.spiral.glow = Math.max(0, L.spiral.glow - dt * 1.5); if (L.spiral.t > L.spiral.life) L.spiral = null; }
+  if (L.ring) { const G = L.ring; G.t += dt; G.rot += G.sp * dt; G.rise = G.t < 0.4 ? G.t / 0.4 : G.t > G.life - 0.4 ? Math.max(0, (G.life - G.t) / 0.4) : 1; if (G.t > G.life) { L.ring = null; sfx.ringSink(); } }
+  L.link = Math.max(0, L.link - dt);
+  if (state === 'play' && !T.move) { L.abNext -= dt; if (L.abNext <= 0) { L.abNext = rand(9, 14) * (0.75 + 0.25 * twinSum(T) / 40); twinAbility(t, L); } }
+}
+// ---------- whose turn ----------
+function twinTarget(T) { const al = twinAlive(T); if (al.length === 1) return al[0].i; return T.L[T.turn].dead ? 1 - T.turn : T.turn; }
+// ---------- the throw: the knife homes in on the log whose turn it is ----------
+function twinFlightHit(k, t) {
+  const T = t.twin; if (!T || T.hide || T.solo || T.dead || k.slicing) return false;
+  k.done = true; if (!k.wood) knivesLeft++;   // the HP is kept in T
+  const i = twinTarget(T), ab = k.ability ? abId(k) : k.ab || null;
+  T.darts.push({ x: CX, y: k.y, h: -HALF, i, ab, abil: !!k.ability, wood: !!k.wood, dist: 0, trail: [], col: TWIN_COL[i] });
+  if (twinAlive(T).length === 2) T.turn = 1 - i;
+  if (k.ability) { fx = { type: 'twinflight', t: 0, freeze: 0 }; state = 'fx'; }
+  return true;
+}
+function twinDarts(t, dt) {
+  const T = t.twin;
+  for (const d of T.darts) {
+    let move = TL_DART * dt * (d.abil ? 0.55 : 1);
+    while (move > 0 && !d.done) { const st = Math.min(7, move); move -= st; twinDartStep(t, d, st); }
+    d.trail.push([d.x, d.y, d.h]); if (d.trail.length > 7) d.trail.shift();
+  }
+  T.darts = T.darts.filter(d => !d.done);
+}
+function twinDartStep(t, d, st) {
+  const T = t.twin, L = T.L[d.i].dead ? T.L.find(q => !q.dead) : T.L[d.i];
+  if (!L) { d.done = true; return; }
+  const dx = L.x - d.x, dy = L.y - d.y, dist = Math.hypot(dx, dy), want = Math.atan2(dy, dx), dh = normA(want - d.h + Math.PI) - Math.PI;
+  const turn = (9 + 2600 / Math.max(60, dist)) * st / TL_DART;
+  d.h += clamp(dh, -turn, turn); d.x += Math.cos(d.h) * st; d.y += Math.sin(d.h) * st; d.dist += st;
+  if (d.dist > 1600 || d.y < -200 || d.x < -200 || d.x > W + 200) { d.done = true; return; }
+  for (const M of T.L) {
+    if (M.dead || M.depth < -0.3) continue;
+    const px = d.x - M.x, py = d.y - M.y, r = Math.hypot(px, py), sc = M.sc;
+    if (r > (TL_R + TL_PROT + 12) * sc) continue;
+    for (const s of M.stuck) {
+      const w = M.rot + s.a, c = Math.cos(w), sn = Math.sin(w), along = px * c + py * sn, perp = Math.abs(-px * sn + py * c);
+      if (along > (TL_R - 6) * sc && along < (TL_R + TL_PROT) * sc && perp < 5.5) { twinClash(t, d, M, s); return; }
+    }
+    for (const b of M.br) {
+      if (!b.alive) continue;
+      const w = M.rot + b.a, c = Math.cos(w), sn = Math.sin(w), along = px * c + py * sn, perp = Math.abs(-px * sn + py * c);
+      if (along > (TL_R - 4) * sc && along < (TL_R + TL_BR * b.grow) * sc && perp < 7) { twinBranchHit(t, d, M, b); return; }
+    }
+    if (M.ring && M.ring.rise > 0.5 && r < (TL_R + 15) * sc && r > (TL_R + 2) * sc) {
+      const a = normA(Math.atan2(py, px) - M.ring.rot);
+      if (!M.ring.gaps.some(g => angDiff(a, g) < 0.58)) { twinRingHit(t, d, M); return; }
+    }
+    if (r <= TL_R * sc) { twinImpact(t, d, M, Math.atan2(py, px)); return; }
+  }
+}
+// knife meets knife: the throw shatters
+function twinClash(t, d, M, s) {
+  d.done = true; const T = t.twin;
+  burst(d.x, d.y, 26, ['#ffffff', '#fff7c2', TWIN_COL[M.i]], 460, 30, 3, 0.5); shocks(d.x, d.y, 1, 80);
+  debris.push({ kind: 'knife', x: d.x, y: d.y, vx: rand(-420, 420), vy: rand(-480, -260), rot: d.h + HALF, vr: rand(-24, 24) });
+  if (d.abil) { floater('THE ABILITY GLANCES OFF', d.x, d.y - 20, '#ffffff'); sfx.clang(); if (fx && fx.type === 'twinflight') endFx('play'); return; }
+  if (state !== 'play') { sfx.clang(); return; }
+  sfx.clang(); fail({ y: d.y, wood: true, done: false });
+}
+function twinBranchHit(t, d, M, b) {
+  d.done = true; b.alive = false; score++;
+  const w = M.rot + b.a, x = M.x + Math.cos(w) * (TL_R + 14) * M.sc, y = M.y + Math.sin(w) * (TL_R + 14) * M.sc;
+  for (let i = 0; i < 3; i++) debris.push({ kind: 'shard', x, y, vx: rand(-300, 300), vy: rand(-420, -160), rot: rand(TAU), vr: rand(-14, 14), c: ['#8a5a2e', '#5a3a1a', '#7cbf4a'][i], pts: [[-9, -2], [9, -2], [9, 2], [-9, 2]] });
+  leafBurst(x, y, 12, 300); burst(x, y, 14, ['#c48a52', '#7a4a22', '#9fe06a'], 300, 20, 2.4, 0.4);
+  floater('BRANCH SNAPPED  +1', x, y - 24, '#9fe06a'); sfx.snap ? sfx.snap() : sfx.chop(); sfx.woodSplit();
+  if (d.abil && fx && fx.type === 'twinflight') endFx('play');
+}
+function twinRingHit(t, d, M) {
+  d.done = true;
+  burst(d.x, d.y, 20, ['#ffd23f', '#ffffff', '#c48a52'], 380, 20, 2.6, 0.4); shocks(d.x, d.y, 1, 60);
+  debris.push({ kind: 'knife', x: d.x, y: d.y, vx: (d.x < M.x ? -1 : 1) * rand(380, 560), vy: rand(-460, -260), rot: d.h + HALF, vr: rand(-24, 24) });
+  floater('THE RING TURNS IT AWAY', d.x, d.y - 22, '#ffd23f'); sfx.clank(); sfx.boing(); combo = 0;
+  if (d.abil && fx && fx.type === 'twinflight') endFx('play');
+}
+function twinStick(M, a, extra = {}) { const s = Object.assign({ a: normA(a), wob: 0.12, pen: 7 }, extra); M.stuck.push(s); return s; }
+function twinImpact(t, d, M, w) {
+  d.done = true; const T = t.twin, a = normA(w - M.rot), wrong = M.i !== d.i;
+  const x = M.x + Math.cos(w) * TL_R * M.sc, y = M.y + Math.sin(w) * TL_R * M.sc;
+  twinStick(M, a, d.abil ? { ability: true } : {}); chargeAbility();
+  if (M.spiral && ++M.spiral.hits >= M.spiral.every) { M.spiral.hits = 0; pending.push({ t: 0.2, f: () => { if (M.spiral && !M.dead) twinSpiralShift(t, M); } }); }
+  let n = 1;
+  if (d.abil || d.ab) {
+    const id = d.ab || 'strong'; T.lastI = M.i; T.lastK = knivesLeft;
+    const rot0 = t.rot; t.rot = M.rot;
+    let bonus = 0;
+    if (id === 'strong') bonus = ABILITY.onImpact ? ABILITY.onImpact(t, a) : abilityInteract(t, 'strong', a);
+    else abilityInteract(t, id, a);
+    t.rot = rot0;
+    if (d.abil) n += (id === 'strong' ? 1 : 0) + bonus;
+    if (d.abil) {
+      fx = { type: 'hit', t: 0, freeze: 0.3, x, y, lines: impactLinesFor(30, 1100) };
+      shocks(x, y, 3, 220); kick(0.5, 0.09, 1.6, 1.4); camFocus(x, y, 1.25); sfx.abilityImpact(); sfx.subDrop(); shake = 36; buzz([80, 30, 120]);
+      if (CASE_TXT[id]) caseBanner(id, 'boss', n > 1 ? 'X' + n + ' ON ' + TWIN_NAME[M.i] : 'STRUCK ' + TWIN_NAME[M.i]);
+    }
+  }
+  score++; combo++;
+  twinDamage(t, M, n, true);
+  burst(x, y, 16, ['#fde7b0', '#c48a52', TWIN_COL[M.i]], 320, 30, 2.4, 0.4); shocks(x, y, 1, 50);
+  M.hit = 1; M.jolt = 1; M.hitW = w; sfx.barkHit(); sfx.thunk();
+  if (wrong) { floater(T.eclipse > 0.3 ? 'ECLIPSED: ' + TWIN_NAME[M.i] + ' TOOK IT' : 'INTERCEPTED BY ' + TWIN_NAME[M.i], x, y - 30, '#ff5a4a'); sfx.clank(); shake = Math.max(shake, 8); }
+  twinCheck(t);
+}
+function twinDamage(t, M, n, linked) {
+  const T = t.twin; if (M.dead || n <= 0) return;
+  M.hp = Math.max(0, M.hp - n); M.flashHP = 0.3; M.hit = 1; T.lastI = M.i; T.hits++;
+  for (let k = 0; k < n; k++) twinCrack(M);
+  if (linked && M.link > 0) {
+    const O = T.L[1 - M.i];
+    if (!O.dead) { const s = M.stuck[M.stuck.length - 1]; if (s) twinStick(O, s.a, { ghost: 1 }); O.hp = Math.max(0, O.hp - n); O.flashHP = 0.3; O.hit = 1; twinCrack(O); pfxRing(O.x, O.y, '#ffffff', 90, 0.3); floater('LINKED  -' + n, O.x, O.y - TL_R - 20, '#ffffff'); sfx.zap(0.4); }
+  }
+  twinBalanceFx(t);
+}
+function twinCrack(M) {
+  if (M.cracks.length > 22) return;
+  const a = rand(TAU), pts = []; let x = Math.cos(a) * (TL_R - 8), y = Math.sin(a) * (TL_R - 8), g = a + Math.PI + rand(-0.6, 0.6); pts.push([x, y]);
+  for (let k = 0; k < 4; k++) { const l = rand(5, 11); g += rand(-0.5, 0.5); x += Math.cos(g) * l; y += Math.sin(g) * l; if (Math.hypot(x, y) > TL_R - 3) break; pts.push([x, y]); }
+  M.cracks.push({ pts, t0: time });
+}
+// the thread between their piths: warn as it strains
+function twinBalanceFx(t) {
+  const T = t.twin, d = twinDiff(T);
+  if (d >= TWIN_GAP - 1 && d <= TWIN_GAP && d !== T.warnD) { T.warnD = d; floater(d === TWIN_GAP ? 'THE PITH IS ABOUT TO SNAP: BALANCE THEM' : 'THE PITH STRAINS', CX, CY + TL_OY - 30, '#ff5a4a'); sfx.alarm ? sfx.alarm() : sfx.heatWarn(); }
+  if (d < TWIN_GAP - 1) T.warnD = 0;
+}
+function twinCheck(t) {
+  const T = t.twin; if (T.solo || T.dead || twinBusy()) return;
+  const [A, B] = T.L;
+  if (!A.dead && !B.dead && twinDiff(T) > TWIN_GAP) { startTwinCharge(t, A.hp > B.hp ? 0 : 1); return; }
+  const L = T.L.find(q => !q.dead && q.hp <= 0);
+  if (L) startTwinSplit(t, L);
+}
+// ---------- HP bookkeeping (mirrored into knivesLeft, as the other bosses do) ----------
+function twinSync(t) {
+  const T = t.twin; if (T.solo) return;
+  if (T.lastK !== undefined && knivesLeft < T.lastK) { const M = T.L[T.lastI].dead ? T.L.find(q => !q.dead) : T.L[T.lastI]; if (M) twinDamage(t, M, T.lastK - knivesLeft, false); }
+  knivesLeft = Math.max(1, twinSum(T)); T.lastK = knivesLeft;
+}
+function twinClear(t) {
+  const T = t.twin; if (T.dead || twinBusy()) return;
+  if (!T.solo) { twinSync(t); twinCheck(t); return; }
+  if (knivesLeft <= 0) startTwinDeath(t);
+}
+function twinSurfaceHit(k, t, a) { return false; }
+function twinStuck(t, s, a) {
+  const T = t.twin; if (!T.solo) return;
+  const L = T.L.find(q => !q.dead); if (L) { L.hp = knivesLeft; L.flashHP = 0.3; }
+  t.hit = 0.7; const [x, y] = worldAt(t, a, R); burst(x, y, 14, ['#fde7b0', '#c48a52', TWIN_COL[L ? L.i : 0]], 320, 40, 2.4, 0.4);
+  floater(knivesLeft > 0 ? knivesLeft + ' TO GO' : 'IT FALLS', CX, CY - R - 44, L ? TWIN_COL[L.i] : '#ffd23f'); sfx.barkHit();
+}
+// the lone survivor spins like any ordinary log
+function twinSoloSpin(tt) { return (Math.sin(tt * 0.55) > -0.3 ? 1 : -1.25) * (2.0 + 0.7 * Math.sin(tt * 1.7)); }
+// ---------- per frame ----------
+function updateTwin(t, dt) {
+  const T = t.twin; if (!T) return;
+  T.pulse = Math.max(0, T.pulse - dt * 3);
+  if (T.darts.length) twinDarts(t, dt);
+  if (T.hide || T.dead || twinBusy()) return;
+  if (T.solo) { const L = T.L.find(q => !q.dead); if (L) { L.hit = Math.max(0, L.hit - dt * 6); L.flashHP = Math.max(0, L.flashHP - dt); L.glare = Math.max(0, L.glare - dt); L.glow = 0; } return; }
+  const play = state === 'play';
+  if (flying.length === 0 && !T.darts.length) twinSync(t);
+  if (play || (fx && (fx.type === 'twinflight' || fx.type === 'hit'))) {
+    twinUpdateMove(t, dt);
+    for (const L of T.L) if (!L.dead) twinUpdateLog(t, L, dt);
+    if (play && !T.move) { T.moveNext -= dt; if (T.moveNext <= 0) { const left = twinSum(T) / 40; T.moveNext = rand(6.5, 9.5) * (0.65 + 0.35 * left); twinStartMove(t, twinPickMove(t)); } }
+  }
+  twinPlace(T);
+  // alignment: the log nearer you stands in front of the other's lane
+  const [A, B] = T.L, f = A.y > B.y ? A : B, bk = f === A ? B : A, lane = Math.abs(f.x - CX) < TL_R && Math.abs(bk.x - CX) < TL_R + 20;
+  T.aligned += ((lane ? 1 : 0) - T.aligned) * Math.min(1, dt * 8);
+  const d = twinDiff(T); T.strain += (clamp((d - 2) / (TWIN_GAP - 1), 0, 1) - T.strain) * Math.min(1, dt * 4);
+  T.msgT = Math.max(0, T.msgT - dt);
+  if (play) twinCheck(t);
+}
+// ---------- an ability knife in flight: slow motion, camera on the knife ----------
+function updateTwinFlight(t) {
+  tscale = Math.max(0.2, 1 - t * 8);
+  const T = tgt && tgt.twin, d = T && T.darts.find(q => q.abil);
+  if (d) { camFocus((d.x + CX) / 2, (d.y + CY) / 2 + 20, 1.25); zblur = Math.max(zblur, 0.5); }
+  else endFx('play');
+}
+// ---------- one twin dies: the other takes the centre ----------
+function startTwinSplit(t, L) {
+  const T = t.twin, S = T.L[1 - L.i];
+  if (S.dead || S.hp <= 0) { L.dead = true; S.dead = true; T.solo = true; startTwinDeath(t); return; }
+  fx = { type: 'twinsplit', t: 0, lt: 0, freeze: 0.25, x: L.x, y: L.y, lines: impactLinesFor(28, 1000), tg: t, L, S, x0: S.x, y0: S.y, sc0: S.sc, a0: Math.atan2(S.y - CY, S.x - CX) };
+  state = 'fx'; cinema(true, 1); camFocus(L.x, L.y, 1.2); T.darts = []; T.move = null;
+  sfx.subDrop(); sfx.shriek ? sfx.shriek() : sfx.groanFar(); buzz(40); shake = 20;
+}
+function updateTwinSplit(t) {
+  const tg = fx.tg, T = tg.twin, L = fx.L, S = fx.S, d = t - (fx.lt || 0); fx.lt = t;
+  tscale = t < 0.9 ? 0.45 : 0.85;
+  if (!fx.boom) { L.glow = clamp(t / 0.25, 0, 1); L.x += rand(-2, 2); }
+  if (t >= 0.25 && !fx.boom) {
+    fx.boom = true; L.dead = true; T.snapT = 1; S.glare = 2.2;
+    for (const s of L.stuck) { const w = L.rot + s.a; debris.push({ kind: 'knife', x: L.x + Math.cos(w) * TL_R, y: L.y + Math.sin(w) * TL_R, vx: Math.cos(w) * rand(400, 800), vy: Math.sin(w) * rand(400, 800) - 300, rot: w - HALF, vr: rand(-30, 30) }); }
+    for (let i = 0; i < 26; i++) { const a = rand(TAU), sp = rand(200, 700), pts = []; for (let j = 0; j < 4; j++) { const r = rand(5, 13), q = j / 4 * TAU + rand(-0.4, 0.4); pts.push([Math.cos(q) * r, Math.sin(q) * r]); } debris.push({ kind: 'shard', x: L.x, y: L.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 260, rot: rand(TAU), vr: rand(-14, 14), c: ['#fde7b0', '#c48a52', '#8a5a2e', TWIN_COL[L.i]][i % 4], pts }); }
+    burst(L.x, L.y, 70, ['#ffffff', '#fde7b0', TWIN_COL[L.i], '#ff5a4a'], 760, 40, 3.4, 0.8); shocks(L.x, L.y, 4, 260); pfxRing(L.x, L.y, TWIN_COL[L.i], 300, 0.5);
+    kick(0.5, 0.1, 1.8, 1.4); shake = 40; scheduleScreenHits(8, ['#ffffff', TWIN_COL[L.i], '#08080a'], 1.1);
+    floater(TWIN_NAME[L.i] + ' FALLS', L.x, L.y - 40, TWIN_COL[L.i]); sfx.logExplode(); sfx.woodSplit(); sfx.cableSnap(); buzz([100, 40, 160]);
+    camFocus(CX, CY, 1.05);
+  }
+  if (fx.boom) {
+    // the survivor spirals down into the centre and swells to full size
+    const u = clamp((t - 0.45) / 1.15, 0, 1), e = ease3(u), a = fx.a0 + e * 2.4 * T.dir, r = Math.hypot(fx.x0 - CX, fx.y0 - CY) * (1 - e);
+    S.x = CX + Math.cos(a) * r; S.y = CY + Math.sin(a) * r; S.sc = fx.sc0 + (R / TL_R - fx.sc0) * easeOutBack(u); S.rot += S.sp * d * (1 + 2 * (1 - u)); T.oyK = 1 - e;
+    if (t > 0.5 && t < 1.6 && Math.floor(t * 6) !== fx.z) { fx.z = Math.floor(t * 6); sfx.whoosh(); }
+  }
+  if (t >= 1.62 && !fx.landed) {
+    fx.landed = true; S.x = CX; S.y = CY; S.sc = R / TL_R; shake = 26; kick(0.3, 0.06, 1, 0.8); shocks(CX, CY, 3, 300); pfxRing(CX, CY, TWIN_COL[S.i], 320, 0.45);
+    sfx.stamp(); sfx.subDrop(); sfx.land(); floater('ONE LAST LOG', CX, CY - R - 50, TWIN_COL[S.i]); floater(TWIN_NAME[S.i] + ' TAKES THE CENTRE', CX, CY + R + 70, '#f4f4f0');
+  }
+  if (t > 2.2) {
+    T.solo = true; tg.rot = S.rot; tg.stuck = S.stuck.map(s => ({ a: s.a, wob: 0.06, ghost: s.ghost ? 1 : 0 })); tg.tex = null; tg.t = 0; tg.pat = twinSoloSpin; tg.hit = 0;
+    S.x = CX; S.y = CY; S.sc = R / TL_R; knivesLeft = S.hp; T.lastK = undefined;
+    endFx('play');
+  }
+}
+// ---------- the pith snaps: the stronger twin charges you ----------
+function startTwinCharge(t, i) {
+  const T = t.twin, C = T.L[i];
+  fx = { type: 'twincharge', t: 0, lt: 0, freeze: 0.2, x: C.x, y: C.y, lines: impactLinesFor(24, 1000), tg: t, C, O: T.L[1 - i], x0: C.x, y0: C.y };
+  state = 'fx'; cinema(true, 1); camFocus(C.x, C.y, 1.15); T.darts = []; T.move = null; T.snapT = 1; C.glare = 3;
+  sfx.cableSnap(); sfx.shriek ? sfx.shriek() : sfx.groanFar(); sfx.subDrop(); shake = 24; buzz([60, 30, 60]);
+  floater('THE PITH SNAPS', CX, CY + TL_OY, '#ff5a4a');
+}
+function updateTwinCharge(t) {
+  const tg = fx.tg, T = tg.twin, C = fx.C, O = fx.O, d = t - (fx.lt || 0); fx.lt = t;
+  tscale = 1;
+  O.x += (O.x < CX ? -1 : 1) * 60 * d; C.rot += 14 * d;
+  if (t < 0.7) { const u = t / 0.7; C.x = fx.x0 + (CX - fx.x0) * ease3(u) + rand(-3, 3) * u; C.y = fx.y0 + (CY - 40 - fx.y0) * ease3(u); C.sc = 1 + 0.1 * u; if (Math.floor(t * 10) !== fx.z) { fx.z = Math.floor(t * 10); sfx.ratchet ? sfx.ratchet() : sfx.thunk(); } }
+  else if (t < 1.05) {
+    const u = (t - 0.7) / 0.35, e = u * u * u; C.x = CX; C.y = CY - 40 + (H + 120 - CY + 40) * e; C.sc = 1.1 + 3.4 * e;
+    if (!fx.go) { fx.go = true; sfx.whoosh(); sfx.riser(); kick(0.3, 0.06, 1.4, 1.2); camFocus(CX, KNIFE_Y, 1.1); }
+    shake = Math.max(shake, 10 + 20 * u);
+  }
+  if (t >= 1.05 && !fx.hit) {
+    fx.hit = true; scheduleScreenHits(14, [TWIN_COL[C.i], '#ff5a4a', '#08080a'], 1.4); shake = 50; kick(0.8, 0.16, 2.2, 2);
+    burst(CX, KNIFE_Y, 80, ['#ffffff', '#fde7b0', TWIN_COL[C.i]], 900, 40, 4, 0.9); sfx.logExplode(); sfx.impact(); sfx.subDrop(); buzz([120, 40, 200]);
+  }
+  if (t > 1.3) {
+    endFx('play');
+    if (adminGod) { C.hp = Math.min(TWIN_HP, O.hp + TWIN_GAP); C.glare = 0; C.sc = 1; T.snapT = 0; floater('GOD MODE: REBALANCED', CX, KNIFE_Y - 40, '#7cff4f'); twinPlace(T); return; }
+    lives = 1; fail({ y: KNIFE_Y, wood: true, done: false, lose: true });
+  }
+}
+// ---------- the last log falls ----------
+function startTwinDeath(t) {
+  const T = t.twin; T.dead = true; T.darts = [];
+  fx = { type: 'twindeath', t: 0, lt: 0, freeze: 0.3, x: CX, y: CY, lines: impactLinesFor(32, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.25); sfx.shriek ? sfx.shriek() : sfx.groanFar(); sfx.subDrop(); buzz(40);
+}
+function updateTwinDeath(t) {
+  const tg = fx.tg, T = tg.twin, S = T.L.find(q => !q.dead) || T.L[0]; tscale = t < 1.4 ? 0.4 : 0.7; T.wilt = clamp((t - 0.2) / 1.2, 0, 1);
+  if (t < 1.4) { shake = Math.max(shake, 3 + 12 * T.wilt); if (Math.floor(t * 6) !== fx.z) { fx.z = Math.floor(t * 6); sfx.woodSplit(); const a = rand(TAU); burst(CX + Math.cos(a) * R, CY + Math.sin(a) * R, 14, ['#ffffff', '#fde7b0', TWIN_COL[S.i]], 380, 20, 2.6, 0.5); } }
+  if (t >= 1.4 && !fx.boom) {
+    fx.boom = true; breakTarget(tg, 2.6);
+    for (let i = 0; i < 90; i++) { const a = rand(TAU), sp = rand(200, 950); parts.push({ x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, life: rand(0.8, 1.7), max: 1.7, c: ['#ffffff', '#fde7b0', '#ffb347', '#7fd4ff', '#ff5a4a'][i % 5], s: 4, rot: rand(TAU), vr: rand(-8, 8) }); }
+    scheduleScreenHits(14, ['#ffffff', '#ffb347', '#7fd4ff', '#08080a'], 1.3); shocks(CX, CY, 5, 380); kick(0.8, 0.16, 2.2, 2.2); shake = 50; pfxRing(CX, CY, '#ffffff', 400, 0.6);
+    floater('SYZYGY BROKEN', CX, CY - 60, '#fde7b0'); setMusic('main'); tgt = null;
+    sfx.logExplode(); sfx.woodSplit(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 1.6 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 3) endFx('clearing');
+}
+
+// ======================= TWIN LOGS intro, cut to Syzygy of the Unyielding =======================
+// 0.37 the yellow star on the first low thump; it shrinks to a point and at 2.0 opens onto two sparks in the dark,
+// circling each other. 4.37 the track wakes: spectral lines streak in, and on the hats at 4.94 / 5.80 / 6.66 the orbit
+// tightens with a ripple each time. 7.26 a copper moon slides over a white sun: ECLIPSE, the corona blazes.
+// 8.09 / 8.52 / 8.95 SYZYGY / OF THE / UNYIELDING slam in, a roll of hats to 9.64. 9.65 the pair are logs, rim-lit
+// against the corona, gravity rippling off them on every beat; 13.83 they spiral in, faster and faster. 16.6 the real
+// arena takes over at full whirl, TWIN LOGS; 18.08 they fling apart and land on the drop at 18.66.
+const TWN = { star: 0.37, open: 2.0, rise: 4.37, h1: 4.94, h2: 5.80, h3: 6.66, eclipse: 7.26, w1: 8.09, w2: 8.52, w3: 8.95, roll: 9.23, cut: 9.65, spiral: 13.83, live: 16.6, fling: 18.08, land: 18.66 };
+const TWSHOT = { reveal: TWN.land };
+const TWN_CUES = Object.keys(TWN).filter(k => k !== 'land');
+const TWN_BEAT = 60 / 105, TWN_PH = 0.366;
+function startTwinIntro(t) {
+  fx = { type: 'twinintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0 }; state = 'fx';
+  const T = t.twin; T.hide = true; T.ox = T.oy = 0; T.s = 1; cinema(true, 1); setHD(true);
+  cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+  slamMusic('twin');
+}
+function skipTwinIntro() { if (fx && fx.type === 'twinintro' && fx.t < TWN.land - 0.35) { fx.t = TWN.land - 0.35; fx.skipped = true; for (const k of TWN_CUES) fx.cuts[k] = true; fx.tg.twin.hide = false; } }
+function updateTwinIntro(t) {
+  tscale = 0; const tg = fx.tg, T = tg.twin, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  const mp = introMusicClock('twin');
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.35) { fx.wait += d; fx.t = 0; fx.lt = 0; return; }
+  if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
+  const at = k => cineCue(k, TWN[k]);
+  if (at('star')) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.2, 0.5); shocks(CX, CY + 40, 2, 300); }
+  if (at('open')) { sfx.reveal(); sfx.hum ? sfx.hum() : sfx.groanFar(); }
+  if (at('rise')) { sfx.riser(); }
+  for (const k of ['h1', 'h2', 'h3']) if (at(k)) { sfx.ping(); sfx.whoosh(); kick(0.08, 0.02, 0.8, 0.3); shake = 5; }
+  if (at('eclipse')) { sfx.subDrop(); sfx.flare(); bloomBoost = 1; shake = 16; kick(0.25, 0.06, 1.4, 0.8); }
+  for (const k of ['w1', 'w2', 'w3']) if (at(k)) { sfx.stamp(); shake = 10; kick(0.12, 0.03, 1, 0.5); }
+  if (at('roll')) sfx.riser();
+  if (t > TWN.roll && t < TWN.cut && Math.floor((t - TWN.roll) / 0.07) !== fx.rb) { fx.rb = Math.floor((t - TWN.roll) / 0.07); sfx.tick(); }
+  if (at('cut')) { sfx.subDrop(); sfx.whoosh(); bloomBoost = 0.7; shake = 14; kick(0.2, 0.05, 1.2, 0.6); }
+  if (t > TWN.cut && t < TWN.live) { const b = Math.floor((t - TWN_PH) / TWN_BEAT); if (b !== fx.gb) { fx.gb = b; if (b % 2 === 0) sfx.thunk(); } }
+  if (at('spiral')) { sfx.voltRise ? sfx.voltRise() : sfx.riser(); sfx.groanFar(); shake = 10; }
+  if (at('live')) { sfx.whoosh(); sfx.flare(); shake = 12; kick(0.2, 0.05, 1, 0.6); }
+  if (t >= TWN.live && t < TWN.land) {
+    T.hide = false; const u = clamp((t - TWN.live) / (TWN.fling - TWN.live), 0, 1);
+    if (t < TWN.fling) { T.introR = 46 + 20 * (1 - u); T.ang += (5 + 7 * u) * d; }
+    else { const v = clamp((t - TWN.fling) / (TWN.land - TWN.fling), 0, 1); T.introR = 46 + (TL_D - 46) * easeOutBack(v); T.ang += (12 * (1 - v) + T.w) * d; }
+    for (const L of T.L) L.rot += L.spin * 2.5 * d;
+    twinPlace(T); for (const L of T.L) L.sc = 0.55 + 0.45 * ease3(u);
+    if (Math.floor(t * 8) !== fx.wz) { fx.wz = Math.floor(t * 8); sfx.whoosh(); }
+  }
+  if (at('fling')) { sfx.whoosh(); sfx.cableSnap(); shake = 12; }
+  if (t >= TWN.land && !fx.landed) {
+    fx.landed = true; T.hide = false; T.introR = null; T.s = 1; T.ox = T.oy = 0; twinPlace(T);
+    cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+    tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.3;
+    shake = 28; kick(0.3, 0.06, 0.8, 0.5); shocks(CX, CY + TL_OY, 3, 340); pfxRing(CX, CY + TL_OY, '#fde7b0', 320, 0.45);
+    for (const L of T.L) { shocks(L.x, L.y, 1, 140); burst(L.x, L.y, 30, ['#ffffff', '#fde7b0', TWIN_COL[L.i]], 520, 20, 3, 0.6); }
+    sfx.woodSplit(); sfx.stamp(); sfx.subDrop(); sfx.knifeRise(); buzz([60, 30, 90]);
+    endFx('play'); floater('SYZYGY OF THE UNYIELDING', CX, 150, '#fde7b0'); floater('HIT THEM BY TURNS. KEEP THEM BALANCED.', CX, CY + TL_OY + R + 110, '#f4f4f0');
+  }
+  fxFilter = null;
+}
+// ======================= TWIN LOGS: art =======================
+// Each twin: a slightly lumpy round of tan bark around a pale yellow face, its growth rings laid down as one long
+// spiral (CASTOR's winds clockwise, POLLUX's the other way, mirror twins). The pith glows its colour: amber, azure.
+const twinBlobR = (th, r, sd) => r * (1 + 0.024 * Math.sin(3 * th + sd) + 0.016 * Math.sin(5 * th + sd * 1.7) + 0.008 * Math.sin(9 * th + sd * 2.3));
+function twinBlobPath(g, r, sd, inset = 0, ox = 0, oy = 0) { g.beginPath(); for (let i = 0; i <= 96; i++) { const th = i / 96 * TAU, rr = twinBlobR(th, r, sd) - inset; g[i ? 'lineTo' : 'moveTo'](ox + Math.cos(th) * rr, oy + Math.sin(th) * rr); } g.closePath(); }
+function twinFaceArt(g, r, i) {
+  const k = r / TL_R, sd = 1.3 + i * 2.9, rnd = mulberry(4100 + i * 77), BW = 9 * k, dir = i ? -1 : 1;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  // bark
+  twinBlobPath(g, r, sd); g.fillStyle = '#2a1608'; g.fill();
+  const bg = g.createRadialGradient(0, 0, r - BW, 0, 0, r); bg.addColorStop(0, '#5a3418'); bg.addColorStop(0.45, '#9a6634'); bg.addColorStop(1, '#6a4020');
+  twinBlobPath(g, r, sd, 0.6); g.fillStyle = bg; g.fill();
+  // bark plates: chunks split by deep grooves, lit from the top left
+  const N = Math.round(34 * Math.max(1, k * 0.9));
+  for (let j = 0; j < N; j++) {
+    const a0 = j / N * TAU + rnd() * 0.04, a1 = (j + 1) / N * TAU - 0.02 - rnd() * 0.03, am = (a0 + a1) / 2, lit = 0.5 + 0.5 * Math.cos(am + 2.3);
+    const ro = twinBlobR(am, r, sd) - 1.2 - rnd() * 1.6 * k, ri = twinBlobR(am, r, sd) - BW + 1;
+    g.beginPath(); g.arc(0, 0, ro, a0, a1); g.arc(0, 0, ri, a1, a0, true); g.closePath();
+    const c = [110 + 70 * lit + rnd() * 20, 66 + 44 * lit + rnd() * 10, 28 + 22 * lit];
+    const lg = g.createLinearGradient(Math.cos(am) * ri, Math.sin(am) * ri, Math.cos(am) * ro, Math.sin(am) * ro);
+    lg.addColorStop(0, `rgb(${c[0] * 0.6 | 0},${c[1] * 0.6 | 0},${c[2] * 0.6 | 0})`); lg.addColorStop(0.55, `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`); lg.addColorStop(1, `rgb(${Math.min(255, c[0] * 1.18) | 0},${Math.min(255, c[1] * 1.15) | 0},${c[2] | 0})`);
+    g.fillStyle = lg; g.fill();
+    g.save(); g.clip(); g.lineWidth = 0.55 * k;
+    for (let q = 0; q < 5; q++) { const rr = ri + rnd() * (ro - ri), aa = a0 + rnd() * (a1 - a0); g.strokeStyle = rnd() < 0.55 ? 'rgba(30,12,2,.45)' : 'rgba(255,214,160,.22)'; g.beginPath(); g.arc(0, 0, rr, aa, aa + (a1 - a0) * (0.3 + rnd() * 0.5)); g.stroke(); }
+    g.restore();
+    g.strokeStyle = `rgba(255,220,170,${0.12 + 0.35 * lit})`; g.lineWidth = 0.7 * k; g.beginPath(); g.arc(0, 0, ro - 0.4, a0 + 0.01, a1 - 0.01); g.stroke();
+  }
+  // cambium: a thin bright band where bark meets wood
+  twinBlobPath(g, r, sd, BW - 0.6); g.fillStyle = '#c99a52'; g.fill();
+  // the face
+  const fg = g.createRadialGradient(-r * 0.12, -r * 0.14, 2, 0, 0, r - BW);
+  fg.addColorStop(0, '#fff6d8'); fg.addColorStop(0.45, '#fde7b0'); fg.addColorStop(0.85, '#f1cf88'); fg.addColorStop(1, '#e2b56c');
+  twinBlobPath(g, r, sd, BW + 1.2 * k); g.fillStyle = fg; g.fill();
+  g.save(); twinBlobPath(g, r, sd, BW + 1.2 * k); g.clip();
+  // medullary rays, very faint
+  g.lineWidth = 0.5 * k; for (let j = 0; j < 22; j++) { const a = rnd() * TAU, r0 = (r - BW) * (0.15 + rnd() * 0.3), r1 = (r - BW) * (0.6 + rnd() * 0.4); g.strokeStyle = 'rgba(176,120,50,.14)'; g.beginPath(); g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); g.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); g.stroke(); }
+  // the growth spiral: one dark early-wood line with a pale late-wood twin beside it
+  const RF = r - BW - 2.5 * k, turns = 4.6, step = 0.05;
+  for (const [off, col, lw] of [[0, 'rgba(178,118,48,.9)', 1.7], [0.42, 'rgba(206,150,74,.55)', 1.0], [0.18, 'rgba(255,248,224,.5)', 0.7]]) {
+    g.strokeStyle = col; g.lineWidth = lw * k; g.beginPath();
+    for (let th = 0, n = 0; th <= turns * TAU; th += step, n++) { const u = th / (turns * TAU), rr = RF * Math.min(1, u + off / turns / TAU * 6) * (1 + 0.03 * Math.sin(th * 3 + sd)), a = dir * th + sd; g[n ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr); }
+    g.stroke();
+  }
+  // checks: a few dry splits running in from the bark
+  g.strokeStyle = 'rgba(90,50,16,.55)'; g.lineWidth = 0.9 * k;
+  for (let j = 0; j < 4; j++) { const a = rnd() * TAU; let x = Math.cos(a) * (r - BW), y = Math.sin(a) * (r - BW), h = a + Math.PI; g.beginPath(); g.moveTo(x, y); for (let q = 0; q < 3; q++) { const l = (4 + rnd() * 6) * k; h += (rnd() - 0.5) * 0.7; x += Math.cos(h) * l; y += Math.sin(h) * l; g.lineTo(x, y); } g.stroke(); }
+  // a soft darker heartwood wash and the pith
+  const hg = g.createRadialGradient(0, 0, 0, 0, 0, (r - BW) * 0.42); hg.addColorStop(0, 'rgba(196,128,52,.32)'); hg.addColorStop(1, 'rgba(196,128,52,0)'); g.fillStyle = hg; g.fillRect(-r, -r, 2 * r, 2 * r);
+  g.restore();
+  g.fillStyle = '#7a4a1e'; g.beginPath(); g.arc(0, 0, 3.4 * k, 0, TAU); g.fill(); g.fillStyle = '#3a200c'; g.beginPath(); g.arc(0, 0, 1.8 * k, 0, TAU); g.fill();
+  // outline
+  twinBlobPath(g, r, sd); g.strokeStyle = 'rgba(20,8,0,.85)'; g.lineWidth = 1.3 * k; g.stroke();
+}
+const twinBody = i => bakeSprite('twinBody' + i, -TL_R - 4, -TL_R - 4, 2 * TL_R + 8, 2 * TL_R + 8, g => twinFaceArt(g, TL_R, i));
+// lighting that stays put while the face turns: a top-left sheen and a dark lower rim
+const twinShade = () => bakeSprite('twinShade', -TL_R - 4, -TL_R - 4, 2 * TL_R + 8, 2 * TL_R + 8, g => {
+  const sh = g.createRadialGradient(-TL_R * 0.35, -TL_R * 0.42, 4, 0, 0, TL_R + 2);
+  sh.addColorStop(0, 'rgba(255,255,255,.24)'); sh.addColorStop(0.45, 'rgba(255,255,255,0)'); sh.addColorStop(0.82, 'rgba(0,0,0,.1)'); sh.addColorStop(1, 'rgba(0,0,0,.42)');
+  g.fillStyle = sh; g.beginPath(); g.arc(0, 0, TL_R + 1, 0, TAU); g.fill();
+});
+const twinShadow = () => bakeSprite('twinShadow', -TL_R - 30, -TL_R - 30, 2 * TL_R + 60, 2 * TL_R + 60, g => { const sg = g.createRadialGradient(0, 10, TL_R * 0.6, 0, 10, TL_R + 28); sg.addColorStop(0, 'rgba(0,0,0,.55)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = sg; g.fillRect(-TL_R - 30, -TL_R - 30, 2 * TL_R + 60, 2 * TL_R + 60); });
+// a twig with a fork and a leaf, growing outward along +y
+const twinBranch = leaf => bakeSprite('twinBranch' + (leaf ? 1 : 0), -16, -4, 32, TL_BR + 14, g => {
+  g.lineCap = 'round';
+  const tw = (x0, y0, x1, y1, w, c) => { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo((x0 + x1) / 2 + 2, (y0 + y1) / 2, x1, y1); g.stroke(); };
+  tw(0, 0, 1, TL_BR, 5.2, '#3a200c'); tw(0, 0, 1, TL_BR, 3.6, '#8a5a2e'); tw(-0.6, 2, 0.4, TL_BR - 3, 1.1, 'rgba(255,214,160,.5)');
+  tw(0.5, TL_BR * 0.55, 9, TL_BR * 0.85, 3, '#3a200c'); tw(0.5, TL_BR * 0.55, 9, TL_BR * 0.85, 1.8, '#9a6a3a');
+  if (leaf) { g.save(); g.translate(9, TL_BR * 0.85); g.rotate(0.6); const lg = g.createLinearGradient(-6, 0, 6, 0); lg.addColorStop(0, '#3f8f2a'); lg.addColorStop(1, '#9fe06a'); g.fillStyle = lg; g.beginPath(); g.ellipse(0, 6, 4, 7.5, 0, 0, TAU); g.fill(); g.strokeStyle = 'rgba(20,50,10,.7)'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 13); g.stroke(); g.restore(); }
+  g.fillStyle = '#2a1608'; g.beginPath(); g.arc(1, TL_BR, 2.2, 0, TAU); g.fill(); g.fillStyle = '#c99a52'; g.beginPath(); g.arc(1, TL_BR, 1.2, 0, TAU); g.fill();
+});
+// the side of the round, seen from a little above, so each twin reads as a solid disc of wood
+function twinSide(L, s) {
+  const r = TL_R * s, ox = 0, oy = 9 * s, N = 30, sd = 1.3 + L.i * 2.9;
+  ctx.fillStyle = '#2a1608'; twinBlobPath(ctx, TL_R * s, sd, 0, ox, oy); ctx.fill();
+  ctx.fillRect(-r, 0, 2 * r, oy);
+  for (let j = 0; j < N; j++) { const phi = L.rot + j / N * TAU, c = Math.sin(phi); if (c < 0.05) continue; const x = Math.cos(phi) * r, y = Math.sin(phi) * r, h = hash(j, 13 + L.i, 5); ctx.strokeStyle = h < 0.3 ? '#a8723e' : h < 0.7 ? '#6e4220' : '#3a200c'; ctx.globalAlpha = 0.35 + 0.65 * c; ctx.lineWidth = (1.6 + h * 3) * s; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + oy); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+// a live log: knives first (so the wood hides their tips), then the side, the face, overlays
+function drawTwinLog(t, L) {
+  const T = t.twin, s = L.sc * (1 - 0.04 * L.hit), sx = 1 + 0.05 * L.hit, dark = L.depth < 0 ? -L.depth * 0.5 : 0;
+  ctx.save(); ctx.translate(L.x + (L.jolt ? rand(-1.5, 1.5) * L.jolt : 0), L.y - 4 * L.hit);
+  ctx.save(); ctx.translate(4, 10 * s); ctx.scale(s, s); ctx.globalAlpha = 0.8; blit(twinShadow()); ctx.restore();
+  for (const k of L.stuck) {
+    ctx.save(); ctx.scale(s, s); ctx.rotate(L.rot + k.a - HALF + (k.wob ? Math.sin(time * 40) * k.wob : 0)); ctx.translate(0, TL_R - EMBED * TL_KS - (k.pen || 0) * TL_KS); ctx.scale(TL_KS, TL_KS);
+    if (k.ghost) { ctx.globalAlpha = 0.55 + 0.45 * Math.min(1, k.ghost); drawKnifeGlow('#ffffff'); } else drawKnife();
+    ctx.restore();
+  }
+  ctx.save(); ctx.scale(s * sx, s / sx);
+  twinSide(L, 1);
+  ctx.save(); ctx.rotate(L.rot); blit(twinBody(L.i)); drawTwinFaceLive(t, L); ctx.restore();
+  blit(twinShade());
+  // rim light from the eclipse behind them
+  const [ocx, ocy] = twinOrbitC(T), ra = Math.atan2(ocy - L.y, ocx - L.x);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,240,205,${0.35 + 0.25 * T.pulse})`; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(0, 0, TL_R - 0.5, ra - 0.9, ra + 0.9); ctx.stroke(); ctx.strokeStyle = `rgba(${TWIN_RGB[L.i]},.35)`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, TL_R + 1.5, ra - 0.6, ra + 0.6); ctx.stroke(); ctx.restore();
+  if (L.hit > 0) { ctx.fillStyle = `rgba(255,255,255,${0.4 * L.hit})`; ctx.beginPath(); ctx.arc(0, 0, TL_R, 0, TAU); ctx.fill(); }
+  if (dark > 0) { ctx.fillStyle = `rgba(6,4,14,${dark})`; ctx.beginPath(); ctx.arc(0, 0, TL_R + 2, 0, TAU); ctx.fill(); }
+  // branches and the raised ring sit on the rim
+  ctx.save(); ctx.rotate(L.rot);
+  for (const b of L.br) if (b.alive) { ctx.save(); ctx.rotate(b.a - HALF); ctx.translate(0, TL_R - 4); ctx.scale(0.4 + 0.6 * b.grow, 0.4 + 0.6 * b.grow); blit(twinBranch(b.leaf)); ctx.restore(); }
+  ctx.restore();
+  if (L.ring) drawTwinRing(L);
+  ctx.restore();
+  ctx.restore();
+}
+// spiral tracks, glowing cracks, the pith: everything that turns with the face
+function drawTwinFaceLive(t, L) {
+  const T = t.twin, hpK = 1 - L.hp / TWIN_HP, beat = T.pulse;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  // cracks leak light, more as it weakens
+  if (L.cracks.length) { ctx.lineJoin = 'round'; for (const c of L.cracks) { const g = clamp((time - c.t0) / 0.3, 0, 1), n = Math.max(2, Math.ceil(c.pts.length * g)); ctx.beginPath(); for (let j = 0; j < n; j++) ctx[j ? 'lineTo' : 'moveTo'](...c.pts[j]); ctx.strokeStyle = `rgba(${TWIN_RGB[L.i]},${0.25 + 0.5 * hpK + 0.2 * beat})`; ctx.lineWidth = 2.6; ctx.stroke(); ctx.strokeStyle = 'rgba(255,250,235,.7)'; ctx.lineWidth = 0.8; ctx.stroke(); } }
+  if (L.spiral) {
+    const S = L.spiral, op = clamp(S.t / 0.4, 0, 1) * clamp((S.life - S.t) / 0.5, 0, 1);
+    for (let arm = 0; arm < 3; arm++) { ctx.strokeStyle = TRACK_COL[arm]; ctx.globalAlpha = op * (0.35 + 0.5 * S.glow); ctx.lineWidth = 2.4; ctx.beginPath(); for (let j = 0; j <= 30; j++) { const u = j / 30, a = S.off + arm / 3 * TAU + u * 2.6 * (L.i ? -1 : 1), r = 6 + u * (TL_R - 14); ctx[j ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  const pr = 3.5 + 2 * beat + 6 * L.glare, pg = ctx.createRadialGradient(0, 0, 0, 0, 0, pr * 3);
+  const col = L.glare > 0 && Math.sin(time * 30) > 0 ? '255,80,64' : TWIN_RGB[L.i];
+  pg.addColorStop(0, 'rgba(255,250,235,.7)'); pg.addColorStop(0.25, `rgba(${col},.5)`); pg.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(0, 0, pr * 3, 0, TAU); ctx.fill();
+  if (L.glow) { ctx.fillStyle = `rgba(255,250,230,${0.6 * L.glow})`; ctx.beginPath(); ctx.arc(0, 0, TL_R, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+// ringwood: a raised band of bark with two gaps, turning against the log
+function drawTwinRing(L) {
+  const G = L.ring, k = G.rise, r0 = TL_R + 2, r1 = TL_R + 2 + 13 * k, gw = 0.58;
+  ctx.save(); ctx.rotate(G.rot);
+  for (const gc of G.gaps) {
+    const a0 = gc + gw, a1 = gc + Math.PI - gw;
+    ctx.beginPath(); ctx.arc(0, 0, r1, a0, a1); ctx.arc(0, 0, r0, a1, a0, true); ctx.closePath();
+    const rg = ctx.createRadialGradient(0, 0, r0, 0, 0, r1); rg.addColorStop(0, '#5a3418'); rg.addColorStop(0.5, '#b07a42'); rg.addColorStop(1, '#6a4020'); ctx.fillStyle = rg; ctx.fill();
+    ctx.strokeStyle = '#2a1608'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,210,63,${0.5 * k})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, r1 + 1, a0 + 0.05, a1 - 0.05); ctx.stroke(); ctx.restore();
+    for (let j = 1; j < 7; j++) { const a = a0 + (a1 - a0) * j / 7; ctx.strokeStyle = 'rgba(30,12,2,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+// the solo survivor's face, as a texture for the ordinary log renderer
+function makeTwinTexture(t) {
+  const T = t.twin, L = T.L.find(q => !q.dead) || T.L[0], S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX); twinFaceArt(g, R, L.i); return c;
+}
+function drawTwinLive(t) {
+  const T = t.twin, L = T.L.find(q => !q.dead); if (!L) return;
+  ctx.save(); ctx.scale(R / TL_R, R / TL_R); drawTwinFaceLive(t, L); ctx.restore();
+}
+// ======================= TWIN LOGS: the arena, drawn =======================
+// behind the logs: the orbit track, the red orbit arrows, the thread between their piths
+function drawTwinBack(t) {
+  const T = t.twin; if (T.hide || T.solo) return;
+  const [cx, cy] = twinOrbitC(T), D = T.introR !== null ? T.introR : T.D, live = !T.L.some(L => L.dead);
+  // orbit track
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.fillStyle = `rgba(253,231,176,${0.16 + 0.12 * T.pulse})`; const doff = time * 0.18 * T.dirS;
+  for (let j = 0; j < 56; j++) { const a = j / 56 * TAU + doff; ctx.fillRect(Math.cos(a) * D * T.ex - 1, Math.sin(a) * D * T.ey - 1, 2, 2); }
+  // the red arrows, midway between the twins, pointing the way the orbit turns (they flip when it reverses)
+  if (live) {
+    const warn = T.warn > 0 && Math.sin(time * 26) > 0;
+    for (const base of [T.ang + HALF, T.ang - HALF]) {
+      const sp = 0.62, dir = T.dir, a0 = base - dir * sp / 2, a1 = base + dir * sp / 2, rr = D * 0.98;
+      ctx.save(); ctx.scale(T.ex, T.ey);
+      ctx.strokeStyle = warn ? '#ffffff' : '#ff3b30'; ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.22 + 0.2 * T.pulse; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(0, 0, rr, Math.min(a0, a1), Math.max(a0, a1)); ctx.stroke(); ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(0, 0, rr, Math.min(a0, a1), Math.max(a0, a1)); ctx.stroke();
+      const hx = Math.cos(a1) * rr, hy = Math.sin(a1) * rr, ta = a1 + dir * HALF;
+      ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.moveTo(hx + Math.cos(ta) * 9, hy + Math.sin(ta) * 9); ctx.lineTo(hx + Math.cos(ta + 2.4) * 8, hy + Math.sin(ta + 2.4) * 8); ctx.lineTo(hx + Math.cos(ta - 2.4) * 8, hy + Math.sin(ta - 2.4) * 8); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+  // the barycentre: a tiny white point the pair turn about
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18); bg.addColorStop(0, `rgba(255,248,230,${0.5 + 0.4 * T.pulse})`); bg.addColorStop(1, 'rgba(255,248,230,0)'); ctx.fillStyle = bg; ctx.fillRect(cx - 18, cy - 18, 36, 36); ctx.restore();
+  if (live) drawTwinThread(t); else drawTwinThreadSnapped(t);
+}
+// INTERTWINED PITH: two strands twisting round each other from pith to pith; red and fraying as the HP drifts apart
+function drawTwinThread(t) {
+  const T = t.twin, [A, B] = T.L, dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy); if (len < 4) return;
+  const nx = -dy / len, ny = dx / len, st = T.strain, linkOn = A.link > 0, N = Math.max(12, Math.floor(len / 3.2)), fl = st > 0.8 && Math.sin(time * 40) > 0 ? 0.45 : 1;
+  ctx.save();
+  // beads on two strands twisting round each other; the bead on the near side of the twist is bigger and brighter
+  for (let s = 0; s < 2; s++) {
+    const c0 = (linkOn ? '255,255,255' : TWIN_RGB[s]).split(',').map(Number), col = c0.map((v, j) => Math.round(lerpN(v, [255, 70, 60][j], st))).join(',');
+    for (let j = 1; j < N; j++) {
+      const u = j / N, amp = (5 + 4 * st) * Math.sin(u * Math.PI), ph = u * 9 + time * (3 + 6 * st) + s * Math.PI, jit = st > 0.6 ? (hash(j, Math.floor(time * 30), s) - 0.5) * 6 * (st - 0.6) : 0, sw = Math.sin(ph), dep = Math.cos(ph);
+      const x = A.x + dx * u + nx * (sw * amp + jit), y = A.y + dy * u + ny * (sw * amp + jit), r = (linkOn ? 1.6 : 1.1) + 0.6 * dep;
+      ctx.globalAlpha = (0.45 + 0.4 * dep * 0.5 + 0.3 * T.pulse) * fl; ctx.fillStyle = `rgb(${col})`; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+  }
+  // fraying: hot red flecks jump off the thread as it strains
+  if (st > 0.5) { ctx.fillStyle = '#ff5a4a'; for (let k = 0; k < 5; k++) { const h = hash(k, Math.floor(time * 18), 4); if (h > st) continue; const u = hash(k, Math.floor(time * 18), 5), off = (hash(k, Math.floor(time * 18), 6) - 0.5) * 22; ctx.globalAlpha = 0.9; ctx.fillRect(A.x + dx * u + nx * off - 1.2, A.y + dy * u + ny * off - 1.2, 2.4, 2.4); } }
+  ctx.restore();
+}
+const lerpN = (a, b, u) => a + (b - a) * u;
+function drawTwinThreadSnapped(t) {
+  const T = t.twin; if (T.snapT <= 0) return;
+  T.snapT = Math.max(0, T.snapT - 1 / 60);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = T.snapT; ctx.lineCap = 'round';
+  for (const L of T.L) { if (L.dead) continue; const a = Math.atan2(CY - L.y, CX - L.x); ctx.strokeStyle = `rgba(${TWIN_RGB[L.i]},.8)`; ctx.lineWidth = 2; ctx.beginPath(); for (let j = 0; j <= 14; j++) { const u = j / 14, r = 10 + u * 70 * T.snapT, w = Math.sin(u * 12 + time * 30) * 6 * u; ctx[j ? 'lineTo' : 'moveTo'](L.x + Math.cos(a) * r - Math.sin(a) * w, L.y + Math.sin(a) * r + Math.cos(a) * w); } ctx.stroke(); }
+  ctx.restore();
+}
+// the eclipse: the guarding twin blazes with a corona in front of the other
+function drawTwinCorona(x, y, r, a, seed = 0) {
+  if (a <= 0.01) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 2.2); g.addColorStop(0, `rgba(255,246,220,${0.55 * a})`); g.addColorStop(0.4, `rgba(255,200,140,${0.22 * a})`); g.addColorStop(1, 'rgba(255,160,90,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
+  ctx.strokeStyle = `rgba(255,252,240,${0.8 * a})`; ctx.lineWidth = 1.4; ctx.beginPath();
+  for (let j = 0; j <= 90; j++) { const th = j / 90 * TAU, sp = hash(j % 90, seed, Math.floor(time * 12)) ** 3, rr = r * 1.04 + sp * r * 0.35 * a; ctx[j ? 'lineTo' : 'moveTo'](x + Math.cos(th) * rr, y + Math.sin(th) * rr); }
+  ctx.closePath(); ctx.stroke(); ctx.restore();
+}
+// the logs, back to front, with the turn reticle on whoever is next
+function drawTwinLogs(t) {
+  const T = t.twin; if (T.hide || T.solo) return;
+  const order = T.L.filter(L => !L.dead).sort((p, q) => p.depth - q.depth || p.y - q.y);
+  for (const L of order) {
+    if (T.eclipse > 0.05 && T.move && T.move.g === L.i) drawTwinCorona(L.x, L.y, TL_R * L.sc, T.eclipse, L.i);
+    drawTwinLog(t, L);
+  }
+  if (state === 'play' && T.L.every(L => !L.dead)) drawTwinAim(t);
+}
+// the next throw's target: brackets turning round it, its name, and the path the knife will bend along
+function drawTwinAim(t) {
+  const T = t.twin, i = twinTarget(T), L = T.L[i], O = T.L[1 - i], col = TWIN_COL[i], rgb = TWIN_RGB[i];
+  ctx.save(); ctx.translate(L.x, L.y);
+  const r = (TL_R + 20) * L.sc, sp = time * 1.6 * (i ? -1 : 1);
+  ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.globalAlpha = 0.85;
+  for (let j = 0; j < 4; j++) { const a = sp + j * HALF; ctx.beginPath(); ctx.arc(0, 0, r, a - 0.28, a + 0.28); ctx.stroke(); const x = Math.cos(a) * (r + 7), y = Math.sin(a) * (r + 7); ctx.save(); ctx.translate(x, y); ctx.rotate(a + Math.PI); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-3, -4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  ctx.globalAlpha = 1; ctx.restore();
+  // the predicted path: a pursuit curve from your knife, red where the other twin is in the way
+  let x = CX, y = KNIFE_Y, h = -HALF, blocked = false; const pts = [[x, y]];
+  for (let n = 0; n < 70; n++) {
+    const dx = L.x - x, dy = L.y - y, dist = Math.hypot(dx, dy); if (dist < TL_R * L.sc) break;
+    const dh = normA(Math.atan2(dy, dx) - h + Math.PI) - Math.PI, turn = (9 + 2600 / Math.max(60, dist)) * 7 / TL_DART;
+    h += clamp(dh, -turn, turn); x += Math.cos(h) * 7; y += Math.sin(h) * 7;
+    if (!O.dead && Math.hypot(x - O.x, y - O.y) < (TL_R + 6) * O.sc) { blocked = true; break; }
+    if (n % 2 === 0) pts.push([x, y]);
+  }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let j = 1; j < pts.length; j++) { const u = j / pts.length; ctx.fillStyle = blocked ? `rgba(255,90,74,${0.15 + 0.5 * u})` : `rgba(${rgb},${0.1 + 0.4 * u})`; ctx.beginPath(); ctx.arc(pts[j][0], pts[j][1], 1.6, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  if (blocked) { const [bx, by] = pts[pts.length - 1]; text(T.eclipse > 0.3 ? 'ECLIPSED' : 'IN THE WAY', bx, by + 16, 8, Math.sin(time * 12) > 0 ? '#ff5a4a' : '#ffffff', 'center', 800); }
+  text(TWIN_NAME[i], L.x, L.y - (TL_R + 34) * L.sc, 9, col, 'center', 800);
+}
+// knives in flight, bending toward their twin
+function drawTwinDarts(t) {
+  const T = t.twin;
+  for (const d of T.darts) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let j = 0; j < d.trail.length; j++) { const [x, y, h] = d.trail[j], u = (j + 1) / (d.trail.length + 1); ctx.save(); ctx.globalAlpha = 0.28 * u; ctx.translate(x, y); ctx.rotate(h + HALF); ctx.scale(0.8, 0.8); drawKnifeGlow(d.col); ctx.restore(); }
+    ctx.restore();
+    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.h + HALF); ctx.scale(0.8, 0.8);
+    if (d.abil) drawKnifeGlow((AURA[d.ab || 'strong'] || AURA.strong)[0]); else if (d.wood) drawWoodKnife(); else drawKnife();
+    ctx.restore();
+  }
+}
+// in front of everything in the world: darts, the strain vignette
+function drawTwinFront(t) {
+  const T = t.twin; if (!T) return;
+  drawTwinDarts(t);
+}
+function drawTwinScreen(t) {
+  const T = t.twin; if (T.hide || T.solo || T.dead) return;
+  if (T.strain > 0.05) { const a = T.strain * (0.25 + 0.15 * Math.sin(time * (6 + 10 * T.strain))); ctx.save(); ctx.globalAlpha = a; blit(bakeSprite('twinVig', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 160, CX, CY + 60, 560); v.addColorStop(0, 'rgba(255,40,30,0)'); v.addColorStop(1, 'rgba(255,40,30,.9)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); ctx.restore(); }
+}
+// ---------- HUD: two health bars, the balance between them, whose turn ----------
+function drawTwinHUD() {
+  const t = tgt; if (!t || !t.twin || t.twin.hide) return;
+  const T = t.twin, y = 104;
+  let fill = 1; if (fx && fx.type === 'twinintro') fill = clamp((fx.t - TWSHOT.reveal - 0.4) / 0.9, 0, 1);
+  if (T.solo) {
+    const L = T.L.find(q => !q.dead); if (!L) return;
+    const x0 = CX - 100; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+    const n = Math.max(1, L.hp), cw = 200 / Math.max(n, knivesLeft); for (let j = 0; j < Math.max(n, knivesLeft); j++) { ctx.fillStyle = j < knivesLeft ? (L.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : TWIN_COL[L.i]) : '#1a1420'; ctx.fillRect(x0 + j * cw, y, cw - 2, 8); }
+    text('ONE LAST LOG: ' + TWIN_NAME[L.i], CX, y + 22, 8, TWIN_COL[L.i], 'center', 800); return;
+  }
+  const bw = 150 * fill, tr = twinTarget(T), [A, B] = T.L, d = A.hp - B.hp;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(CX - 172, y - 6, 344, 20);
+  for (const L of T.L) {
+    const left = L.i === 0, x0 = left ? CX - 18 - bw : CX + 18, k = L.hp / TWIN_HP, on = tr === L.i && state === 'play';
+    ctx.fillStyle = '#1a1420'; ctx.fillRect(x0, y, bw, 8);
+    ctx.fillStyle = L.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : TWIN_COL[L.i];
+    if (left) ctx.fillRect(x0 + bw * (1 - k), y, bw * k, 8); else ctx.fillRect(x0, y, bw * k, 8);
+    for (let j = 1; j < TWIN_HP; j++) { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x0 + bw * j / TWIN_HP, y, 1, 8); }
+    if (on) { ctx.strokeStyle = TWIN_COL[L.i]; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time * 8); ctx.strokeRect(x0 - 2, y - 2, bw + 4, 12); ctx.globalAlpha = 1; }
+    text(left ? (on ? '▶ ' : '') + TWIN_NAME[L.i] + '  ' + L.hp : L.hp + '  ' + TWIN_NAME[L.i] + (on ? ' ◀' : ''), left ? x0 : x0 + bw, y + 20, 8, on ? '#ffffff' : TWIN_COL[L.i], left ? 'left' : 'right', 800);
+  }
+  // the balance: a little beam that tips toward the stronger twin, red past the edge
+  const tip = clamp(d / (TWIN_GAP + 1), -1, 1), danger = Math.abs(d) >= TWIN_GAP - 1, col = Math.abs(d) >= TWIN_GAP ? (Math.sin(time * 14) > 0 ? '#ff5a4a' : '#ffffff') : danger ? '#ff9a3c' : '#fde7b0';
+  ctx.save(); ctx.translate(CX, y + 4); ctx.rotate(-tip * 0.5); ctx.fillStyle = col; ctx.fillRect(-13, -1, 26, 2); ctx.beginPath(); ctx.arc(-13, 0, 2.6, 0, TAU); ctx.arc(13, 0, 2.6, 0, TAU); ctx.fill(); ctx.restore();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(CX, y + 4); ctx.lineTo(CX - 4, y + 11); ctx.lineTo(CX + 4, y + 11); ctx.closePath(); ctx.fill();
+  text(Math.abs(d) + ' / ' + TWIN_GAP, CX, y + 20, 8, col, 'center', 800);
+  let msg = 'HIT THEM BY TURNS  /  KEEP THEM WITHIN ' + TWIN_GAP, mc = '#c3c3ca';
+  if (Math.abs(d) >= TWIN_GAP) { msg = 'ONE MORE APART AND ' + TWIN_NAME[d > 0 ? 0 : 1] + ' CHARGES: HIT ' + TWIN_NAME[d > 0 ? 0 : 1]; mc = Math.sin(time * 14) > 0 ? '#ff5a4a' : '#ffffff'; }
+  else if (T.msgT > 0) { msg = T.msg; mc = '#fde7b0'; }
+  else if (T.eclipse > 0.3) { msg = 'ECLIPSE: THE FRONT TWIN TAKES THE HIT'; mc = '#ffd23f'; }
+  text(msg, CX, y + 34, 7, mc, 'center', 700);
+}
+// ======== TWIN LOGS background: an eclipse in deep space, scored like a piano roll, cut to Syzygy ========
+// A black moon sits on the barycentre with a white corona boiling round its edge, and the twins orbit just outside it.
+// Behind them a piano roll of coloured lanes scrolls past (violet, amber, blue, green), its notes lighting as they
+// cross the playhead on the beat. A copper planet hangs up in the corner. Quiet passages thin it all to a ring and
+// stars; the two big drops and the finale throw gravity ripples off the pair on every beat.
+const TWIN_SEC = [[0, 'intro'], [18.37, 'main'], [54.9, 'break'], [73.2, 'dip'], [77.8, 'drop'], [96.1, 'void'], [128.1, 'build'], [132.6, 'main'], [169.2, 'dip'], [173.8, 'drop'], [210.4, 'break'], [219.5, 'build'], [224.1, 'drop'], [269.8, 'dip']];
+function twinSong() { const Bb = BEATS.twin; return beatOf('twin') * 60 / Bb.bpm + Bb.down; }
+function twinSection(st) { let s = 'main', s0 = 0; for (const [t0, k] of TWIN_SEC) if (st >= t0) { s = k; s0 = t0; } return [s, st - s0]; }
+const TWIN_LANE_COL = ['#8f7cff', '#ff9a3c', '#4a6bff', '#3fd6a0', '#c4a8ff', '#ffc38a', '#5fb8ff', '#b06cff'];
+const TWIN_LANES = Array.from({ length: 22 }, (_, i) => ({ y: 30 + i * 32 + (hash(i, 3, 1) - 0.5) * 10, col: TWIN_LANE_COL[i % 8], sp: 0.85 + hash(i, 3, 2) * 0.5, dens: 0.25 + hash(i, 3, 3) * 0.5, long: hash(i, 3, 4) < 0.35 }));
+// the piano roll: two layers of lanes baked once (odd and even lanes scroll at different speeds), notes brighten
+// as they cross the playhead
+const twinSpr = {};
+function twinBake(key, x, y, w, h, sc, fn) { if (twinSpr[key]) return twinSpr[key]; const c = document.createElement('canvas'); c.width = Math.ceil(w * sc); c.height = Math.ceil(h * sc); const g = c.getContext('2d'); g.scale(sc, sc); g.translate(-x, -y); withCtx(g, () => fn(g)); return (twinSpr[key] = { c, x, y, w, h }); }
+const TWIN_RW = 880, TWIN_SLOT = 22;
+const twinRollLayer = k => twinBake('twinRoll' + k, 0, 0, TWIN_RW, H, 2, g => {
+  for (let i = k; i < TWIN_LANES.length; i += 2) {
+    const ln = TWIN_LANES[i], y = ln.y;
+    g.fillStyle = ln.col; g.globalAlpha = 0.09; g.fillRect(0, y - 0.5, TWIN_RW, 1);
+    for (let j = 0; j < TWIN_RW / TWIN_SLOT; ) {
+      const h = hash(i, j, 7); if (h > ln.dens) { j++; continue; }
+      const len = ln.long ? 2 + Math.floor(hash(i, j, 8) * 5) : 1, x = j * TWIN_SLOT, w = Math.min(len * TWIN_SLOT, TWIN_RW - x) - 5;
+      g.globalAlpha = 0.5; g.fillRect(x, y - 2.5, w, 5); g.globalAlpha = 0.85; g.fillRect(x, y - 2.5, 2, 5);
+      j += len + 1;
+    }
+  }
+});
+function twinRoll(st, amt, Bt, F, slow = 1) {
+  if (amt <= 0.01) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const k of [0, 1]) {
+    const sp = (k ? 74 : 52) * slow, off = ((st * sp) % TWIN_RW + TWIN_RW) % TWIN_RW, L = twinRollLayer(k);
+    ctx.globalAlpha = amt * (0.55 + 0.35 * F.high + (k ? 0.1 * Bt.pulse : 0));
+    for (let x = -off; x < W + 60; x += TWIN_RW) ctx.drawImage(L.c, x, 0, TWIN_RW, H);
+  }
+  // the playhead lights whatever crosses it
+  ctx.globalAlpha = amt * (0.1 + 0.18 * Bt.pulse); blit(twinBake('twinHead', CX - 14, -60, 28, H + 120, 1, g => { const lg = g.createLinearGradient(CX - 14, 0, CX + 14, 0); lg.addColorStop(0, 'rgba(253,231,176,0)'); lg.addColorStop(0.5, 'rgba(253,231,176,1)'); lg.addColorStop(1, 'rgba(253,231,176,0)'); g.fillStyle = lg; g.fillRect(CX - 14, -60, 28, H + 120); }));
+  ctx.restore();
+}
+// the eclipse: a black disc with a corona that boils to the music, its edge drawn like a waveform
+function twinCorona(x, y, r, heat, Bt, F, seed = 0) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, r * 0.9, x, y, r * (2.6 + heat)); g.addColorStop(0, `rgba(255,244,220,${0.35 + 0.35 * heat})`); g.addColorStop(0.25, `rgba(255,190,120,${0.12 + 0.18 * heat})`); g.addColorStop(0.6, `rgba(150,110,255,${0.05 + 0.06 * heat})`); g.addColorStop(1, 'rgba(80,60,200,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * (2.6 + heat), 0, TAU); ctx.fill();
+  const fr = Math.floor(time * 14), amp = r * (0.12 + 0.3 * heat * (0.4 + F.bass + 0.4 * Bt.pulse));
+  for (const [w, a, k] of [[5, 0.25, 1.15], [1.6, 0.95, 1]]) {
+    ctx.strokeStyle = `rgba(255,252,242,${a})`; ctx.lineWidth = w; ctx.beginPath();
+    for (let j = 0; j <= 90; j++) { const th = j / 90 * TAU, n = j % 90, sp = Math.pow(hash(n, seed, fr), 4) * 0.8 + Math.pow(hash(n >> 2, seed + 1, fr >> 1), 2) * 0.5, rr = r * 1.02 + sp * amp * k + Math.sin(th * 6 + time * 2) * r * 0.02; ctx[j ? 'lineTo' : 'moveTo'](x + Math.cos(th) * rr, y + Math.sin(th) * rr); }
+    ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = '#020105'; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,236,200,${0.5 + 0.4 * heat})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r - 0.5, 0, TAU); ctx.stroke(); ctx.restore();
+}
+// a copper planet in the corner, as in the song's own video
+function twinPlanet(x, y, r) {
+  blit(bakeSprite('twinPlanet', x - r - 6, y - r - 6, 2 * r + 12, 2 * r + 12, g => {
+    const pg = g.createRadialGradient(x - r * 0.35, y - r * 0.35, 2, x, y, r); pg.addColorStop(0, '#e8a070'); pg.addColorStop(0.5, '#b8643a'); pg.addColorStop(1, '#5a2a14');
+    g.fillStyle = pg; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    const rnd = mulberry(909); g.save(); g.beginPath(); g.arc(x, y, r, 0, TAU); g.clip();
+    for (let i = 0; i < 9; i++) { const cx = x + (rnd() - 0.5) * r * 1.6, cy = y + (rnd() - 0.5) * r * 1.6, cr = 1.5 + rnd() * r * 0.22; g.fillStyle = 'rgba(70,30,12,.35)'; g.beginPath(); g.arc(cx, cy, cr, 0, TAU); g.fill(); g.strokeStyle = 'rgba(255,200,160,.25)'; g.lineWidth = 0.6; g.beginPath(); g.arc(cx - 0.4, cy - 0.4, cr, Math.PI, Math.PI * 1.6); g.stroke(); }
+    for (let i = 0; i < 4; i++) { g.strokeStyle = 'rgba(255,190,140,.12)'; g.lineWidth = 1.5; g.beginPath(); g.ellipse(x, y + (i - 1.5) * r * 0.4, r, r * 0.1, 0.15, 0, TAU); g.stroke(); }
+    const sh = g.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.4, x, y, r * 1.1); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = sh; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    g.restore();
+  }));
+}
+const twinStars = () => twinBake('twinStars', -80, -80, W + 160, H + 160, 1.5, g => {
+  const rnd = mulberry(2727);
+  for (let i = 0; i < 260; i++) { const x = rnd() * (W + 160) - 80, y = rnd() * (H + 160) - 80, b = rnd(), s = b < 0.9 ? 0.8 : 1.6; g.fillStyle = `rgba(${200 + rnd() * 55 | 0},${200 + rnd() * 55 | 0},255,${0.25 + b * 0.6})`; g.fillRect(x, y, s, s); }
+  for (let i = 0; i < 5; i++) { const x = rnd() * W, y = rnd() * H, r = 60 + rnd() * 120, ng = g.createRadialGradient(x, y, 0, x, y, r); ng.addColorStop(0, `rgba(${['120,90,255', '255,140,80', '80,160,255'][i % 3]},.07)`); ng.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = ng; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+});
+BG.twin = (Bt, px, py) => {
+  const F = musicFeel('twin'), st = twinSong(), [sec, s] = twinSection(st);
+  const T = tgt && tgt.twin, [ocx, ocy] = T ? twinOrbitC(T) : [CX, CY + TL_OY];
+  const roll = { intro: 0.4, main: 0.85, break: 0.55, dip: 0.25, drop: 1, void: 0.12, build: 0.5 }[sec] || 0.7;
+  const heat = { intro: 0.3, main: 0.55, break: 0.4, dip: 0.2, drop: 1, void: 0.12, build: 0.35 + 0.5 * clamp(s / 4.5, 0, 1) }[sec] || 0.5;
+  if (T) T.pulse = Math.max(T.pulse, Bt.pulse * (0.4 + 0.6 * heat));
+  ctx.save(); ctx.translate(px * 0.15, py * 0.15);
+  bgFill('twinSky', [[0, '#04030a'], [0.4, '#0b0820'], [0.7, '#140c28'], [1, '#05040c']]);
+  ctx.save(); ctx.translate(ocx, ocy); ctx.rotate(time * 0.01); ctx.translate(-ocx, -ocy); ctx.globalAlpha = 0.85; blit(twinStars()); ctx.restore();
+  twinPlanet(W - 58, 70, 22);
+  twinRoll(st, roll, Bt, F, sec === 'void' ? 0.4 : 1);
+  // gravity ripples off the pair on the beat when the song is at full tilt
+  if (heat > 0.5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 4; k++) { const u = ((Bt.b % 1) + k) / 4, r = 70 + u * 420; ctx.strokeStyle = `rgba(200,190,255,${0.16 * (1 - u) * heat})`; ctx.lineWidth = 2 * (1 - u) + 0.5; ctx.beginPath(); ctx.ellipse(ocx, ocy, r, r * 0.92, 0, 0, TAU); ctx.stroke(); } ctx.restore(); }
+  // break: the lanes bend toward the barycentre like light round a mass
+  if (sec === 'break' || sec === 'dip') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(196,168,255,.08)'; ctx.lineWidth = 1; for (let k = 0; k < 9; k++) { const y0 = 60 + k * 80; ctx.beginPath(); for (let x = -40; x <= W + 40; x += 10) { const dx = x - ocx, dy = y0 - ocy, d = Math.hypot(dx, dy), bend = 2200 / Math.max(80, d); ctx[x === -40 ? 'moveTo' : 'lineTo'](x, y0 - Math.sign(dy) * bend); } ctx.stroke(); } ctx.restore(); }
+  twinCorona(ocx, ocy, 52 + 4 * Bt.pulse * heat, heat, Bt, F, 3);
+  // void: drifting dust only
+  if (sec === 'void') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 26; i++) { const x = (hash(i, 5, 1) * (W + 40) + time * (6 + 10 * hash(i, 5, 2))) % (W + 40) - 20, y = hash(i, 5, 3) * H; ctx.fillStyle = `rgba(253,231,176,${0.15 + 0.2 * Math.sin(time * 2 + i) ** 2})`; ctx.fillRect(x, y, 1.5, 1.5); } ctx.restore(); }
+  if (sec === 'build') { const k = clamp(s / 4.5, 0, 1); ctx.fillStyle = `rgba(255,236,200,${0.05 * k * Bt.half})`; fillView(); }
+  ctx.restore();
+  // the knife lane stays clear
+  blit(bakeSprite('twinLane', CX - 70, CY + R, 140, H - CY - R + 40, g => { const lg = g.createLinearGradient(CX - 70, 0, CX + 70, 0); lg.addColorStop(0, 'rgba(3,2,8,0)'); lg.addColorStop(0.5, 'rgba(3,2,8,.4)'); lg.addColorStop(1, 'rgba(3,2,8,0)'); g.fillStyle = lg; g.fillRect(CX - 70, CY + R, 140, H - CY - R + 40); }));
+};
+
+// ---------- the intro, drawn ----------
+const TWN_C = [CX, CY + 40];
+function tiPairPos(t, r, w, ph = 0) { const a = ph + t * w; return [[TWN_C[0] + Math.cos(a) * r, TWN_C[1] + Math.sin(a) * r * 0.9], [TWN_C[0] - Math.cos(a) * r, TWN_C[1] - Math.sin(a) * r * 0.9], a]; }
+function tiSpark(x, y, col, s = 1) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(x, y, 0, x, y, 26 * s); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.2, `rgba(${col},.9)`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g; ctx.fillRect(x - 26 * s, y - 26 * s, 52 * s, 52 * s); star(x, y, 9 * s, 'rgba(255,255,255,.8)'); ctx.restore(); }
+function tiTrail(r, a, w, col) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; for (let j = 0; j < 14; j++) { const a0 = a - j * 0.09 * Math.sign(w), a1 = a0 - 0.09 * Math.sign(w); ctx.strokeStyle = `rgba(${col},${0.5 * (1 - j / 14)})`; ctx.lineWidth = 3 * (1 - j / 14); ctx.beginPath(); ctx.ellipse(TWN_C[0], TWN_C[1], r, r * 0.9, 0, Math.min(a0, a1), Math.max(a0, a1)); ctx.stroke(); } ctx.restore(); }
+// the orbit radius over the opening: wide, then a notch tighter on each hat
+function tiR(t) { let r = 70; for (const k of ['h1', 'h2', 'h3']) if (t >= TWN[k]) r -= 9 * ease3(clamp((t - TWN[k]) / 0.25, 0, 1)); return r; }
+function tiBack(t, roll) {
+  ctx.fillStyle = '#020106'; fillView(); ctx.globalAlpha = clamp((t - TWN.open) / 1.2, 0, 1); blit(twinStars()); ctx.globalAlpha = 1;
+  if (roll > 0) { const Bt = beatInfo('twin'); twinRoll(t, roll, Bt, { high: 0.5, bass: 0.5 }, 1.4); }
+}
+function tiPair(t) {
+  const roll = t < TWN.rise ? 0 : clamp((t - TWN.rise) / 1.6, 0, 0.8);
+  tiBack(t, roll);
+  const z = 1 + 0.25 * clamp((t - TWN.rise) / (TWN.eclipse - TWN.rise), 0, 1);
+  ctx.save(); ctx.translate(TWN_C[0], TWN_C[1]); ctx.scale(z, z); ctx.translate(-TWN_C[0], -TWN_C[1]);
+  const r = tiR(t), w = 1.3 + 0.5 * clamp((t - TWN.rise) / 3, 0, 1), [[ax, ay], [bx, by], a] = tiPairPos(t, r, w);
+  tiTrail(r, a, w, TWIN_RGB[0]); tiTrail(r, a + Math.PI, w, TWIN_RGB[1]);
+  for (const k of ['h1', 'h2', 'h3']) { const s = t - TWN[k]; if (s > 0 && s < 0.8) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(253,231,176,${0.7 * (1 - s / 0.8)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(TWN_C[0], TWN_C[1], 20 + s * 260, 0, TAU); ctx.stroke(); ctx.restore(); } }
+  // the thread between them
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(253,231,176,.25)'; ctx.lineWidth = 1; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  tiSpark(ax, ay, TWIN_RGB[0], 0.8); tiSpark(bx, by, TWIN_RGB[1], 0.8);
+  ctx.restore();
+  const cap = (str, t0, y) => { const s = t - t0; if (s < 0) return; const n = Math.min(str.length, Math.floor(s * 22)); text(str.slice(0, n), CX, y, 15, `rgba(253,231,176,${clamp((TWN.eclipse - 0.1 - t) / 0.3, 0, 1)})`, 'center', 700); };
+  cap('TWO BODIES', TWN.open + 0.5, H - 210); cap('ONE PITH', TWN.open + 1.5, H - 186); cap('NEITHER WILL YIELD', TWN.h1, H - 162);
+  // the copper moon slides in over the last half second
+  if (t > TWN.h3) { const u = ease3(clamp((t - TWN.h3) / (TWN.eclipse - TWN.h3), 0, 1)); tiSun(t, 0); ctx.fillStyle = '#020106'; ctx.beginPath(); ctx.arc(TWN_C[0] - 260 * (1 - u), TWN_C[1] - 30 * (1 - u), 64, 0, TAU); ctx.fill(); }
+}
+function tiSun(t, a) {
+  const u = clamp((t - TWN.h3) / 0.4, 0, 1);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(TWN_C[0], TWN_C[1], 0, TWN_C[0], TWN_C[1], 140); g.addColorStop(0, `rgba(255,252,240,${0.9 * u})`); g.addColorStop(0.45, `rgba(255,236,200,${0.6 * u})`); g.addColorStop(1, 'rgba(255,200,140,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(TWN_C[0], TWN_C[1], 140, 0, TAU); ctx.fill(); ctx.restore();
+}
+// ECLIPSE: the corona blazes, SYZYGY / OF THE / UNYIELDING slam in
+function tiEclipse(t) {
+  tiBack(t, 0.8);
+  const s = t - TWN.eclipse, Bt = beatInfo('twin'), roll = t > TWN.roll ? (t - TWN.roll) / (TWN.cut - TWN.roll) : 0;
+  const heat = 1 - 0.5 * clamp(s / 0.8, 0, 1) + 0.6 * roll, flash = Math.exp(-s * 5);
+  ctx.save(); ctx.translate(TWN_C[0], TWN_C[1]); const z = 1.3 - 0.15 * ease3(clamp(s / 2.4, 0, 1)) + 0.1 * roll; ctx.scale(z, z); ctx.translate(-TWN_C[0], -TWN_C[1]);
+  twinCorona(TWN_C[0], TWN_C[1], 64, heat, Bt, { bass: 0.6 + roll, high: 0.6 }, 9);
+  // the two sparks keep circling outside it
+  const r = 104 + 10 * Math.sin(s * 2), w = 1.9, [[ax, ay], [bx, by], a] = tiPairPos(t, r, w); tiTrail(r, a, w, TWIN_RGB[0]); tiTrail(r, a + Math.PI, w, TWIN_RGB[1]); tiSpark(ax, ay, TWIN_RGB[0], 0.7); tiSpark(bx, by, TWIN_RGB[1], 0.7);
+  // rays on the hat roll
+  if (roll > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let j = 0; j < 16; j++) { const aa = j / 16 * TAU + time * 0.4; beam(TWN_C[0], TWN_C[1], aa, 480, 3, 26 * roll, `rgba(255,240,210,${0.12 * roll})`); } ctx.restore(); }
+  ctx.restore();
+  if (flash > 0.02) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,236,200,${0.45 * flash})`; fillView(); ctx.restore(); }
+  const word = (str, t0, y, size, col) => { const e = t - t0; if (e < 0) return; slamText(str, CX, y, size, col, e, 99, { under: 'rgba(255,90,74,.35)' }); };
+  word('SYZYGY', TWN.w1, 150, 54, '#fde7b0'); word('OF THE', TWN.w2, H - 228, 20, '#ffffff'); word('UNYIELDING', TWN.w3, H - 196, 34, '#ffb347');
+}
+// the twins as logs, rim-lit against the corona, spiralling in
+function tiOrbit(t) {
+  const s = t - TWN.cut, sp = clamp((t - TWN.spiral) / (TWN.live - TWN.spiral), 0, 1), Bt = beatInfo('twin');
+  tiBack(t, 0.9);
+  const z = 1 + 0.12 * sp; ctx.save(); ctx.translate(TWN_C[0], TWN_C[1]); ctx.scale(z, z); ctx.translate(-TWN_C[0], -TWN_C[1]);
+  // gravity ripples on the beat
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let k = 0; k < 4; k++) { const u = ((Bt.b % 1) + k) / 4, r = 60 + u * 420; ctx.strokeStyle = `rgba(200,190,255,${(0.14 + 0.2 * sp) * (1 - u)})`; ctx.lineWidth = 2 * (1 - u) + 0.5; ctx.beginPath(); ctx.arc(TWN_C[0], TWN_C[1], r, 0, TAU); ctx.stroke(); } ctx.restore();
+  twinCorona(TWN_C[0], TWN_C[1], 46 + 6 * Bt.pulse, 0.5 + 0.5 * sp, Bt, { bass: 0.4 + 0.6 * sp, high: 0.5 }, 5);
+  const r = 150 - 40 * ease3(clamp(s / 1.5, 0, 1)) - 50 * sp * sp, ang = 0.8 * s + 9 * sp * sp * (TWN.live - TWN.spiral) / 3, sc = 0.62 + 0.1 * sp, lit = clamp((t - TWN.spiral) / 1.6, 0, 1);
+  const pos = [0, 1].map(i => [TWN_C[0] + Math.cos(ang + i * Math.PI) * r, TWN_C[1] + Math.sin(ang + i * Math.PI) * r * 0.9]);
+  // trails at speed
+  if (sp > 0.2) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 2; i++) { ctx.strokeStyle = `rgba(${TWIN_RGB[i]},${0.35 * sp})`; ctx.lineWidth = 16 * sc; ctx.lineCap = 'round'; ctx.beginPath(); ctx.ellipse(TWN_C[0], TWN_C[1], r, r * 0.9, 0, ang + i * Math.PI - 1.2 * sp, ang + i * Math.PI); ctx.stroke(); } ctx.restore(); }
+  // the thread
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(253,231,176,${0.25 + 0.4 * lit})`; ctx.lineWidth = 1.5; ctx.beginPath(); for (let j = 0; j <= 30; j++) { const u = j / 30, x = pos[0][0] + (pos[1][0] - pos[0][0]) * u, y = pos[0][1] + (pos[1][1] - pos[0][1]) * u, wv = Math.sin(u * 9 + time * 6) * 5 * Math.sin(u * Math.PI); ctx[j ? 'lineTo' : 'moveTo'](x - Math.sin(ang) * wv, y + Math.cos(ang) * wv); } ctx.stroke(); ctx.restore();
+  for (let i = 0; i < 2; i++) {
+    const [x, y] = pos[i];
+    ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+    ctx.save(); ctx.rotate(time * (i ? -2 : 2) * (1 + 3 * sp)); blit(twinBody(i)); ctx.restore(); blit(twinShade());
+    // silhouette, lifting as they light up
+    ctx.fillStyle = `rgba(4,3,10,${0.92 * (1 - lit)})`; ctx.beginPath(); ctx.arc(0, 0, TL_R + 1, 0, TAU); ctx.fill();
+    const ra = Math.atan2(TWN_C[1] - y, TWN_C[0] - x); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,244,220,.85)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, TL_R, ra - 1.1, ra + 1.1); ctx.stroke(); ctx.strokeStyle = `rgba(${TWIN_RGB[i]},.6)`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, TL_R + 2, ra - 0.7, ra + 0.7); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+  const k = clamp((t - TWN.spiral - 0.6) / 0.5, 0, 1) * clamp((TWN.live - t) / 0.3, 0, 1);
+  if (k > 0) { ctx.save(); ctx.globalAlpha = k; text('CASTOR', CX - 92, H - 190, 16, TWIN_COL[0], 'center', 800); text('&', CX, H - 190, 16, '#fde7b0', 'center', 800); text('POLLUX', CX + 92, H - 190, 16, TWIN_COL[1], 'center', 800); ctx.restore(); }
+}
+function tiLive(t) {
+  const s = t - TWN.live;
+  cineTitle('TWIN LOGS', 'SYZYGY OF THE UNYIELDING', s + 0.4, '#ffb347', '#7fd4ff', CY + TL_OY + 200);
+  if (s < 0.25) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,236,200,${0.4 * (1 - s / 0.25)})`; fillView(); ctx.restore(); }
+}
+function drawTwinIntro(t) {
+  const live = t >= TWN.live;
+  ctx.save();
+  if (!live) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= TWN.open && t < TWN.eclipse) introIris(t, TWN.open, () => tiPair(t), '253,231,176');
+  else if (t >= TWN.eclipse && t < TWN.cut) tiEclipse(t);
+  else if (t >= TWN.cut && t < TWN.live) tiOrbit(t);
+  else if (live && t < TWN.land) tiLive(t);
+  introStarOut(t, TWN.star, TWN.open, 'twin');
+  if (!live) { blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); drawGrain(0.06); }
+  ctx.restore();
+  if (!live) cineSkipHint();
+}
+
 // ======================= WIRE CLUMP cinematic =======================
 // ======================= FEEL + VFX (build 48) =======================
 // Screen shake as trauma: shake (pixels, as the game has always set it) maps to trauma 0..1, and the offset is
@@ -13736,6 +14850,7 @@ function update(dt) {
     if (t.wire) updateWire(t, dt);
     if (t.frost) updateFrost(t, dt);
     if (t.bot) updateBot(t, dt);
+    if (t.twin) updateTwin(t, dt);
     if (t.nestPending && state === 'play' && !fx) { t.nestPending = false; startNestIntro(t); }
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
@@ -13777,7 +14892,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost || tgt.bot ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost || tgt.bot || tgt.twin ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   updatePieces(dt);
 }
@@ -13881,7 +14996,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone')) || (tgt.bot && tgt.bot.hide)) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone')) || (tgt.bot && tgt.bot.hide) || (tgt.twin && (tgt.twin.hide || !tgt.twin.solo))) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -14045,7 +15160,7 @@ function drawHUD() {
     ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(x, ty, now ? 7.5 : 6, 0, TAU); ctx.fill();
     ctx.fillStyle = done ? '#ffd23f' : now ? '#ffffff' : '#38383f'; ctx.beginPath(); ctx.arc(x, ty, now ? 5.5 : 4, 0, TAU); ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isBotStage(stage) ? 'LITANY OF THE BOTANY' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isBotStage(stage) ? 'LITANY OF THE BOTANY' : isTwinStage(stage) ? 'TWIN LOGS' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 48, 11, bossName ? '#ff8a95' : 'rgba(255,255,255,.75)', 'center', 700);
   drawTypeMeter();
   comboPop = Math.max(0, comboPop - 0.06);
@@ -14060,9 +15175,9 @@ function drawHUD() {
     ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
   drawAbilFeed();
-  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD(); drawBotHUD(); drawBotStatus();
+  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD(); drawBotHUD(); drawBotStatus(); drawTwinHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost || tgt.bot))) drawMagazine();
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost || tgt.bot || tgt.twin))) drawMagazine();
 }
 
 // the knife magazine: a slotted steel rack, lit knives still to throw, empty slots spent, the next one up highlighted
@@ -14525,6 +15640,7 @@ function drawScene() {
   if (tgt && tgt.tank && !tgt.tank.hide) drawTankMounts(tgt);
   if (tgt && tgt.wire) drawWireCables(tgt);
   if (tgt && tgt.bot) drawBotVines(tgt);
+  if (tgt && tgt.twin) drawTwinBack(tgt);
 
   if (tgt) drawTarget();
   if (tgt && tgt.gear) { drawGearRig(tgt); drawSprockets(tgt); }
@@ -14533,6 +15649,7 @@ function drawScene() {
   if (tgt && tgt.wire) drawWireFront(tgt);
   if (tgt && tgt.frost) drawFrostFront(tgt);
   if (tgt && tgt.bot) drawBotFront(tgt);
+  if (tgt && tgt.twin) { drawTwinLogs(tgt); drawTwinFront(tgt); }
   if (frostRays.length) drawFrostRays();
   if (tgt && tgt.tank && !tgt.tank.hide) drawTankRobot(tgt);
   if (bossBgKey(tgt) === 'boss') drawTankFore();
@@ -14571,6 +15688,7 @@ function drawScene() {
   if (fx && fx.type === 'wireintro') drawWireIntro(fx.t);
   if (fx && fx.type === 'frostintro') drawFrostIntro(fx.t);
   if (fx && fx.type === 'botintro') drawBotIntro(fx.t);
+  if (fx && fx.type === 'twinintro') drawTwinIntro(fx.t);
   if (fx && fx.type === 'tiredeflate') drawTireDeflate(fx.t);
   if (fx && fx.type === 'nestintro') drawNestIntro(fx.t);
   if (fx && fx.type === 'abkill') drawAbKill(fx.t);
@@ -14596,6 +15714,7 @@ function drawScene() {
   drawZap();
   if (tgt && tgt.frost && state !== 'menu') drawFrostWeather(tgt);
   if (tgt && tgt.bot && state !== 'menu') drawBotScreen(tgt);
+  if (tgt && tgt.twin && state !== 'menu') drawTwinScreen(tgt);
 
   if (state !== 'menu') drawForeground();
   ctx.restore();
@@ -14603,7 +15722,7 @@ function drawScene() {
   if (ixq.length && state !== 'menu') drawIxTitles();
   if (sporeT > 0 && state !== 'menu') drawSporeHaze();
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal) || (fx.type === 'botintro' && fx.t < BSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal) || (fx.type === 'botintro' && fx.t < BSHOT.reveal) || (fx.type === 'twinintro' && fx.t < TWSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -14874,7 +15993,7 @@ function drawBackdrop() {
     if (state !== 'menu') { ctx.save(); ctx.translate(px * 0.5, py * 0.5); ctx.globalAlpha = 0.05 + (tgt ? tgt.hit * 0.06 : 0); dtext(String(stage).padStart(2, '0'), CX, CY + 6, 250, '#ffffff', 'center', null, -0.18); ctx.restore(); }
   }
   if (!bk && state !== 'menu') { drawMillFloor(px, py); drawMillLight(px, py); }
-  if (bk !== 'boss') {
+  if (bk !== 'boss' && bk !== 'twin') {
   // hanging chains and hooks, swinging with the camera
   ctx.save(); ctx.translate(px * 0.8, py * 0.8);
   for (let i = 0; i < 5; i++) {
@@ -14914,7 +16033,7 @@ function drawBackdrop() {
 // the plane in front of the action: sawdust in the air and out-of-focus rigging that slides the other way
 function introCovering() { return !!(fx && /intro$/.test(fx.type)); }
 function drawForeground() {
-  if (introCovering() || bossBgKey(tgt) === 'boss') return;
+  if (introCovering() || bossBgKey(tgt) === 'boss' || bossBgKey(tgt) === 'twin') return;
   const px = plx.x, py = plx.y;
   for (let i = 0; i < 34; i++) {
     const dz = 1.15 + hash(i, 8, 1) * 1.5, sp = 6 + hash(i, 8, 2) * 16;
@@ -15120,13 +16239,14 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of seven bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of seven bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
-  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of seven bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
-  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of seven bosses, at random). THE ICE LAYER takes 18 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). Two or three FROZEN SPECIES blocks sit on the rim: break them to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin, and a CRYSTAL BURST rings the rim with spikes every few seconds: hold your throw. The RAW LOG takes 18 more: PARTIAL ICE regrows the shell if left 35s, and BREAKAWAYS fire icicles. Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
-  { cat: 'BOSS', name: 'LITANY OF THE BOTANY', bot: true, how: 'Stage 5 (one of seven bosses, at random). Five great VINES lock its spin to the arc between two of them. VINE PHASE: a white spider lily buds in the arc and blooms after 10s; black tentacles crawl out to strangle it, so hit them. Strike 3 bloomed lilies and a vine tears away, widening the arc: four phases, then it spins free and 5 hits end it. Special lilies: blue (counts double), red (half a heart), golden (5 apples), surprise (blinds you) and electric (shocks you). Flytraps snap when open, poison ivy costs half a heart, nightshade a whole one. Floral vines make 35% of throws bloom instead (60s), roses splinter you (10 throws, 20% to lose a heart), vine tentacles steal your knife 6s (cut them as they reach). The mature hollow swallows knives and spits them back (parry); hit it 5 times while its eyes are shut. Breakaways bare eyes that drain your SANITY.', abil: 'Ability knives pass the growths on the rim.' },
-  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of seven bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of seven bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of eight bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of eight bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
+  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of eight bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
+  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of eight bosses, at random). THE ICE LAYER takes 18 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). Two or three FROZEN SPECIES blocks sit on the rim: break them to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin, and a CRYSTAL BURST rings the rim with spikes every few seconds: hold your throw. The RAW LOG takes 18 more: PARTIAL ICE regrows the shell if left 35s, and BREAKAWAYS fire icicles. Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
+  { cat: 'BOSS', name: 'LITANY OF THE BOTANY', bot: true, how: 'Stage 5 (one of eight bosses, at random). Five great VINES lock its spin to the arc between two of them. VINE PHASE: a white spider lily buds in the arc and blooms after 10s; black tentacles crawl out to strangle it, so hit them. Strike 3 bloomed lilies and a vine tears away, widening the arc: four phases, then it spins free and 5 hits end it. Special lilies: blue (counts double), red (half a heart), golden (5 apples), surprise (blinds you) and electric (shocks you). Flytraps snap when open, poison ivy costs half a heart, nightshade a whole one. Floral vines make 35% of throws bloom instead (60s), roses splinter you (10 throws, 20% to lose a heart), vine tentacles steal your knife 6s (cut them as they reach). The mature hollow swallows knives and spits them back (parry); hit it 5 times while its eyes are shut. Breakaways bare eyes that drain your SANITY.', abil: 'Ability knives pass the growths on the rim.' },
+  { cat: 'BOSS', name: 'TWIN LOGS', twin: true, how: 'Stage 5 (one of eight bosses, at random). CASTOR and POLLUX, 20 HP each, orbit one another like neutron stars. ORBIT: they reverse without warning, swap places through the middle (and flip whose turn it is), ECLIPSE (the stronger parks in front of its twin and takes your throws), WHIRL and PLUNGE at you. TURNS: your throw homes in on one twin, the next on the other, and so on; whoever is in the way takes it instead. INTERTWINED PITH: if their HP drifts more than 6 apart the stronger twin charges you and the run is over, so use eclipses and misses to rebalance. ABILITIES: either twin grows BRANCHES (snap them, but the throw is spent), turns to SPIRALWOOD (its knives slide every 2 hits), raises a RINGWOOD band (aim for the gaps) or forms a PITH LINK (every hit lands on both). ONE LAST LOG: kill one and the other takes the centre as an ordinary log.', abil: 'Ability knives home in on the twin whose turn it is and hit it for double: watch the balance.' },
+  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of eight bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of eight bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -15154,6 +16274,7 @@ function demoFor(e) {
   if (e.type === 'blackout') { const D = t.f.dark; D.hold = 0; D.lvl = 1; D.lamps = [{ a: 0.2, w: 0.5, t: 0.6, dur: 1e9, seed: 1 }, { a: 2.9, w: 0.4, t: 0.6, dur: 1e9, seed: 2 }]; t.stuck = [{ a: 0.4 }, { a: 1.7 }, { a: 4.4 }]; }
   if (e.nest) { setupNest(t); t.nest.hide = false; t.stuck = [{ a: 0.4, inf: 1 }, { a: 2.6, inf: 1 }]; t.nest.breaches.push({ a: 4.4, spent: false, born: -9, seed: 3 }); }
   if (e.wire) { setupWire(t); const T = t.wire; T.hide = false; T.grounds = [{ a: 1.4, t: 0, life: 1e9, grow: 1, seed: 1 }]; T.cutters = [{ a: 3.7, t: 1.5, dur: 1e9, in: 1 }]; T.volt = 0.5; }
+  if (e.twin) { setupTwin(t); const T = t.twin; T.hide = false; T.D = 74; T.L[0].stuck = [{ a: 0.6 }, { a: 2.8 }]; T.L[1].stuck = [{ a: 1.4 }, { a: 4.1 }]; T.L[0].br = [{ a: 4.6, alive: true, grow: 1, leaf: true }]; T.L[1].ring = { t: 1, life: 1e9, rise: 1, rot: 0.4, sp: 0, gaps: [0, Math.PI] }; T.L[1].hp = 17; }
   if (e.bot) { setupBot(t); const B = t.bot; B.hide = false; for (const v of B.vines) { v.ex = CX + Math.cos(v.a) * 190; v.ey = CY + Math.sin(v.a) * 190; } B.lily = { kind: 'white', a: HALF, t: 4, grow: 10, mature: false, seed: 2, tentAt: 99, tent: { t: 1.2, st: 'crawl', hp: 1 } }; B.spec = [{ kind: 'red', a: HALF + 0.9, t: 9, grow: 6, mature: true, seed: 5, tentAt: 99, guard: 0 }]; B.roses = [{ a: 3.6, t: 5, life: 99, seed: 3 }]; B.obs = [{ kind: 'flytrap', a: 5.0, t: 5, life: 999, cyc: 0, open: true, seed: 4, hitT: 0 }]; B.eyes = [{ a: 2.6, w: 0.2, t: 5, seed: 6 }]; B.hollow = { a: 0.3, hp: 5, eyeT: 0, closed: false, stored: 1, cd: 9, hitT: 0, grow: 1, seed: 1 }; }
   if (e.frost) { setupFrost(t); const T = t.frost; T.hide = false; t.stuck = [{ a: 0.5, freeze: 1, frozen: true }, { a: 2.5, freeze: 0.55 }]; T.arts = [{ kind: 'species', sp: 'tentacle', a: 4.3, hp: 2, max: 2, seed: 3, hitT: 0 }]; T.crystals = [{ a: 1.5, t: 3, life: 1e9, seed: 2, grown: true }]; T.wind = 0.7; }
   if (e.tire) { setupTire(t); t.tire.dents = [{ a: 1.2, life: 6, born: 0 }, { a: 3.0, life: 8, born: 0 }]; t.stuck = [{ a: 0.3 }, { a: 2.1 }, { a: 5.2 }]; }
@@ -15536,7 +16657,7 @@ function drawEncyScreen() {
 function drawDemoLog(t, x, y, s) {
   const saved = tgt; tgt = t;
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.translate(-CX, -CY);
-  if (t.bot) drawBotVines(t); drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.bot) drawBotFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
+  if (t.twin) { const T = t.twin; T.ang = time * 0.5; for (const L of T.L) L.rot = time * (L.i ? -1.1 : 1.1); twinPlace(T); drawTwinBack(t); drawTwinLogs(t); } if (t.bot) drawBotVines(t); drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.bot) drawBotFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
   if (ENTRIES[ui.idx].apple) { ctx.save(); ctx.translate(CX, CY); ctx.scale(2.4, 2.4); drawApple(); ctx.restore(); }
   ctx.restore(); tgt = saved;
 }
@@ -15554,7 +16675,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 63', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 64', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -15751,6 +16872,7 @@ view.addEventListener('pointerdown', e => {
   if (fx && fx.type === 'wireintro') { skipWireIntro(); return; }
   if (fx && fx.type === 'frostintro') { skipFrostIntro(); return; }
   if (fx && fx.type === 'botintro') { skipBotIntro(); return; }
+  if (fx && fx.type === 'twinintro') { skipTwinIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -15759,7 +16881,7 @@ view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (e.p
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
   if (adminOpen) return;
-  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro' || fx.type === 'botintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro' || fx.type === 'botintro' || fx.type === 'twinintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
@@ -15797,7 +16919,7 @@ function frame(now) {
 // ======================= ADMIN PANEL =======================
 // A gear button in the corner opens it (the game pauses): pick the next log type and the next boss, jump around, cheat.
 let adminOpen = false, adminNextType = null, adminNextBoss = null, adminGod = false;
-const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost'], ['bot', 'Litany of the Botany']];
+const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost'], ['bot', 'Litany of the Botany'], ['twin', 'Twin Logs']];
 function syncAdmin() {
   const ty = document.getElementById('admType'), bo = document.getElementById('admBoss'), note = document.getElementById('admNote');
   if (!ty) return;
@@ -15811,7 +16933,7 @@ function adminJump(n) {
   flying = []; debris = []; parts = []; pieces = []; impactT = 0; gray = 0; frac = null; gridFrac = null; finale = false; stunT = 0; zapT = 0; lightIn = 0;
   if (lives <= 0) lives = MAX_LIVES;
   stage = n; setMusic('main'); newStage();
-  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
+  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
 }
 function setAdmin(open) {
   adminOpen = open; const pn = document.getElementById('adm');

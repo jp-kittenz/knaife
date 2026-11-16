@@ -2,6 +2,37 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 64
+- **New boss: Twin Logs (Castor and Pollux).** Stage 5 now picks one of eight bosses at random.
+- **The fight:**
+  - **Orbit:** two logs, 20 HP each, circle each other like a pair of neutron stars, with red arrows showing which way they turn. They use the orbit as a weapon:
+    - **Reverse:** the orbit flips direction without warning.
+    - **Swap:** they trade places through the middle, one passing in front of the other, and whose turn it is flips.
+    - **Eclipse:** the stronger twin parks in front of the weaker one and takes your throws for it.
+    - **Whirl:** the orbit speeds up threefold.
+    - **Plunge:** the orbit stretches into an ellipse that swoops down at your knife.
+  - **Turns:** each throw bends toward one twin, and the next goes to the other. A bracket and a dotted flight path mark the next target. The path turns red when the other twin is in the way, and whoever is in the way takes the hit.
+  - **Intertwined pith:** a twisting thread joins their piths. If their HP drifts more than 6 apart, the stronger twin charges down the lane and the run is over. The thread reddens and frays, the screen edges glow red, and the HUD warns you before that happens.
+  - **Abilities:** either twin can:
+    - grow **branches**, which snap when hit but use up the throw;
+    - turn to **spiralwood**, which slides its knives every 2 hits;
+    - raise a **ringwood** band that turns knives away outside its two gaps;
+    - form a **pith link**, so every hit lands on both twins.
+  - **One last log:** when one twin dies it shatters. The other spirals into the centre, grows to full size and is fought as an ordinary log.
+- **Art:** each twin is a slightly lumpy round of tan bark around a pale yellow face. The growth rings form one long spiral, clockwise on Castor and anticlockwise on Pollux.
+  - **Shading:** each twin has a solid side, bark plates lit from the top left, and rim light from the eclipse.
+  - **Pith:** Castor's pith glows amber and Pollux's glows azure.
+  - **Damage:** cracks leak light as a twin weakens.
+- **Background:** a black moon on the barycentre with a white corona that boils to the music. Behind it, a piano roll of coloured lanes scrolls past, with notes lighting up as they cross the playhead. A copper planet hangs in the corner.
+  - **Following the song:** the scene thins to stars during quiet passages, and lanes bend round the mass in the breaks. The drops send gravity ripples out on every beat.
+- **Music:** Syzygy of the Unyielding, at 105 BPM. It plays in full and loops from the first drop.
+- **Intro, timed to the song:**
+  - **Opening:** the star shrinks to a point and opens onto two sparks circling in the dark. The orbit tightens on each hi-hat.
+  - **Eclipse:** a copper moon slides over a white sun, and SYZYGY / OF THE / UNYIELDING slam in.
+  - **Inspiral:** the pair appear as rim-lit logs that spiral in faster and faster.
+  - **Landing:** they fling apart and land on the drop.
+- **Abilities and set pieces:** one interaction per knife ability, and 30 situations for each knife on this boss.
+
 ## Build 63
 - **Litany of the Botany:** spider lily clusters shrunk by 30% so they no longer crowd the growths around them. Their glow, the growth ring on the buds and the burst when one is struck are scaled down to match.
 
