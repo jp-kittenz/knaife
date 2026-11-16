@@ -2,6 +2,24 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 67
+- **Gas Tank: the truck, the road and the fight reworked.**
+- **The truck, after the reference:** a semi with a rounded red cab and wraparound windscreen, a black coupling with the fifth wheel and red and blue air lines, and a long ribbed box trailer with amber side markers. The tank rides in a steel cradle on the trailer roof, chained to the roof rails, with a hazmat placard and FLAMMABLE GAS stencilled behind it.
+- **The road:** a six-lane highway, three lanes each way, with a double yellow line down the middle, cat's eyes, guardrails and lamp posts.
+  - **Traffic:** cars, vans and, during the chase, police cruisers fill the lanes, with oncoming traffic on the far side. They are scheduled so the truck never hits them, but it passes close enough for NEAR MISS popups.
+- **Reckless driving:** the truck changes lanes on the bar lines and drifts. The rig yaws round the tank, leaves skid marks, and in the chase and inferno it swings across the double yellow into oncoming traffic. Every drop is a nitro boost: blue exhaust flames, speed streaks and a faster road.
+  - **Camera:** it rides locked to the tank and leans into the turns, lagging behind the truck's rotation.
+- **More dramatic intro:**
+  - **The search:** a helicopter searchlight hunts across the highway and locks onto the truck while dispatch calls in a stolen hazmat tanker.
+  - **Cut-ins:** OVERPRESSURE as the gauge slams into the red, then FLAMMABLE over hazard stripes.
+  - **The roadblock:** a police roadblock waits ahead ("HE IS NOT SLOWING DOWN!"), and the truck smashes through it on the downbeat, sending cruisers spinning.
+  - **Landing:** the camera swoops down through traffic onto the tank for the title and the pressure countdown.
+- **More action in the fight:**
+  - **Rams:** cars ram the trailer. You are warned (INCOMING) before each hit; the impact reverses the tank's spin, adds pressure and can shake a stuck knife loose. Rams come more often during the chase.
+  - **Cap shots:** a capped vent under pressure fires its cap down your lane. Knock it out of the air, or it costs you a heart.
+  - **Nitro surges:** on each drop the tank spins faster for four bars.
+  - **Pace:** heating regions, rail shifts and fireballs all come more often.
+
 ## Build 66
 - **New boss: Gas Tank.** Stage 5 now picks one of nine bosses at random.
 - **The fight:** an upright tank of flammable gas strapped to the bed of a truck racing down a night highway, seen from above. It takes 30 hits.

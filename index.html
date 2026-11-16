@@ -7944,7 +7944,7 @@ function bossBgKey(t) {
   if (t && t.frost && fx && fx.type === 'frostintro' && fx.t >= TF.live) return 'frost';
   if (t && t.bot && fx && fx.type === 'botintro' && fx.t >= TB.live) return 'bot';
   if (t && t.twin && fx && fx.type === 'twinintro' && fx.t >= TWN.live) return 'twin';
-  if (t && t.gas && fx && fx.type === 'gasintro' && fx.t >= GT.road) return 'gas';
+  if (t && t.gas && fx && fx.type === 'gasintro' && fx.t >= GT.open) return 'gas';
   if (t && t.nest && fx && fx.type === 'nestintro' && fx.t >= NM.macro + TN.down) return 'nest';
   if (t && t.tire && fx && fx.type === 'tireintro' && fx.t >= TT.air) return 'tire';
   if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
@@ -14663,7 +14663,7 @@ function setupGas(t) {
   t.gas = { hide: true, dead: false, ox: 0, oy: 0, s: 1, P: 22, Pv: 22, phase: 1, crit: false,
     vents: [{ a: 0.75, st: 'capped', t: 0, cap: 1, seed: 1 }, { a: 0.75 + Math.PI + 0.35, st: 'capped', t: 0, cap: 1, seed: 2 }],
     rails: [{ a: 2.35, w: 0.2, to: null, from: 0, u: 0 }, { a: 5.15, w: 0.2, to: null, from: 0, u: 0 }],
-    zones: [], zoneNext: 4, railNext: 12, railWarn: 0, balls: [], ballNext: 9, burn: 0, alarm: 0, flashHP: 0, jolt: 0, beacon: 0, roar: 0, spinDir: 1, spinT: 5, hitA: 0 };
+    zones: [], zoneNext: 4, railNext: 10, railWarn: 0, balls: [], ballNext: 9, capNext: 8, ram: null, ramNext: 9, nitroOn: false, burn: 0, alarm: 0, flashHP: 0, jolt: 0, beacon: 0, roar: 0, spinDir: 1, spinT: 5, hitA: 0 };
   t.pal = GAS_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
   t.pat = tt => gasSpin(t, tt);
 }
@@ -14671,7 +14671,7 @@ function setupGas(t) {
 function gasSpin(t, tt) {
   const G = t.gas; if (!G) return 0;
   const p = G.P / 100, base = 1.45 + 0.75 * p + (G.phase > 1 ? 0.35 : 0) + (G.crit ? 0.4 : 0);
-  return G.spinDir * base * (1 + 0.18 * Math.sin(tt * 2.1)) * (G.roar > 0 ? 0.3 : 1);
+  return G.spinDir * base * (1 + 0.18 * Math.sin(tt * 2.1)) * (G.roar > 0 ? 0.3 : 1) * (1 + 0.45 * gasNitro(gasSong()));
 }
 const gasAt = (t, a, r) => worldAt(t, a, r);
 const gasFacing = (t, a, w = 0.4) => angDiff(t.rot + a, HALF) < w;
@@ -14699,7 +14699,17 @@ function gasShiftRails(t) {
   sfx.servo ? sfx.servo() : sfx.ratchet(); shake = Math.max(shake, 6); floater('THE RAILS SHIFT', CX, CY - R - 40, '#c3c3ca');
 }
 // ---------- fireballs (phase 2): lobbed down your lane; knock them out of the air ----------
-function gasFireball(t) { const G = t.gas; G.balls.push({ st: 'warn', t: 0, y: CY + R + 10 }); sfx.flare(); floater('FIREBALL: KNOCK IT DOWN', CX, CY + R + 64, '#ff7a1a'); }
+function gasFireball(t) { const G = t.gas; G.balls.push({ kind: 'fire', st: 'warn', t: 0, y: CY + R + 10 }); sfx.flare(); floater('FIREBALL: KNOCK IT DOWN', CX, CY + R + 64, '#ff7a1a'); }
+// a capped vent under pressure fires its cap down the lane
+function gasCapShot(t) { const G = t.gas, V = G.vents.find(v => v.st === 'capped'); if (!V) return; V.shake = 0.6; G.balls.push({ kind: 'cap', st: 'warn', t: 0.3, y: CY + R + 10, v: V }); sfx.hiss(); floater('CAP SHOT: KNOCK IT DOWN', CX, CY + R + 64, '#ff5a4a'); }
+// a car rams the trailer
+function gasRam(t) { const G = t.gas, [sec] = gasSection(gasSong()); G.ram = { t: 0, side: Math.random() < 0.5 ? -1 : 1, ci: Math.floor(rand(GAS_CAR_COL.length)), police: sec === 'chase' || Math.random() < 0.3, hit: false }; sfx.tireRev ? sfx.tireRev() : sfx.riser(); floater(G.ram.side < 0 ? '< INCOMING' : 'INCOMING >', CX + G.ram.side * 100, CY + R + 40, '#ff5a4a'); }
+function gasRamHit(t) {
+  const G = t.gas, M = G.ram; M.hit = true; const x = CX + M.side * (R + 18), y = CY + 20;
+  burst(x, y, 50, ['#ffffff', '#ffd23f', '#ff7a1a', '#c8ccd0'], 620, 30, 3, 0.6); shocks(x, y, 2, 140); shake = 26; kick(0.3, 0.07, 1.3, 0.8); sfx.smash(); sfx.clang(); buzz([60, 30, 80]);
+  G.spinDir *= -1; G.roar = 0.3; gasPressure(G, 6); floater('RAMMED!', CX, CY - R - 46, '#ff5a4a');
+  const loose = t.stuck.filter(s => !s.ability); if (loose.length && Math.random() < 0.6) { const s = loose[Math.floor(rand(loose.length))], w = t.rot + s.a, [kx, ky] = gasAt(t, s.a, R); debris.push({ kind: 'knife', x: kx, y: ky, vx: Math.cos(w) * 600, vy: Math.sin(w) * 600 - 300, rot: w - HALF, vr: rand(-30, 30) }); t.stuck.splice(t.stuck.indexOf(s), 1); floater('A KNIFE SHAKES LOOSE', CX, CY + R + 56, '#c3c3ca'); }
+}
 // ---------- blowout: the gauge hit 100 ----------
 function gasBlowout(t) {
   const G = t.gas; if (G.dead || gasBusy()) return;
@@ -14735,7 +14745,7 @@ function gasFlightHit(k, t) {
   const G = t.gas; if (!G || G.hide || G.dead) return false;
   const tip = k.y, a = normA(HALF - t.rot);
   // fireballs: meet one in the air and both are gone
-  for (const b of G.balls) if (b.st === 'fly' && Math.abs(tip - b.y) < 30) { b.st = 'dead'; k.done = true; knivesLeft++; score++; burst(CX, b.y, 34, ['#ffd23f', '#ff7a1a', '#ffffff'], 460, 20, 3, 0.5); shocks(CX, b.y, 1, 80); floater('FIREBALL DOWNED  +1', CX + 60, b.y, '#ffd23f'); sfx.clang(); sfx.flare(); return true; }
+  for (const b of G.balls) if (b.st === 'fly' && Math.abs(tip - b.y) < 30) { b.st = 'dead'; k.done = true; knivesLeft++; score++; const cap = b.kind === 'cap'; burst(CX, b.y, 34, cap ? ['#ffffff', '#d8382a', '#c8ccd0'] : ['#ffd23f', '#ff7a1a', '#ffffff'], 460, 20, 3, 0.5); shocks(CX, b.y, 1, 80); floater(cap ? 'CAP DEFLECTED  +1' : 'FIREBALL DOWNED  +1', CX + 60, b.y, '#ffd23f'); sfx.clang(); if (!cap) sfx.flare(); return true; }
   if (k.ability) return false;
   // a vent blowing straight down the lane blasts knives aside
   for (const V of G.vents) if (V.st === 'blowing' && gasFacing(t, V.a, 0.38) && tip <= CY + R + 170) {
@@ -14790,17 +14800,23 @@ function updateGas(t, dt) {
   // heating regions
   for (const Z of G.zones) { Z.t += dt; if (Z.st === 'warm' && Z.t > 3) { Z.st = 'hot'; Z.t = 0; sfx.flare(); } else if (Z.st === 'hot' && Z.t > 4.5) { Z.st = 'cool'; Z.t = 0; } else if (Z.st === 'cool' && Z.t > 1) Z.gone = true; }
   G.zones = G.zones.filter(z => !z.gone);
-  G.zoneNext -= dt; if (G.zoneNext <= 0) { G.zoneNext = rand(6, 9); if (G.zones.length < (G.phase > 1 ? 2 : 1)) gasNewZone(t); }
+  G.zoneNext -= dt; if (G.zoneNext <= 0) { G.zoneNext = rand(5, 7.5); if (G.zones.length < (G.phase > 1 ? 2 : 1)) gasNewZone(t); }
   // rails
   G.railNext -= dt; if (G.railNext <= 0 && G.railWarn <= 0) { G.railWarn = 0.7; sfx.tick(); }
-  if (G.railWarn > 0) { G.railWarn -= dt; if (G.railWarn <= 0) { G.railNext = rand(10, 14) * (G.crit ? 0.6 : 1); gasShiftRails(t); } }
+  if (G.railWarn > 0) { G.railWarn -= dt; if (G.railWarn <= 0) { G.railNext = rand(8, 11) * (G.crit ? 0.6 : 1); gasShiftRails(t); } }
   for (const Rl of G.rails) if (Rl.to !== null) { Rl.u = Math.min(1, Rl.u + dt / 0.8); Rl.a = normA(Rl.from + (Rl.to - Rl.from) * ease3(Rl.u)); if (Rl.u >= 1) Rl.to = null; }
   // fireballs
-  if (G.phase > 1) { G.ballNext -= dt; if (G.ballNext <= 0) { G.ballNext = rand(8, 11) * (G.crit ? 0.7 : 1); gasFireball(t); } }
+  if (G.phase > 1) { G.ballNext -= dt; if (G.ballNext <= 0) { G.ballNext = rand(6, 8.5) * (G.crit ? 0.7 : 1); gasFireball(t); } }
+  // cap shots, rams and nitro
+  G.capNext -= dt; if (G.capNext <= 0) { G.capNext = rand(9, 13) * (G.phase > 1 ? 1.4 : 1); if (G.P > 40 && !G.balls.length) gasCapShot(t); }
+  const st = gasSong(), [sec] = gasSection(st);
+  if (!G.ram) { G.ramNext -= dt; if (G.ramNext <= 0) { G.ramNext = (sec === 'chase' ? rand(6, 9) : rand(10, 15)) * (G.crit ? 0.7 : 1); gasRam(t); } }
+  else { G.ram.t += dt; if (G.ram.t >= 1 && !G.ram.hit) gasRamHit(t); if (G.ram.t > 2.2) G.ram = null; }
+  const n = gasNitro(st); if (n > 0.97 && !G.nitroOn) { G.nitroOn = true; floater('NITRO!', CX, CY - R - 46, '#5ab0ff'); sfx.whoosh(); sfx.riser(); shake = Math.max(shake, 12); kick(0.15, 0.04, 1, 0.8); } else if (n < 0.5) G.nitroOn = false;
   for (const b of G.balls) {
     b.t += dt;
-    if (b.st === 'warn' && b.t > 0.9) { b.st = 'fly'; b.t = 0; sfx.whoosh(); }
-    if (b.st === 'fly') { b.y += dt * 320; if (b.y > KNIFE_Y - 10) { b.st = 'dead'; burst(CX, KNIFE_Y, 40, ['#ffd23f', '#ff7a1a', '#ff3b30'], 520, 40, 3, 0.6); floater('BURNED!', CX, KNIFE_Y - 60, '#ff7a1a'); sfx.flare(); fail({ y: KNIFE_Y, wood: true, done: false }); } }
+    if (b.st === 'warn' && b.t > 0.9) { b.st = 'fly'; b.t = 0; sfx.whoosh(); if (b.kind === 'cap' && b.v) { if (b.v.st === 'capped') gasPopVent(t, b.v, true); sfx.pipeBurst ? sfx.pipeBurst() : sfx.gush(); } }
+    if (b.st === 'fly') { b.y += dt * (b.kind === 'cap' ? 380 : 320); if (b.y > KNIFE_Y - 10) { b.st = 'dead'; const cap = b.kind === 'cap'; burst(CX, KNIFE_Y, 40, cap ? ['#ffffff', '#d8382a', '#c8ccd0'] : ['#ffd23f', '#ff7a1a', '#ff3b30'], 520, 40, 3, 0.6); floater(cap ? 'CAPPED!' : 'BURNED!', CX, KNIFE_Y - 60, cap ? '#ff5a4a' : '#ff7a1a'); cap ? sfx.clang() : sfx.flare(); fail({ y: KNIFE_Y, wood: true, done: false }); } }
   }
   G.balls = G.balls.filter(b => b.st !== 'dead');
 }
@@ -14831,13 +14847,13 @@ function updateGasDeath(t) {
 }
 
 // ======================= GAS TANK intro, cut to Spero (195 BPM, bars on 0.399 + 1.2306n) =======================
-// 0.40 the yellow star on the first downbeat; it shrinks to a point and at 1.63 opens on a pressure gauge in macro,
-// its needle ticking up on every beat. 2.86 hard cut: hazard stripes, and DANGER / FLAMMABLE stencilled on with a
-// hiss on each half bar. 4.09 the valve wheel turning, gas spitting off it in time. 5.32 the highway at night: the
-// truck roars up into frame from behind, 6.55 it swerves round a car, 7.78 it settles and the camera pushes in on
-// the tank while the title comes up and its needle creeps into the red. 9.01 the roll: a counter climbs 85 / 90 /
-// 95 / 99 on each beat with a punch-in; 10.24 the drop: the valve vents, the fight is on.
-const GT = { star: 0.40, open: 1.63, stamp: 2.86, stamp2: 3.48, valve: 4.09, road: 5.32, swerve: 6.55, deck: 7.78, roll: 9.01, land: 10.24 };
+// 0.40 the yellow star on the first downbeat; it shrinks to a point and at 1.63 opens high over the night highway: a
+// helicopter searchlight hunts across the traffic and locks onto the truck while dispatch calls it in. 2.86 hard cut:
+// the gauge needle slams into the red, OVERPRESSURE. 3.48 FLAMMABLE stamped over hazard stripes. 4.09 back on the
+// road: a police roadblock ahead, the truck flooring it; 5.32 it smashes through on the downbeat, cruisers spinning
+// away. 6.55 it swerves through traffic as the camera swoops down; 7.78 the title; 9.01 the pressure count on the
+// drum roll; 10.24 the drop: the fight is on.
+const GT = { star: 0.40, open: 1.63, gauge: 2.86, hazard: 3.48, block: 4.09, crash: 5.32, swerve: 6.55, title: 7.78, roll: 9.01, land: 10.24 };
 const GSHOT2 = { reveal: GT.land };
 const GT_CUES = Object.keys(GT).filter(k => k !== 'land');
 const GAS_BEAT = 60 / 195.02;
@@ -14848,13 +14864,16 @@ function startGasIntro(t) {
   slamMusic('gas');
 }
 function skipGasIntro() { if (fx && fx.type === 'gasintro' && fx.t < GT.land - 0.35) { fx.t = GT.land - 0.35; fx.skipped = true; for (const k of GT_CUES) fx.cuts[k] = true; const G = fx.tg.gas; G.hide = false; G.ox = G.oy = 0; } }
-// where the truck is during the drive-in: rising from below, a hard swerve, then settled
-function gasTruckPos(t) {
-  if (t < GT.road) return [0, 900];
-  const u = clamp((t - GT.road) / (GT.swerve - GT.road), 0, 1), e = 1 - Math.pow(1 - u, 3);
-  let x = 0, y = 760 * (1 - e);
-  if (t >= GT.swerve) { const s = t - GT.swerve, v = clamp(s / (GT.deck - GT.swerve), 0, 1); x = Math.sin(v * Math.PI) * 70 * (1 - v * 0.3); y = 0; }
-  return [x, y];
+// the camera over the intro: pulled right back for the search, leaning forward over the cab for the roadblock, then
+// swooping down onto the tank
+function gasIntroCam(t) {
+  const k = (a, b, u) => a + (b - a) * ease3(clamp(u, 0, 1));
+  if (t < GT.gauge) return [0.42 + 0.06 * (t - GT.open) / (GT.gauge - GT.open), 390];
+  if (t < GT.crash) return [k(0.5, 0.62, (t - GT.block) / (GT.crash - GT.block)), 640];
+  if (t < GT.swerve) return [k(0.58, 0.8, (t - GT.crash) / (GT.swerve - GT.crash)), k(640, 330, (t - GT.crash) / (GT.swerve - GT.crash))];
+  if (t < GT.title) return [k(0.8, 0.98, (t - GT.swerve) / (GT.title - GT.swerve)), k(330, CY, (t - GT.swerve) / (GT.title - GT.swerve))];
+  if (t < GT.roll) return [k(0.98, 1.05, (t - GT.title) / (GT.roll - GT.title)), CY];
+  const b = Math.floor((t - GT.roll) / GAS_BEAT), u = (t - GT.roll) / GAS_BEAT - b; return [1.06 + 0.05 * b * Math.exp(-u * 3), CY];
 }
 function updateGasIntro(t) {
   tscale = 0; const tg = fx.tg, G = tg.gas, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
@@ -14863,20 +14882,24 @@ function updateGasIntro(t) {
   if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
   const at = k => cineCue(k, GT[k]);
   if (at('star')) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.2, 0.5); shocks(CX, CY + 40, 2, 300); }
-  if (at('open')) { sfx.reveal(); sfx.servo ? sfx.servo() : sfx.ratchet(); }
-  if (t > GT.open && t < GT.stamp) { const b = Math.floor((t - 0.0913) / GAS_BEAT); if (b !== fx.gb) { fx.gb = b; sfx.tick(); } }
-  if (at('stamp')) { sfx.stamp(); sfx.hiss(); shake = 12; kick(0.15, 0.04, 1, 0.5); }
-  if (at('stamp2')) { sfx.stamp(); sfx.hiss(); shake = 12; kick(0.15, 0.04, 1, 0.5); }
-  if (at('valve')) { sfx.ratchet ? sfx.ratchet() : sfx.thunk(); sfx.gush(); shake = 8; }
-  if (t > GT.valve && t < GT.road) { const b = Math.floor((t - 0.0913) / GAS_BEAT); if (b !== fx.vb) { fx.vb = b; if (b % 2) sfx.hiss(); } }
-  if (at('road')) { sfx.tireRev ? sfx.tireRev() : sfx.riser(); sfx.whoosh(); shake = 14; kick(0.2, 0.05, 1.1, 0.6); }
+  if (at('open')) { sfx.reveal(); sfx.rumble(); sfx.servoWhirr ? sfx.servoWhirr() : sfx.servo(); }
+  if (at('gauge')) { sfx.alarm ? sfx.alarm() : sfx.heatWarn(); sfx.stamp(); sfx.hiss(); shake = 14; kick(0.2, 0.05, 1.2, 0.6); }
+  if (at('hazard')) { sfx.stamp(); sfx.hiss(); shake = 12; kick(0.15, 0.04, 1, 0.5); }
+  if (at('block')) { sfx.tireRev ? sfx.tireRev() : sfx.riser(); sfx.alarm ? sfx.alarm() : sfx.heatWarn(); shake = 8; }
+  if (t > GT.block && t < GT.crash) { shake = Math.max(shake, 2 + 8 * (t - GT.block) / (GT.crash - GT.block)); const b = Math.floor((t - 0.0913) / GAS_BEAT); if (b !== fx.sb) { fx.sb = b; if (b % 2) sfx.tick(); } }
+  if (at('crash')) {
+    sfx.smash(); sfx.glassShatter ? sfx.glassShatter() : sfx.clang(); sfx.logExplode(); sfx.subDrop(); shake = 40; kick(0.5, 0.1, 2, 1.6); buzz([80, 30, 140]);
+    for (let i = 0; i < 70; i++) { const a = -HALF + rand(-1.4, 1.4), sp = rand(300, 1100); parts.push({ x: CX + rand(-60, 60), y: CY - 420, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.5, 1.3), max: 1.3, c: ['#ffffff', '#ff3b30', '#2a6ad8', '#ffd23f', '#c8ccd0'][i % 5], s: 4, rot: rand(TAU), vr: rand(-10, 10) }); }
+    shocks(CX, CY - 420, 3, 300);
+  }
   if (at('swerve')) { sfx.tireBrake ? sfx.tireBrake() : sfx.screech(); sfx.whoosh(); shake = 16; }
-  if (at('deck')) { sfx.thunk(); sfx.subDrop(); shake = 10; camFocus(CX, CY, 1.2); }
-  if (t > GT.roll && t < GT.land) { const b = Math.floor((t - GT.roll) / GAS_BEAT); if (b !== fx.rb) { fx.rb = b; sfx.stamp(); sfx.tick(); shake = 8 + 3 * b; camFocus(CX, CY, 1.22 + 0.06 * b); } }
-  if (t >= GT.road && t < GT.land) {
-    G.hide = false; const [x, y] = gasTruckPos(t); G.ox = x; G.oy = y;
-    G.P = G.Pv = t < GT.deck ? 22 : 22 + 75 * clamp((t - GT.deck) / (GT.land - GT.deck), 0, 1);
-    tg.rot += (t < GT.deck ? 0.6 : 1.4) * d;
+  if (at('title')) { sfx.thunk(); sfx.subDrop(); shake = 10; }
+  if (t > GT.roll && t < GT.land) { const b = Math.floor((t - GT.roll) / GAS_BEAT); if (b !== fx.rb) { fx.rb = b; sfx.stamp(); sfx.tick(); shake = 8 + 3 * b; } }
+  if (t >= GT.open) {
+    G.hide = false; G.ox = G.oy = 0;
+    const [z, fy] = gasIntroCam(t); cam.z = cam.tz = z; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = fy;
+    G.P = G.Pv = t < GT.title ? 22 + 30 * clamp((t - GT.gauge) / 2, 0, 1) : 52 + 45 * clamp((t - GT.title) / (GT.land - GT.title), 0, 1);
+    tg.rot += (t < GT.title ? 0.8 : 1.6) * d;
   }
   if (t >= GT.land && !fx.landed) {
     fx.landed = true; G.hide = false; G.ox = G.oy = 0; G.s = 1; G.P = G.Pv = 22;
@@ -14886,7 +14909,7 @@ function updateGasIntro(t) {
     shake = 28; kick(0.3, 0.06, 0.8, 0.5); shocks(CX, CY, 3, 340); pfxRing(CX, CY, '#ff9a3c', 320, 0.45);
     burst(CX, CY, 60, ['#ffd23f', '#ff7a1a', '#ffffff'], 640, 40, 3, 0.6);
     sfx.pipeBurst ? sfx.pipeBurst() : sfx.gush(); sfx.stamp(); sfx.subDrop(); sfx.knifeRise(); buzz([60, 30, 90]);
-    endFx('play'); floater('KEEP THE PRESSURE DOWN', CX, CY - R - 50, '#ffd23f'); floater('POP THE VENT CAPS  /  NEVER HIT HOT METAL', CX, CY + R + 80, '#f4f4f0');
+    endFx('play'); floater('NITRO!  KEEP THE PRESSURE DOWN', CX, CY - R - 50, '#ffd23f'); floater('POP THE VENT CAPS  /  NEVER HIT HOT METAL', CX, CY + R + 80, '#f4f4f0');
   }
   fxFilter = null;
 }
@@ -15037,6 +15060,7 @@ function drawGasLive(t) {
     ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(R - 6, -5, 34, 12);
     const pg = ctx.createLinearGradient(0, -6, 0, 6); pg.addColorStop(0, '#c8d0d0'); pg.addColorStop(0.45, '#7a8486'); pg.addColorStop(1, '#2a3032'); ctx.fillStyle = pg; ctx.fillRect(R - 8, -6, 34, 12);
     ctx.fillStyle = '#4a5254'; ctx.fillRect(R - 1, -9, 4, 18); ctx.fillStyle = '#9aa4a6'; ctx.fillRect(R - 1, -9, 1.2, 18);
+    if (V.shake > 0) { V.shake = Math.max(0, V.shake - 1 / 60); ctx.translate(Math.sin(time * 90) * 2, Math.cos(time * 70) * 1.5); }
     if (V.st === 'capped') { const k = V.cap; ctx.fillStyle = '#7a1410'; ctx.fillRect(R + 24, -8 * k, 8, 16 * k); ctx.fillStyle = '#d8382a'; ctx.fillRect(R + 24, -7 * k, 6, 14 * k); ctx.fillStyle = '#ffd0c0'; ctx.fillRect(R + 25, -6 * k, 1.2, 12 * k); }
     else { ctx.fillStyle = '#0a0c0c'; ctx.beginPath(); ctx.ellipse(R + 26, 0, 2.5, 5, 0, 0, TAU); ctx.fill(); }
     ctx.restore();
@@ -15066,7 +15090,8 @@ function drawGasFront(t) {
   ctx.restore();
   // fireballs: the lane glows, then the ball drops toward you
   for (const b of G.balls) {
-    if (b.st === 'warn') { const k = b.t / 0.9; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const lg = ctx.createLinearGradient(0, CY + R, 0, KNIFE_Y); lg.addColorStop(0, `rgba(255,120,30,${0.35 * k})`); lg.addColorStop(1, 'rgba(255,120,30,0)'); ctx.fillStyle = lg; ctx.fillRect(CX - 22, CY + R, 44, KNIFE_Y - CY - R); ctx.restore(); }
+    if (b.st === 'warn') { const k = b.t / 0.9; if (b.kind === 'cap') continue; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const lg = ctx.createLinearGradient(0, CY + R, 0, KNIFE_Y); lg.addColorStop(0, `rgba(255,120,30,${0.35 * k})`); lg.addColorStop(1, 'rgba(255,120,30,0)'); ctx.fillStyle = lg; ctx.fillRect(CX - 22, CY + R, 44, KNIFE_Y - CY - R); ctx.restore(); }
+    else if (b.kind === 'cap') { ctx.save(); ctx.globalAlpha = 0.5; for (let j = 3; j >= 1; j--) ctx.drawImage(gasPuff(0).c, CX - 10, b.y - j * 16 - 10, 20, 20); ctx.globalAlpha = 1; ctx.translate(CX, b.y); ctx.rotate(time * 18); ctx.fillStyle = '#7a1410'; ctx.fillRect(-10, -8, 20, 16); ctx.fillStyle = '#d8382a'; ctx.fillRect(-8, -6, 16, 12); ctx.fillStyle = '#ffd0c0'; ctx.fillRect(-7, -5, 3, 10); ctx.restore(); }
     else { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let j = 4; j >= 0; j--) { const r = 18 - j * 2; ctx.globalAlpha = 0.25 + (4 - j) * 0.15; ctx.drawImage(gasPuff(1).c, CX - r + Math.sin(time * 30 + j) * 2, b.y - j * 14 - r, r * 2, r * 2); } ctx.restore(); }
   }
 }
@@ -15092,246 +15117,340 @@ function drawGasHUD() {
   text('PRESSURE ' + Math.round(G.Pv) + '%', CX, py + 16, 7, col, 'center', 700);
   let msg = 'POP THE VENT CAPS TO BLEED PRESSURE', mc = '#c3c3ca';
   if (hot) { msg = 'ABOUT TO BLOW: POP A VENT'; mc = col; }
-  else if (G.balls.some(b => b.st !== 'dead')) { msg = 'FIREBALL: KNOCK IT OUT OF THE AIR'; mc = '#ff7a1a'; }
+  else if (G.balls.some(b => b.st !== 'dead')) { msg = G.balls.some(b => b.kind === 'cap') ? 'CAP SHOT: KNOCK IT OUT OF THE AIR' : 'FIREBALL: KNOCK IT OUT OF THE AIR'; mc = '#ff7a1a'; }
+  else if (G.ram && !G.ram.hit) { msg = 'A CAR IS COMING IN TO RAM YOU'; mc = '#ff5a4a'; }
   else if (G.zones.some(z => z.st === 'hot')) { msg = 'WHITE HOT METAL: DO NOT HIT IT'; mc = '#ffd23f'; }
   else if (G.zones.some(z => z.st === 'warm')) { msg = 'IT IS HEATING UP: QUENCH IT NOW'; mc = '#ff9a3c'; }
   else if (G.vents.some(v => v.st === 'blowing' && gasFacing(t, v.a, 0.6))) { msg = 'A VENT IS BLOWING DOWN YOUR LANE: WAIT'; mc = '#e8f0ee'; }
   else if (G.railWarn > 0) { msg = 'THE RAILS ARE SHIFTING'; mc = '#ffd23f'; }
   text(msg, CX, py + 28, 7, mc, 'center', 700);
 }
-// ======== GAS TANK background: overhead, on the back of a truck racing down a night highway, cut to Spero ========
-// The camera rides above the truck. The road streams past underneath at a speed locked to the tempo: a sodium lamp
-// sweeps over the truck on every half bar, lane dashes and the shoulder rush by, and the road swings under the
-// truck as it weaves. The surroundings change with the song:
-//   10.2 highway: lamps, a guardrail, exhaust puffing on every bar
-//   44.7 and 101.3 tunnel: concrete wall, a ceiling light sweeping over on every beat
-//   49.6 refinery: pipelines on the shoulder, flare-stack glow flickering on the beat, smoke drifting across
-//   69.3 bridge: girder shadows crossing on every beat, dark water below
-//   81.6 the chase: police lights flashing red and blue from behind
-//   113.6 inferno: the refinery is burning, a blast on every bar, sparks off the guardrail
+// ======== GAS TANK background: a semi hauling the tank, weaving through traffic on a six-lane highway, cut to Spero ========
+// The camera rides above the tank, locked to the truck and leaning into its turns. The road streams past at a speed
+// locked to the tempo. The truck changes lanes on the bar lines, drifts, lays skid marks, threads gaps between cars,
+// and in the wild sections swings across the double yellow into oncoming traffic. Every drop is a nitro boost. The
+// surroundings follow the song:
+//   10.2 highway: lamps on every half bar
+//   44.7 and 101.3 tunnel: a ceiling light sweeping over on every beat
+//   49.6 refinery: pipelines, tanks and flare glow
+//   69.3 bridge: girder shadows on every beat, water either side
+//   81.6 the chase: police in pursuit, red and blue on the beat
+//   113.6 inferno: the refinery burning, a blast on every bar
 const GAS_SEC = [[0, 'highway'], [10.24, 'highway'], [44.70, 'tunnel'], [49.62, 'refinery'], [69.31, 'bridge'], [81.62, 'chase'], [101.31, 'tunnel'], [113.62, 'inferno'], [152.99, 'highway']];
-const GAS_V = 720, GAS_P = 60 / 195.02, GAS_BAR = 4 * GAS_P;
+const GAS_V = 900, GAS_P = 60 / 195.02, GAS_BAR = 4 * GAS_P, GAS_DOWN = 0.399, GAS_LW = 150, GAS_NITRO = [10.24, 49.62, 81.62, 113.62];
 function gasSong() { const Bb = BEATS.gas; return beatOf('gas') * 60 / Bb.bpm + Bb.down; }
 function gasSection(st) { let s = 'highway', s0 = 0; for (const [t0, k] of GAS_SEC) if (st >= t0) { s = k; s0 = t0; } return [s, st - s0]; }
-const gasRoadX = (st, sec) => 34 + (sec === 'chase' || sec === 'inferno' ? 26 : 16) * Math.sin(st * TAU / (8 * GAS_BAR)) + 6 * Math.sin(st * TAU / (2 * GAS_BAR));
+// nitro: a 0.7 boost that bleeds away over four bars after every drop
+const GAS_NL = 4 * GAS_BAR;
+function gasNitro(st) { let k = 0; for (const t0 of GAS_NITRO) { const u = st - t0; if (u >= 0 && u < GAS_NL) k = Math.max(k, 1 - u / GAS_NL); } return k; }
+// distance travelled: the integral of V * (1 + 0.7 * nitro)
+function gasDist(st) { let d = GAS_V * st; for (const t0 of GAS_NITRO) { const u = clamp(st - t0, 0, GAS_NL); d += GAS_V * 0.7 * (u - u * u / (2 * GAS_NL)); } return d; }
+// ---------- the truck's lane on every bar, and its path between them ----------
+const GAS_LANE_X = i => (i - 2.5) * GAS_LW;
+let GAS_LANES = null;
+function gasLanes() {
+  if (GAS_LANES) return GAS_LANES;
+  const rnd = mulberry(1950), L = []; let cur = 4;
+  const intro = [4, 4, 4, 4, 4, 3, 5, 4];
+  for (let b = 0; b < 140; b++) {
+    if (b < 8) { L.push(intro[b]); cur = intro[b]; continue; }
+    const st = GAS_DOWN + b * GAS_BAR, [sec] = gasSection(st);
+    const p = { highway: 0.6, tunnel: 0.35, refinery: 0.75, bridge: 0.4, chase: 0.85, inferno: 0.9 }[sec] || 0.5, wild = sec === 'chase' || sec === 'inferno';
+    if (rnd() < p) { const step = (wild && rnd() < 0.35 ? 2 : 1) * (rnd() < 0.5 ? -1 : 1); let nx = clamp(cur + step, wild ? 2 : 3, 5); if (nx === cur) nx = clamp(cur - step, wild ? 2 : 3, 5); cur = nx; }
+    L.push(cur);
+  }
+  return (GAS_LANES = L);
+}
+function gasTruckX(st) {
+  const L = gasLanes(), b = clamp(Math.floor((st - GAS_DOWN) / GAS_BAR), 0, L.length - 1), t0 = GAS_DOWN + b * GAS_BAR, u = clamp((st - t0) / (GAS_P * 1.3), 0, 1), e = u * u * (3 - 2 * u);
+  const a = GAS_LANE_X(L[Math.max(0, b - 1)]), c = GAS_LANE_X(L[b]); return a + (c - a) * e;
+}
+// ---------- traffic: every car is a pure function of song time, scheduled so it never meets the truck ----------
+let GAS_CARS = null;
+const GAS_CAR_COL = [['#2a6ad8', '#163a7a'], ['#ffc81a', '#a07a08'], ['#1a1c20', '#060708'], ['#e8ecf0', '#9aa4ae'], ['#3fa04a', '#1e5a26'], ['#c8322a', '#6a1410'], ['#7a3ac8', '#3a1a6a'], ['#e87a1a', '#8a3a08']];
+function gasCars() {
+  if (GAS_CARS) return GAS_CARS;
+  const rnd = mulberry(777), cars = [], lastLane = {};
+  for (let k = 4; k < 520; k++) {
+    const t = 0.0913 + k * GAS_P, [sec] = gasSection(t);
+    const prob = t < 10.24 ? 0.4 : ({ highway: 0.55, tunnel: 0.4, refinery: 0.5, bridge: 0.35, chase: 0.75, inferno: 0.6 }[sec] || 0.5);
+    if (rnd() > prob) continue;
+    const oncoming = rnd() < (sec === 'bridge' ? 0.5 : 0.35), police = sec === 'chase' && !oncoming && rnd() < 0.4;
+    const rel = oncoming ? GAS_V + 700 : police ? -260 : GAS_V - 300 - rnd() * 200, tp = t + rnd() * GAS_P;
+    if (tp > GT.block - 1 && tp < GT.crash + 1.5) continue;
+    const span = 1400 / Math.abs(rel) + 0.3, lanes = oncoming ? [0, 1, 2] : [3, 4, 5];
+    const ok = lanes.filter(ln => { if (lastLane[ln] !== undefined && Math.abs(tp - lastLane[ln]) < 1.4) return false; for (let q = -span; q <= span; q += 0.08) if (Math.abs(GAS_LANE_X(ln) - gasTruckX(tp + q)) < 145) return false; return true; });
+    if (!ok.length) continue;
+    const ln = ok[Math.floor(rnd() * ok.length)]; lastLane[ln] = tp;
+    cars.push({ id: cars.length, tp, rel, ln, oncoming, police, ci: Math.floor(rnd() * GAS_CAR_COL.length), van: rnd() < 0.2, wob: rnd() * TAU });
+  }
+  return (GAS_CARS = cars);
+}
+// ---------- the camera: locked to the truck, leaning into its turns ----------
+const GCAM = { lt: -1, yaw: 0, yawV: 0, cam: 0, X: 0, st: 0, skids: [], near: {} };
+function gasCamStep(st) {
+  const dt = clamp(time - GCAM.lt, 0, 0.05); GCAM.lt = time;
+  const X = gasTruckX(st), v = GAS_V * (1 + 0.7 * gasNitro(st)), dx = (gasTruckX(st + 0.02) - gasTruckX(st - 0.02)) / 0.04;
+  const want = clamp(Math.atan2(dx, v) * 0.6, -0.3, 0.3);
+  GCAM.yawV += ((want - GCAM.yaw) * 70 - GCAM.yawV * 7) * dt; GCAM.yaw += GCAM.yawV * dt;
+  GCAM.cam += (GCAM.yaw * 0.45 - GCAM.cam) * Math.min(1, dt * 4);
+  GCAM.X = X; GCAM.st = st;
+  // skid marks off the drive axles while it slides
+  if (dt > 0 && (Math.abs(GCAM.yawV) > 0.6 || Math.abs(GCAM.yaw) > 0.14)) for (const sx of [-70, 70]) { const ry = -245, wx = X + sx * Math.cos(GCAM.yaw) - ry * Math.sin(GCAM.yaw), wy = ry * Math.cos(GCAM.yaw) + sx * Math.sin(GCAM.yaw); GCAM.skids.push([wx, gasDist(st) - wy]); }
+  if (GCAM.skids.length > 260) GCAM.skids.splice(0, GCAM.skids.length - 260);
+  return X;
+}
+// world space: x across the road, y down the screen; the truck's tank sits at the origin (CX, CY)
+function gasWorld(fn) { ctx.save(); ctx.translate(CX, CY); ctx.rotate(-GCAM.cam); ctx.translate(-GCAM.X, 0); fn(); ctx.restore(); }
 // ---------- baked parts ----------
-const gasAsphalt = () => twinBake('gasAsphalt', 0, 0, W + 160, 400, 1, g => {
-  const rnd = mulberry(5050); g.fillStyle = '#1b1c1f'; g.fillRect(0, 0, W + 160, 400);
-  for (let i = 0; i < 1800; i++) { const v = 20 + rnd() * 40; g.fillStyle = `rgba(${v},${v},${v + 4},${0.5 + rnd() * 0.5})`; g.fillRect(rnd() * (W + 160), rnd() * 400, 1 + rnd(), 1 + rnd()); }
-  for (let i = 0; i < 5; i++) { g.fillStyle = 'rgba(10,10,12,.35)'; g.fillRect(rnd() * (W + 100), rnd() * 360, 40 + rnd() * 90, 20 + rnd() * 50); }
-  g.strokeStyle = 'rgba(8,8,10,.6)'; g.lineWidth = 1; for (let i = 0; i < 6; i++) { let x = rnd() * (W + 160), y = rnd() * 400; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 30; y += rnd() * 22; g.lineTo(x, y); } g.stroke(); }
-  for (const x of [150, 175, 310, 335]) { g.fillStyle = 'rgba(6,6,8,.25)'; g.fillRect(x, 0, 14, 400); }
+const gasAsphalt = () => twinBake('gasAsphalt', 0, 0, 400, 400, 1, g => {
+  const rnd = mulberry(5050); g.fillStyle = '#1b1c1f'; g.fillRect(0, 0, 400, 400);
+  for (let i = 0; i < 1400; i++) { const v = 20 + rnd() * 40; g.fillStyle = `rgba(${v},${v},${v + 4},${0.5 + rnd() * 0.5})`; g.fillRect(rnd() * 400, rnd() * 400, 1 + rnd(), 1 + rnd()); }
+  for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(10,10,12,.35)'; g.fillRect(rnd() * 360, rnd() * 360, 40 + rnd() * 60, 20 + rnd() * 50); }
+  g.strokeStyle = 'rgba(8,8,10,.6)'; g.lineWidth = 1; for (let i = 0; i < 5; i++) { let x = rnd() * 400, y = rnd() * 400; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 30; y += rnd() * 22; g.lineTo(x, y); } g.stroke(); }
 });
-const gasTruck = () => twinBake('gasTruck', CX - 150, -60, 300, 500, 2, g => {
-  g.lineJoin = 'round';
-  const bx0 = CX - 118, bx1 = CX + 118, by0 = 146, by1 = CY + R + 62;
-  // shadow on the road
-  g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.roundRect(bx0 - 10, -40, bx1 - bx0 + 30, by1 + 50, 24); g.fill();
-  // frame rails between cab and bed
-  g.fillStyle = '#111214'; g.fillRect(CX - 70, 100, 140, 60); g.fillStyle = '#2a2c30'; g.fillRect(CX - 60, 100, 16, 60); g.fillRect(CX + 44, 100, 16, 60);
-  // the cab: hood, windscreen, roof with marker lights, mirrors, stacks
-  const cg = g.createLinearGradient(CX - 85, 0, CX + 85, 0); cg.addColorStop(0, '#5a120c'); cg.addColorStop(0.3, '#b8261c'); cg.addColorStop(0.55, '#d8402c'); cg.addColorStop(1, '#6a160e');
-  g.fillStyle = cg; g.beginPath(); g.roundRect(CX - 78, -60, 156, 70, 18); g.fill();
-  g.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 9; i++) g.fillRect(CX - 40 + i * 10, -58, 4, 26);
-  g.fillStyle = '#0c1418'; g.beginPath(); g.roundRect(CX - 76, 6, 152, 26, 6); g.fill();
-  g.fillStyle = 'rgba(160,190,220,.25)'; g.beginPath(); g.moveTo(CX - 60, 8); g.lineTo(CX - 20, 8); g.lineTo(CX - 40, 30); g.lineTo(CX - 74, 30); g.closePath(); g.fill();
-  g.fillStyle = cg; g.beginPath(); g.roundRect(CX - 84, 30, 168, 94, 14); g.fill();
-  g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(CX - 70, 38, 60, 78, 10); g.fill();
-  g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 1.5; g.beginPath(); g.roundRect(CX - 30, 54, 60, 40, 6); g.stroke();
-  for (const sd of [-1, 1]) { g.fillStyle = '#1a1c20'; g.fillRect(CX + sd * 84 - (sd > 0 ? 0 : 14), 20, 14, 6); g.fillStyle = '#3a3e44'; g.beginPath(); g.roundRect(CX + sd * 98 - 5, 12, 10, 22, 3); g.fill(); g.fillStyle = '#9aa8b8'; g.fillRect(CX + sd * 98 - 3, 14, 3, 18); }
-  for (const sd of [-1, 1]) { const hg = g.createLinearGradient(CX + sd * 74 - 7, 0, CX + sd * 74 + 7, 0); hg.addColorStop(0, '#6a7076'); hg.addColorStop(0.5, '#e8eef4'); hg.addColorStop(1, '#4a5056'); g.fillStyle = hg; g.beginPath(); g.arc(CX + sd * 74, 122, 8, 0, TAU); g.fill(); g.fillStyle = '#141618'; g.beginPath(); g.arc(CX + sd * 74, 122, 4.5, 0, TAU); g.fill(); }
-  for (const sd of [-1, 1]) { g.fillStyle = '#c8ccd0'; g.fillRect(CX + sd * 26 - 3, 36, 6, 16); }
-  // the bed: diamond plate inside raised rails
-  g.fillStyle = '#26292c'; g.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
-  g.save(); g.beginPath(); g.rect(bx0 + 8, by0 + 8, bx1 - bx0 - 16, by1 - by0 - 16); g.clip();
-  const dg = g.createLinearGradient(bx0, 0, bx1, 0); dg.addColorStop(0, '#3a3f44'); dg.addColorStop(0.5, '#565c62'); dg.addColorStop(1, '#34393e'); g.fillStyle = dg; g.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
-  for (let y = by0; y < by1; y += 10) for (let x = bx0 + ((y / 10) % 2) * 6; x < bx1; x += 12) { g.save(); g.translate(x, y); g.rotate(0.8); g.fillStyle = 'rgba(200,210,220,.22)'; g.fillRect(-4, -1, 8, 2); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-4, 1, 8, 1); g.restore(); }
-  for (let i = 0; i < 8; i++) { const rnd = mulberry(i + 9); g.fillStyle = 'rgba(90,50,20,.18)'; g.beginPath(); g.ellipse(bx0 + rnd() * (bx1 - bx0), by0 + rnd() * (by1 - by0), 10 + rnd() * 20, 6 + rnd() * 12, 0, 0, TAU); g.fill(); }
-  g.restore();
-  g.strokeStyle = '#141618'; g.lineWidth = 3; g.strokeRect(bx0 + 1.5, by0 + 1.5, bx1 - bx0 - 3, by1 - by0 - 3);
-  g.fillStyle = '#4a5056'; for (const x of [bx0, bx1 - 8]) { g.fillRect(x, by0, 8, by1 - by0); g.fillStyle = '#1a1c20'; for (let y = by0 + 16; y < by1 - 10; y += 30) g.fillRect(x + 2, y, 4, 8); g.fillStyle = '#4a5056'; }
-  g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(bx0 + 1, by0, 1.5, by1 - by0); g.fillRect(bx1 - 7, by0, 1.5, by1 - by0);
-  // headboard rack
-  g.fillStyle = '#1a1c20'; g.fillRect(bx0, by0 - 8, bx1 - bx0, 12); g.fillStyle = '#7a8086'; for (let x = bx0 + 6; x < bx1 - 4; x += 14) g.fillRect(x, by0 - 7, 5, 10); g.fillStyle = '#9aa0a6'; g.fillRect(bx0, by0 - 8, bx1 - bx0, 2.5);
-  // the cradle the tank sits in, and the chains that hold it to the deck
-  g.strokeStyle = '#141618'; g.lineWidth = 9; g.beginPath(); g.arc(CX, CY, R + 8, 0, TAU); g.stroke(); g.strokeStyle = '#6a7076'; g.lineWidth = 5; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 1; g.beginPath(); g.arc(CX, CY, R + 9.5, Math.PI, Math.PI * 1.6); g.stroke();
-  for (const a of [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75]) {
-    const x0 = CX + Math.cos(a) * (R + 10), y0 = CY + Math.sin(a) * (R + 10), x1 = Math.cos(a) > 0 ? bx1 - 12 : bx0 + 12, y1 = Math.sin(a) > 0 ? by1 - 16 : by0 + 16;
-    g.fillStyle = '#2a2c30'; g.fillRect(x0 - 7, y0 - 7, 14, 14); g.fillStyle = '#8a9096'; g.fillRect(x0 - 5, y0 - 5, 10, 10);
+// a car seen from above, nose up
+function gasCarArt(g, col, dark, van, police) {
+  const w = 84, h = van ? 190 : 168;
+  g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.roundRect(-w / 2 + 6, -h / 2 + 8, w, h, 20); g.fill();
+  const bg = g.createLinearGradient(-w / 2, 0, w / 2, 0); bg.addColorStop(0, dark); bg.addColorStop(0.3, col); bg.addColorStop(0.55, col); bg.addColorStop(1, dark);
+  g.fillStyle = bg; g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, van ? 12 : 22); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.roundRect(-w / 2 + 8, -h / 2 + 10, 14, h - 20, 7); g.fill();
+  g.fillStyle = '#0e1418'; g.beginPath(); g.roundRect(-w / 2 + 8, -h / 2 + (van ? 22 : 38), w - 16, 26, 6); g.fill();
+  g.beginPath(); g.roundRect(-w / 2 + 10, h / 2 - (van ? 26 : 36), w - 20, 18, 5); g.fill();
+  g.fillStyle = 'rgba(160,190,220,.3)'; g.fillRect(-w / 2 + 12, -h / 2 + (van ? 25 : 41), 18, 6);
+  if (!van) { g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.roundRect(-w / 2 + 12, -h / 2 + 66, w - 24, 54, 8); g.fill(); }
+  else { g.fillStyle = 'rgba(0,0,0,.12)'; for (let y = -30; y < h / 2 - 30; y += 14) g.fillRect(-w / 2 + 10, y, w - 20, 3); }
+  for (const sd of [-1, 1]) { g.fillStyle = dark; g.fillRect(sd * (w / 2 + 3) - 4, -h / 2 + (van ? 30 : 46), 8, 10); }
+  g.fillStyle = '#fff6d0'; g.fillRect(-w / 2 + 6, -h / 2 + 2, 16, 6); g.fillRect(w / 2 - 22, -h / 2 + 2, 16, 6);
+  g.fillStyle = '#d82a1e'; g.fillRect(-w / 2 + 6, h / 2 - 7, 16, 5); g.fillRect(w / 2 - 22, h / 2 - 7, 16, 5);
+  if (police) { g.fillStyle = '#f4f6f8'; g.fillRect(-w / 2 + 4, -10, w - 8, 40); g.fillStyle = '#141618'; g.fillRect(-w / 2 + 14, 4, w - 28, 12); g.fillStyle = '#d82a1e'; g.fillRect(-24, 6, 20, 8); g.fillStyle = '#2a6ad8'; g.fillRect(4, 6, 20, 8); }
+}
+const gasCarSpr = (i, van, police) => twinBake('gasCar' + i + (van ? 'v' : '') + (police ? 'p' : ''), -50, -100, 100, 200, 2, g => police ? gasCarArt(g, '#141618', '#060708', false, true) : gasCarArt(g, GAS_CAR_COL[i][0], GAS_CAR_COL[i][1], van, false));
+// the rig after the reference: a rounded red cab, a black coupling with the fifth wheel and air lines, and a long
+// white box trailer with ribs down its length; the tank rides in a cradle on the trailer roof, chained down
+const GAS_TR = { w: 176, cab0: -410, cab1: -222, tr0: -196, tr1: 640 };
+const gasRig = () => twinBake('gasRig', -110, -430, 220, 1090, 2, g => {
+  const T = GAS_TR, hw = T.w / 2;
+  g.fillStyle = 'rgba(0,0,0,.42)'; g.beginPath(); g.roundRect(-hw + 8, T.cab0 + 10, T.w + 4, T.tr1 - T.cab0 + 6, 26); g.fill();
+  // coupling: chassis rails, fifth wheel, air lines
+  g.fillStyle = '#121316'; g.fillRect(-60, T.cab1 - 6, 120, T.tr0 - T.cab1 + 14);
+  g.fillStyle = '#2a2c30'; g.fillRect(-52, T.cab1 - 6, 14, T.tr0 - T.cab1 + 12); g.fillRect(38, T.cab1 - 6, 14, T.tr0 - T.cab1 + 12);
+  g.fillStyle = '#1e2024'; g.beginPath(); g.arc(0, T.tr0 + 2, 34, Math.PI, TAU); g.fill();
+  g.strokeStyle = '#c8322a'; g.lineWidth = 3; g.beginPath(); g.moveTo(-14, T.cab1); g.bezierCurveTo(-24, T.cab1 + 10, -4, T.tr0 - 12, -16, T.tr0); g.stroke();
+  g.strokeStyle = '#2a6ad8'; g.beginPath(); g.moveTo(14, T.cab1); g.bezierCurveTo(24, T.cab1 + 10, 4, T.tr0 - 12, 16, T.tr0); g.stroke();
+  // the cab: a rounded red nose, windscreen wrapping the front, sculpted roof
+  const cw = 168, cg = g.createLinearGradient(-cw / 2, 0, cw / 2, 0); cg.addColorStop(0, '#6a0e0a'); cg.addColorStop(0.18, '#b81e16'); cg.addColorStop(0.5, '#e0402c'); cg.addColorStop(0.82, '#b81e16'); cg.addColorStop(1, '#6a0e0a');
+  g.fillStyle = cg; g.beginPath(); g.moveTo(-cw / 2, T.cab1); g.lineTo(-cw / 2, T.cab0 + 50); g.quadraticCurveTo(-cw / 2, T.cab0, -cw / 2 + 50, T.cab0); g.lineTo(cw / 2 - 50, T.cab0); g.quadraticCurveTo(cw / 2, T.cab0, cw / 2, T.cab0 + 50); g.lineTo(cw / 2, T.cab1); g.closePath(); g.fill();
+  g.fillStyle = '#0c0d10'; g.beginPath(); g.moveTo(-cw / 2 + 6, T.cab0 + 34); g.quadraticCurveTo(-cw / 2 + 8, T.cab0 + 4, -cw / 2 + 50, T.cab0 + 4); g.lineTo(cw / 2 - 50, T.cab0 + 4); g.quadraticCurveTo(cw / 2 - 8, T.cab0 + 4, cw / 2 - 6, T.cab0 + 34); g.quadraticCurveTo(0, T.cab0 + 20, -cw / 2 + 6, T.cab0 + 34); g.fill();
+  g.fillStyle = 'rgba(160,190,220,.22)'; g.beginPath(); g.moveTo(-cw / 2 + 20, T.cab0 + 12); g.lineTo(-20, T.cab0 + 8); g.lineTo(-34, T.cab0 + 22); g.lineTo(-cw / 2 + 14, T.cab0 + 28); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(70,6,4,.55)'; g.lineWidth = 2; g.beginPath(); g.moveTo(-cw / 2 + 22, T.cab0 + 60); g.quadraticCurveTo(-30, T.cab0 + 44, -8, T.cab1 - 30); g.stroke(); g.beginPath(); g.moveTo(cw / 2 - 22, T.cab0 + 60); g.quadraticCurveTo(30, T.cab0 + 44, 8, T.cab1 - 30); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(-30, T.cab0 + 90, 22, 60, 0.12, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-cw / 2, T.cab1 - 10, cw, 10);
+  for (const sd of [-1, 1]) { g.fillStyle = '#26282c'; g.fillRect(sd * (cw / 2 + 2) - (sd > 0 ? 0 : 10), T.cab0 + 30, 10, 4); g.fillStyle = '#3a3e44'; g.beginPath(); g.roundRect(sd * (cw / 2 + 10) - 4, T.cab0 + 20, 8, 20, 3); g.fill(); g.fillStyle = '#9aa8b8'; g.fillRect(sd * (cw / 2 + 10) - 2, T.cab0 + 22, 2, 16); }
+  // the trailer: a white box with ribs down its length and amber markers
+  const tg = g.createLinearGradient(-hw, 0, hw, 0); tg.addColorStop(0, '#6a7076'); tg.addColorStop(0.08, '#a8aeb4'); tg.addColorStop(0.5, '#c4c8cc'); tg.addColorStop(0.92, '#a2a8ae'); tg.addColorStop(1, '#5e646a');
+  g.fillStyle = tg; g.beginPath(); g.roundRect(-hw, T.tr0, T.w, T.tr1 - T.tr0, 6); g.fill();
+  g.strokeStyle = '#7a8086'; g.lineWidth = 2; g.stroke();
+  for (let x = -hw + 14; x < hw - 8; x += 11) { g.fillStyle = 'rgba(70,76,84,.4)'; g.fillRect(x, T.tr0 + 10, 2, T.tr1 - T.tr0 - 20); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(x + 2, T.tr0 + 10, 1, T.tr1 - T.tr0 - 20); }
+  g.fillStyle = '#b8bec4'; g.fillRect(-hw + 4, T.tr0 + 2, T.w - 8, 8); g.fillRect(-hw + 4, T.tr1 - 10, T.w - 8, 8);
+  for (let y = T.tr0 + 40; y < T.tr1 - 20; y += 120) for (const sd of [-1, 1]) { g.fillStyle = '#ff9a1a'; g.fillRect(sd * hw - (sd > 0 ? 4 : 0), y, 4, 8); }
+  // the cradle on the roof, its saddle feet, and the chains to the roof rails
+  g.fillStyle = '#3a3e44'; for (const sd of [-1, 1]) g.fillRect(-hw + 6, sd * (R - 10) - 10, T.w - 12, 20);
+  g.strokeStyle = '#141618'; g.lineWidth = 10; g.beginPath(); g.arc(0, 0, R + 6, 0, TAU); g.stroke(); g.strokeStyle = '#6a7076'; g.lineWidth = 6; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R + 8, Math.PI, Math.PI * 1.6); g.stroke();
+  for (const [a, y1] of [[-Math.PI * 0.7, -R - 70], [-Math.PI * 0.3, -R - 70], [Math.PI * 0.3, R + 70], [Math.PI * 0.7, R + 70]]) {
+    const x0 = Math.cos(a) * (R + 8), y0 = Math.sin(a) * (R + 8), x1 = Math.sign(Math.cos(a)) * (hw - 10);
     const n = Math.floor(Math.hypot(x1 - x0, y1 - y0) / 7), an = Math.atan2(y1 - y0, x1 - x0);
-    for (let i = 0; i <= n; i++) { const u = i / n, x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u; g.save(); g.translate(x, y); g.rotate(an + (i % 2 ? HALF : 0)); g.strokeStyle = '#1a1c20'; g.lineWidth = 3; g.beginPath(); g.ellipse(0, 0, 4.5, 2.4, 0, 0, TAU); g.stroke(); g.strokeStyle = '#a8b0b6'; g.lineWidth = 1.4; g.stroke(); g.restore(); }
-    const mx = x0 + (x1 - x0) * 0.55, my = y0 + (y1 - y0) * 0.55; g.save(); g.translate(mx, my); g.rotate(an); g.fillStyle = '#c8a01a'; g.fillRect(-10, -3, 20, 6); g.fillStyle = '#141618'; g.fillRect(-2, -5, 4, 10); g.restore();
+    for (let i = 0; i <= n; i++) { const u = i / n; g.save(); g.translate(x0 + (x1 - x0) * u, y0 + (y1 - y0) * u); g.rotate(an + (i % 2 ? HALF : 0)); g.strokeStyle = '#1a1c20'; g.lineWidth = 3; g.beginPath(); g.ellipse(0, 0, 4.5, 2.4, 0, 0, TAU); g.stroke(); g.strokeStyle = '#a8b0b6'; g.lineWidth = 1.4; g.stroke(); g.restore(); }
     g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(x1, y1, 4, 0, TAU); g.fill(); g.fillStyle = '#141618'; g.beginPath(); g.arc(x1, y1, 2, 0, TAU); g.fill();
   }
-  // rear: hazard-striped bumper, tail lights, the placard
-  g.save(); g.beginPath(); g.rect(bx0 - 4, by1 - 4, bx1 - bx0 + 8, 16); g.clip(); g.fillStyle = '#ffc81a'; g.fillRect(bx0 - 4, by1 - 4, bx1 - bx0 + 8, 16); g.fillStyle = '#141414'; for (let x = bx0 - 20; x < bx1 + 10; x += 16) { g.beginPath(); g.moveTo(x, by1 + 12); g.lineTo(x + 8, by1 - 4); g.lineTo(x + 16, by1 - 4); g.lineTo(x + 8, by1 + 12); g.closePath(); g.fill(); } g.restore();
-  g.strokeStyle = '#141414'; g.lineWidth = 2; g.strokeRect(bx0 - 4, by1 - 4, bx1 - bx0 + 8, 16);
-  g.save(); g.translate(CX, by1 + 4); g.rotate(Math.PI / 4); g.fillStyle = '#ffffff'; g.fillRect(-10, -10, 20, 20); g.fillStyle = '#d8261c'; g.fillRect(-8.5, -8.5, 17, 17); g.restore();
-  g.fillStyle = '#ffffff'; g.font = `700 7px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('2', CX, by1 + 8);
-  // mud flaps
-  for (const sd of [-1, 1]) { g.fillStyle = '#0c0d0e'; g.fillRect(CX + sd * 124 - 8, by1 - 10, 16, 20); }
+  // hazmat placard on the trailer roof behind the tank
+  g.save(); g.translate(0, R + 120); g.rotate(Math.PI / 4); g.fillStyle = '#ffffff'; g.fillRect(-18, -18, 36, 36); g.fillStyle = '#d8261c'; g.fillRect(-15, -15, 30, 30); g.restore();
+  g.fillStyle = '#ffffff'; g.font = `400 14px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('2', 0, R + 128);
+  gasStencil(g, 'FLAMMABLE GAS', 0, R + 230, 15, -HALF, 0.55);
 });
-// tyres with tread rolling past at road speed
-function gasTyres(ox, oy, st) {
-  const off = (st * GAS_V) % 12;
-  for (const [x, y, w, h] of [[CX - 100, -20, 18, 40], [CX + 82, -20, 18, 40], [CX - 136, 300, 18, 40], [CX + 118, 300, 18, 40], [CX - 136, 348, 18, 40], [CX + 118, 348, 18, 40]]) {
-    ctx.fillStyle = '#0a0a0b'; ctx.beginPath(); ctx.roundRect(x + ox, y + oy, w, h, 5); ctx.fill();
-    ctx.save(); ctx.beginPath(); ctx.roundRect(x + ox, y + oy, w, h, 5); ctx.clip(); ctx.fillStyle = '#2a2b2e'; for (let ty = -12 + off; ty < h; ty += 12) ctx.fillRect(x + ox + 2, y + oy + ty, w - 4, 4); ctx.restore();
-    ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(x + ox + 2, y + oy + 3, 3, h - 6);
+// ---------- the road and its surroundings, in world space ----------
+function gasRoadWorld(st, sec, Bt) {
+  const D = gasDist(st), X = GCAM.X, ext = 1500, y0 = -1500, y1 = 1500;
+  ctx.fillStyle = '#1b1c1f'; ctx.fillRect(-470, y0, 940, y1 - y0);
+  const off = D % 400; for (let x = -800; x < 800; x += 400) { if (x + 400 < X - 700 || x > X + 700) continue; for (let y = -1200 + off; y < 1200; y += 400) { const cx0 = Math.max(x, -470), cx1 = Math.min(x + 400, 470); if (cx1 > cx0) ctx.drawImage(gasAsphalt().c, cx0 - x, 0, cx1 - cx0, 400, cx0, y, cx1 - cx0, 400); } }
+  // skid marks, laid in world space and left behind
+  ctx.fillStyle = 'rgba(8,8,10,.55)'; for (const [wx, wy] of GCAM.skids) { const y = D - wy; if (y > -1400 && y < 1400) ctx.fillRect(wx - 4, y - 4, 8, 9); }
+  // lane lines: solid edges, a double yellow down the middle, dashes between, cat's eyes
+  const dash = D % 220;
+  ctx.fillStyle = '#f0f0ec'; ctx.fillRect(-455, y0, 6, y1 - y0); ctx.fillRect(449, y0, 6, y1 - y0);
+  ctx.fillStyle = '#e8c21a'; ctx.fillRect(-7, y0, 5, y1 - y0); ctx.fillRect(2, y0, 5, y1 - y0);
+  ctx.fillStyle = 'rgba(240,240,236,.85)'; for (const lx of [-300, -150, 150, 300]) for (let y = -1320 + dash; y < 1300; y += 220) ctx.fillRect(lx - 3, y, 6, 100);
+  ctx.fillStyle = 'rgba(255,220,120,.9)'; for (let y = -1300 + (D % 110); y < 1300; y += 110) for (const lx of [-449, -12, 9, 446]) ctx.fillRect(lx, y, 3, 3);
+  // beyond the road
+  for (const sd of [-1, 1]) {
+    const e = sd * 470, far = sd * ext;
+    if (sec === 'tunnel') { ctx.fillStyle = '#2c2e30'; ctx.fillRect(Math.min(e, far), y0, Math.abs(far - e), y1 - y0); ctx.fillStyle = '#4a4c50'; ctx.fillRect(e - (sd > 0 ? 0 : 10), y0, 10, y1 - y0); ctx.fillStyle = 'rgba(255,236,190,.6)'; const sp = GAS_P * GAS_V; for (let y = -1400 + (D % sp); y < 1400; y += sp) ctx.fillRect(e + sd * 14 - 9, y, 18, 4); }
+    else if (sec === 'bridge') { const wg = ctx.createLinearGradient(e, 0, e + sd * 600, 0); wg.addColorStop(0, '#0a1420'); wg.addColorStop(1, '#03060c'); ctx.fillStyle = wg; ctx.fillRect(Math.min(e, far), y0, Math.abs(far - e), y1 - y0); ctx.fillStyle = 'rgba(160,190,230,.25)'; for (let i = 0; i < 24; i++) { const y = ((hash(i, sd + 4, 1) * 2800 + st * 60) % 2800) - 1400; ctx.fillRect(e + sd * (30 + hash(i, sd + 4, 2) * 500), y, 10 + hash(i, sd + 4, 3) * 16, 1.5); } ctx.fillStyle = '#3a4048'; ctx.fillRect(e - (sd > 0 ? 0 : 16), y0, 16, y1 - y0); ctx.fillStyle = '#1a1e22'; for (let y = -1400 + (D % 140); y < 1400; y += 140) ctx.fillRect(e - 13, y, 26, 14); }
+    else {
+      ctx.fillStyle = sec === 'inferno' ? '#1a1410' : '#16181a'; ctx.fillRect(Math.min(e, far), y0, Math.abs(far - e), y1 - y0);
+      ctx.fillStyle = 'rgba(80,90,70,.25)'; for (let i = 0; i < 40; i++) { const y = ((hash(i, sd + 6, 1) * 2800 + D) % 2800) - 1400; ctx.fillRect(e + sd * hash(i, sd + 6, 2) * 600, y, 3, 3); }
+      if (sec === 'refinery' || sec === 'inferno') {
+        for (let k = 0; k < 4; k++) { const x = e + sd * (50 + k * 18); const pg = ctx.createLinearGradient(x - 6, 0, x + 6, 0); pg.addColorStop(0, '#2a2e32'); pg.addColorStop(0.5, k === 1 ? '#8a6a3a' : '#7a8288'); pg.addColorStop(1, '#1a1c20'); ctx.fillStyle = pg; ctx.fillRect(x - 6, y0, 12, y1 - y0); }
+        for (let y = -1400 + (D % 700); y < 1400; y += 700) { const x = e + sd * 230; ctx.fillStyle = '#3a3e42'; ctx.beginPath(); ctx.arc(x, y, 90, 0, TAU); ctx.fill(); ctx.strokeStyle = '#5a6066'; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = '#2a2e32'; ctx.beginPath(); ctx.arc(x, y, 60, 0, TAU); ctx.fill(); }
+      }
+      ctx.fillStyle = '#141414'; for (let y = -1400 + (D % 90); y < 1400; y += 90) ctx.fillRect(e + sd * 6 - 3, y, 7, 7);
+      ctx.fillStyle = '#9aa2a8'; ctx.fillRect(Math.min(e, e + sd * 8), y0, 8, y1 - y0); ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(e + sd * 3, y0, 2, y1 - y0);
+      // lamp posts reaching over the outer lanes, one per half bar
+      if (sec !== 'inferno') { const sp = 2 * GAS_P * GAS_V; for (let y = -1400 + (D % sp); y < 1400; y += sp) { ctx.fillStyle = '#2a2c30'; ctx.fillRect(Math.min(e, e - sd * 70), y - 3, 70, 6); ctx.fillStyle = '#ffd88a'; ctx.fillRect(e - sd * 70 - 7, y - 5, 14, 10); } }
+    }
   }
 }
-// ---------- the road and its surroundings ----------
-function gasRoad(st, sec, s, Bt, F) {
-  const rx = gasRoadX(st, sec), scroll = (st * GAS_V) % 400, dash = (st * GAS_V) % 200, edge = 30 + rx - 34;
-  for (let y = -400 + scroll; y < H + 60; y += 400) ctx.drawImage(gasAsphalt().c, -80 + rx - 34, y, W + 160, 400);
-  // speed: long streaks of reflected light rushing over the asphalt, cat's eyes ticking past
-  ctx.fillStyle = 'rgba(255,255,255,.035)'; for (let i = 0; i < 16; i++) { const y = ((hash(i, 9, 1) * (H + 300) + st * GAS_V * 1.6) % (H + 300)) - 150; ctx.fillRect(hash(i, 9, 2) * W, y, 2, 80 + 120 * hash(i, 9, 3)); }
-  ctx.fillStyle = 'rgba(255,220,120,.9)'; for (let y = -100 + (st * GAS_V) % 100; y < H + 60; y += 100) { ctx.fillRect(edge + 26, y, 3, 3); ctx.fillRect(CX + rx - 34 + 164, y + 50, 3, 3); }
-  // lane markings: the solid edge line on the left, a dashed line on the right
-  ctx.fillStyle = '#e8c21a'; ctx.fillRect(edge + 18, -60, 5, H + 120);
-  ctx.fillStyle = 'rgba(240,240,236,.85)'; for (let y = -200 + dash; y < H + 60; y += 200) ctx.fillRect(CX + rx - 34 + 168, y, 6, 90);
-  // the shoulder and whatever lies beyond it
-  const left = edge + 10;
-  if (sec === 'tunnel') {
-    ctx.fillStyle = '#2c2e30'; ctx.fillRect(-60, -60, left + 60, H + 120); ctx.fillStyle = '#4a4c50'; ctx.fillRect(left - 10, -60, 10, H + 120);
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; for (let y = -60 + (st * GAS_V) % 120; y < H + 60; y += 120) ctx.fillRect(-60, y, left + 50, 4);
-    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(W - 30, -60, 90, H + 120);
-  } else if (sec === 'bridge') {
-    const wg = ctx.createLinearGradient(0, 0, left, 0); wg.addColorStop(0, '#04080e'); wg.addColorStop(1, '#0a1420'); ctx.fillStyle = wg; ctx.fillRect(-60, -60, left + 60, H + 120);
-    ctx.fillStyle = 'rgba(160,190,230,.25)'; for (let i = 0; i < 12; i++) { const y = ((hash(i, 4, 1) * H + st * 60) % (H + 40)) - 20; ctx.fillRect(hash(i, 4, 2) * (left - 20), y, 8 + hash(i, 4, 3) * 14, 1.5); }
-    ctx.fillStyle = '#3a4048'; ctx.fillRect(left - 14, -60, 14, H + 120); ctx.fillStyle = '#1a1e22'; for (let y = -60 + (st * GAS_V) % 140; y < H + 60; y += 140) ctx.fillRect(left - 22, y, 26, 14);
-  } else {
-    // gravel shoulder and a W-beam guardrail on posts
-    ctx.fillStyle = sec === 'inferno' ? '#1a1410' : '#1c1a18'; ctx.fillRect(-60, -60, left + 60, H + 120);
-    ctx.fillStyle = 'rgba(80,70,60,.35)'; for (let i = 0; i < 40; i++) { const y = ((hash(i, 6, 1) * (H + 120) + st * GAS_V) % (H + 120)) - 60; ctx.fillRect(hash(i, 6, 2) * left, y, 2, 2); }
-    if (sec === 'refinery' || sec === 'inferno') {
-      for (let k = 0; k < 3; k++) { const x = left - 40 - k * 16; if (x < -20) continue; const pg = ctx.createLinearGradient(x - 6, 0, x + 6, 0); pg.addColorStop(0, '#2a2e32'); pg.addColorStop(0.5, k === 1 ? '#8a6a3a' : '#7a8288'); pg.addColorStop(1, '#1a1c20'); ctx.fillStyle = pg; ctx.fillRect(x - 6, -60, 12, H + 120); ctx.fillStyle = 'rgba(0,0,0,.4)'; for (let y = -60 + (st * GAS_V) % 160; y < H + 60; y += 160) ctx.fillRect(x - 7, y, 14, 6); }
-    }
-    ctx.fillStyle = '#141414'; for (let y = -60 + (st * GAS_V) % 90; y < H + 60; y += 90) ctx.fillRect(left - 12, y, 7, 7);
-    const gg = ctx.createLinearGradient(left - 8, 0, left, 0); gg.addColorStop(0, '#5a6066'); gg.addColorStop(0.5, '#c8ced4'); gg.addColorStop(1, '#4a5056'); ctx.fillStyle = gg; ctx.fillRect(left - 8, -60, 8, H + 120);
+// cars, in world space; near misses earn a little popup
+function gasTraffic(st, Bt) {
+  const cars = gasCars();
+  for (const c of cars) {
+    const y = -(c.tp - st) * c.rel; if (y < -1300 || y > 1300) continue;
+    const x = GAS_LANE_X(c.ln), sp = gasCarSpr(c.ci, c.van, c.police);
+    ctx.save(); ctx.translate(x + Math.sin(time * 1.3 + c.wob) * 4, y); if (c.oncoming) ctx.rotate(Math.PI); ctx.drawImage(sp.c, -50, -100, 100, 200);
+    ctx.globalCompositeOperation = 'lighter';
+    if (c.police) { const red = Math.floor(Bt.b * 2) % 2 === 0; ctx.fillStyle = red ? 'rgba(255,30,40,.5)' : 'rgba(40,90,255,.5)'; ctx.beginPath(); ctx.arc(red ? -14 : 14, 10, 40, 0, TAU); ctx.fill(); }
+    ctx.drawImage(gasBeam().c, -80, -330, 160, 230);
+    ctx.restore();
+    const dx = Math.abs(x - GCAM.X); if (dx < 170 && Math.abs(y) < 160 && !GCAM.near[c.id]) GCAM.near[c.id] = time;
+    const nt = GCAM.near[c.id]; if (nt && time - nt < 0.9 && time >= nt) { const u = (time - nt) / 0.9; ctx.save(); ctx.translate(x, y - 40 - u * 40); ctx.rotate(GCAM.cam); ctx.globalAlpha = 1 - u * u; ctx.font = `400 ${14 + 6 * (1 - u)}px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText('NEAR MISS', 2, 2); ctx.fillStyle = '#ffd23f'; ctx.fillText('NEAR MISS', 0, 0); ctx.restore(); }
   }
-  // lamp poles reach out over the lane from the shoulder, one per half bar
-  if (sec === 'highway' || sec === 'chase' || sec === 'refinery') {
-    const ph = ((st - BEATS.gas.down) % (2 * GAS_P) + 2 * GAS_P) % (2 * GAS_P), sp = 2 * GAS_P * GAS_V;
-    for (let k = -1; k <= 2; k++) { const y = CY + ph * GAS_V - k * sp; if (y < -40 || y > H + 40) continue; ctx.fillStyle = '#2a2c30'; ctx.fillRect(left - 16, y - 3, 70, 6); ctx.fillStyle = '#141518'; ctx.fillRect(left - 22, y - 7, 12, 14); ctx.fillStyle = '#ffd88a'; ctx.fillRect(left + 46, y - 5, 14, 10); }
-  }
-  // the fast lane on the right: streaks rushing past when the song is flat out
-  if (sec === 'chase' || sec === 'inferno' || sec === 'refinery') { ctx.fillStyle = 'rgba(255,255,255,.12)'; for (let i = 0; i < 10; i++) { const y = ((hash(i, 8, 1) * (H + 200) + st * 1600) % (H + 200)) - 100; ctx.fillRect(CX + rx + 150 + hash(i, 8, 2) * 60, y, 1.5, 40 + 60 * hash(i, 8, 3)); } }
+}
+const gasBeam = () => twinBake('gasBeam', -80, -330, 160, 230, 1, g => { const hl = g.createLinearGradient(0, -100, 0, -330); hl.addColorStop(0, 'rgba(255,240,200,.22)'); hl.addColorStop(1, 'rgba(255,240,200,0)'); g.fillStyle = hl; g.beginPath(); g.moveTo(-36, -100); g.lineTo(-78, -330); g.lineTo(78, -330); g.lineTo(36, -100); g.closePath(); g.fill(); });
+// the rig, rotated with its yaw relative to the camera, round the tank
+function gasDrawRig(nitro) {
+  ctx.save(); ctx.translate(CX, CY); ctx.rotate(GCAM.yaw - GCAM.cam);
+  blit(gasRig());
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.save(); ctx.translate(0, GAS_TR.cab0 + 100); ctx.scale(2, 1.6); ctx.drawImage(gasBeam().c, -80, -330, 160, 230); ctx.restore();
+  for (const sd of [-1, 1]) { const tx = sd * 76, ty = GAS_TR.tr1 - 6, tg = ctx.createRadialGradient(tx, ty, 0, tx, ty, 26); tg.addColorStop(0, 'rgba(255,40,30,.75)'); tg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.fillStyle = tg; ctx.fillRect(tx - 26, ty - 26, 52, 52); }
+  if (nitro > 0.02) for (const sd of [-1, 1]) for (let i = 0; i < 6; i++) { const u = (time * 7 + i / 6) % 1, l = 30 + 60 * nitro; ctx.fillStyle = `rgba(${i % 2 ? '90,160,255' : '255,200,120'},${0.6 * (1 - u) * nitro})`; ctx.beginPath(); ctx.ellipse(sd * 64, GAS_TR.cab1 + 10 + u * l, 6 * (1 - u) + 2, 12, 0, 0, TAU); ctx.fill(); }
+  ctx.restore();
 }
 BG.gas = (Bt, px, py) => {
-  const F = musicFeel('gas'), st = gasSong(), [sec, s] = gasSection(st), T = tgt && tgt.gas, ox = T ? T.ox : 0, oy = T ? T.oy : 0;
-  ctx.save(); ctx.translate(px * 0.1, py * 0.1); gasRoad(st, sec, s, Bt, F); ctx.restore();
-  if (oy < H + 100) { blit2(gasTruck(), ox, oy); gasTyres(ox, oy, st); gasCabLights(ox, oy, Bt); }
+  const st = gasSong(), [sec] = gasSection(st), nitro = gasNitro(st);
+  gasCamStep(st);
+  gasWorld(() => { gasRoadWorld(st, sec, Bt); gasTraffic(st, Bt); if (fx && fx.type === 'gasintro') drawGasIntroWorld(fx.t); });
+  gasDrawRig(nitro);
+  const G = tgt && tgt.gas; if (G && G.ram) gasDrawRam(G);
+  // speed: streaks rush past, more under nitro
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,255,255,${0.05 + 0.12 * nitro})`; for (let i = 0; i < 14 + 20 * nitro; i++) { const y = ((hash(i, 9, 1) * (H + 400) + st * GAS_V * 2.4) % (H + 400)) - 200; ctx.fillRect(hash(i, 9, 2) * W, y, 1.5, 80 + 200 * nitro); } ctx.restore();
 };
-function blit2(sp, ox, oy) { ctx.drawImage(sp.c, sp.x + ox, sp.y + oy, sp.w, sp.h); }
-// amber marker lights on the cab roof and red tail lights, pulsing on the beat
-function gasCabLights(ox, oy, Bt) {
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 5; i++) { const x = CX - 40 + i * 20 + ox, y = 34 + oy; const k = 0.5 + 0.5 * Bt.pulse; ctx.fillStyle = `rgba(255,170,40,${0.9 * k})`; ctx.fillRect(x - 3, y - 2, 6, 4); ctx.fillStyle = `rgba(255,140,30,${0.2 * k})`; ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill(); }
-  for (const sd of [-1, 1]) { const x = CX + sd * 110 + ox, y = CY + R + 60 + oy, k = 0.6 + 0.4 * Bt.pulse, tg = ctx.createRadialGradient(x, y, 0, x, y, 26); tg.addColorStop(0, `rgba(255,40,30,${0.8 * k})`); tg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.fillStyle = tg; ctx.fillRect(x - 26, y - 26, 52, 52); ctx.fillStyle = '#ff5a40'; ctx.fillRect(x - 6, y - 3, 12, 6); }
+// a car that rams the trailer: it closes in from behind on one side, hits beside the tank and spins away
+function gasDrawRam(G) {
+  const M = G.ram, u = M.t, sd = M.side, sp = gasCarSpr(M.ci, false, M.police);
+  let x, y, rot;
+  if (u < 1) { const e = ease3(u); x = sd * (88 + 60 - 14 * e); y = 520 * (1 - e) + 30; rot = -sd * 0.25 * e; }
+  else { const v = u - 1; x = sd * (130 + v * 420); y = 30 + v * 380; rot = -sd * 0.25 + sd * v * 9; }
+  ctx.save(); ctx.translate(CX, CY); ctx.rotate(GCAM.yaw - GCAM.cam); ctx.translate(x, y); ctx.rotate(rot); ctx.drawImage(sp.c, -50, -100, 100, 200);
+  if (M.police) { ctx.globalCompositeOperation = 'lighter'; const red = Math.floor(time * 8) % 2 === 0; ctx.fillStyle = red ? 'rgba(255,30,40,.6)' : 'rgba(40,90,255,.6)'; ctx.beginPath(); ctx.arc(0, 10, 50, 0, TAU); ctx.fill(); }
   ctx.restore();
 }
 // light that falls across the truck and the tank: lamp pools, tunnel lights, fire, sirens, girder shadows
 function gasEnvOver(t) {
   if (state === 'menu') return;
-  const st = gasSong(), [sec, s] = gasSection(st), Bt = beatInfo('gas'), rx = gasRoadX(st, sec), G = t.gas, oy = G ? G.oy : 0;
+  const st = gasSong(), [sec] = gasSection(st), Bt = beatInfo('gas'), D = gasDist(st);
+  gasWorld(() => {
+    if (sec === 'highway' || sec === 'chase' || sec === 'refinery') { const sp = 2 * GAS_P * GAS_V; ctx.globalCompositeOperation = 'lighter'; for (let y = -1400 + (D % sp); y < 1400; y += sp) for (const sd of [-1, 1]) ctx.drawImage(gasPool().c, sd * 400 - 230, y - 200, 460, 400); ctx.globalCompositeOperation = 'source-over'; }
+    if (sec === 'tunnel') { ctx.globalCompositeOperation = 'lighter'; const sp = GAS_P * GAS_V; for (let y = -1400 + (D % sp); y < 1400; y += sp) ctx.drawImage(gasBar().c, -500, y - 40, 1000, 80); ctx.globalCompositeOperation = 'source-over'; }
+    if (sec === 'bridge') { const sp = GAS_P * GAS_V; ctx.fillStyle = 'rgba(0,0,6,.5)'; for (let y = -1400 + (D % sp); y < 1400; y += sp) { ctx.save(); ctx.translate(0, y); ctx.transform(1, 0, 0.8, 1, 0, 0); ctx.fillRect(-700, -9, 1400, 18); ctx.restore(); } }
+  });
   ctx.save();
-  if (sec === 'highway' || sec === 'chase' || sec === 'refinery') {
-    const ph = ((st - BEATS.gas.down) % (2 * GAS_P) + 2 * GAS_P) % (2 * GAS_P), sp = 2 * GAS_P * GAS_V; ctx.globalCompositeOperation = 'lighter';
-    for (let k = -1; k <= 2; k++) { const y = CY + ph * GAS_V - k * sp; if (y < -200 || y > H + 200) continue; ctx.drawImage(gasPool().c, rx + 100 - 230, y - 200, 460, 400); }
-  }
-  if (sec === 'tunnel') {
-    ctx.globalCompositeOperation = 'lighter'; const sp = GAS_P * GAS_V, ph = ((st - BEATS.gas.down) % GAS_P + GAS_P) % GAS_P;
-    for (let k = -2; k <= 3; k++) { const y = CY + ph * GAS_V - k * sp; ctx.drawImage(gasBar().c, -60, y - 40, W + 120, 80); }
-    ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(0,10,20,.32)'; fillView(); ctx.fillStyle = '#1e2022'; ctx.fillRect(W - 26, -60, 90, H + 120); ctx.fillStyle = '#3a3c40'; ctx.fillRect(W - 26, -60, 6, H + 120); ctx.fillStyle = 'rgba(255,236,190,.6)'; for (let k = -2; k <= 3; k++) { const y = CY + ph * GAS_V - k * sp; ctx.fillRect(W - 24, y - 2, 18, 4); }
-  }
+  if (sec === 'tunnel') { ctx.fillStyle = 'rgba(0,10,20,.3)'; fillView(); }
+  if (sec === 'bridge') { ctx.fillStyle = 'rgba(20,40,80,.16)'; fillView(); }
   if (sec === 'refinery' || sec === 'inferno') {
-    ctx.globalCompositeOperation = 'lighter'; const k = (sec === 'inferno' ? 0.55 : 0.3) * (0.6 + 0.4 * Bt.pulse) * (0.85 + 0.15 * Math.sin(time * 23));
-    const fg = ctx.createLinearGradient(-60, 0, 260, 0); fg.addColorStop(0, `rgba(255,110,30,${k})`); fg.addColorStop(1, 'rgba(255,110,30,0)'); ctx.fillStyle = fg; ctx.fillRect(-60, -60, 320, H + 120);
-    if (sec === 'inferno') { const d = Bt.down; if (d > 0.05) { const by = ((Bt.bar * 211) % 500) + 60, eg = ctx.createRadialGradient(0, by, 10, 0, by, 300); eg.addColorStop(0, `rgba(255,200,90,${0.55 * d})`); eg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = eg; ctx.fillRect(-60, by - 300, 400, 600); } }
+    ctx.globalCompositeOperation = 'lighter'; const k = (sec === 'inferno' ? 0.5 : 0.28) * (0.6 + 0.4 * Bt.pulse) * (0.85 + 0.15 * Math.sin(time * 23));
+    for (const sd of [-1, 1]) { const fg = ctx.createLinearGradient(sd < 0 ? -60 : W + 60, 0, CX, 0); fg.addColorStop(0, `rgba(255,110,30,${k})`); fg.addColorStop(1, 'rgba(255,110,30,0)'); ctx.fillStyle = fg; ctx.fillRect(-60, -60, W + 120, H + 120); }
+    if (sec === 'inferno' && Bt.down > 0.05) { const bx = (Bt.bar % 2 ? W + 20 : -20), by = ((Bt.bar * 211) % 500) + 60, eg = ctx.createRadialGradient(bx, by, 10, bx, by, 320); eg.addColorStop(0, `rgba(255,200,90,${0.55 * Bt.down})`); eg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = eg; ctx.fillRect(bx - 320, by - 320, 640, 640); }
     ctx.globalCompositeOperation = 'source-over';
-    for (let i = 0; i < 4; i++) { const y = ((hash(i, 2, 1) * (H + 300) + st * 260) % (H + 300)) - 150; ctx.globalAlpha = sec === 'inferno' ? 0.32 : 0.2; ctx.drawImage(gasPuff(0).c, -80 + hash(i, 2, 2) * 200, y, 260, 160); }
+    for (let i = 0; i < 4; i++) { const y = ((hash(i, 2, 1) * (H + 300) + st * 300) % (H + 300)) - 150; ctx.globalAlpha = sec === 'inferno' ? 0.3 : 0.18; ctx.drawImage(gasPuff(0).c, -80 + hash(i, 2, 2) * 400, y, 260, 160); }
     ctx.globalAlpha = 1;
-    if (sec === 'inferno') { ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 24; i++) { const y = ((hash(i, 3, 1) * (H + 100) + st * (500 + 400 * hash(i, 3, 2))) % (H + 100)) - 50; ctx.fillStyle = i % 3 ? 'rgba(255,170,60,.85)' : 'rgba(255,240,180,.9)'; ctx.fillRect(hash(i, 3, 3) * W, y, 2, 2 + 6 * hash(i, 3, 4)); } }
+    if (sec === 'inferno') { ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 26; i++) { const y = ((hash(i, 3, 1) * (H + 100) + st * (600 + 500 * hash(i, 3, 2))) % (H + 100)) - 50; ctx.fillStyle = i % 3 ? 'rgba(255,170,60,.85)' : 'rgba(255,240,180,.9)'; ctx.fillRect(hash(i, 3, 3) * W, y, 2, 2 + 6 * hash(i, 3, 4)); } }
   }
   if (sec === 'chase') {
-    ctx.globalCompositeOperation = 'lighter'; const red = Math.floor(Bt.b) % 2 === 0, k = 0.55 * Bt.pulse + 0.15, x = red ? CX - 120 : CX + 120;
-    const pg = ctx.createRadialGradient(x, H + 60, 20, x, H + 60, 420); pg.addColorStop(0, red ? `rgba(255,30,40,${k})` : `rgba(40,90,255,${k})`); pg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = pg; ctx.fillRect(-60, H - 400, W + 120, 520); const sg = ctx.createLinearGradient(red ? -60 : W + 60, 0, CX, 0); sg.addColorStop(0, red ? `rgba(255,30,40,${0.5 * k})` : `rgba(40,90,255,${0.5 * k})`); sg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = sg; ctx.fillRect(-60, -60, W + 120, H + 120);
-  }
-  if (sec === 'bridge') {
-    const sp = GAS_P * GAS_V, ph = ((st - BEATS.gas.down) % GAS_P + GAS_P) % GAS_P; ctx.fillStyle = 'rgba(0,0,6,.55)';
-    for (let k = -2; k <= 3; k++) { const y = CY + ph * GAS_V - k * sp; ctx.save(); ctx.translate(CX, y); ctx.transform(1, 0, k % 2 ? 0.8 : -0.8, 1, 0, 0); ctx.fillRect(-W, -9, W * 2, 18); ctx.restore(); }
-    ctx.fillStyle = 'rgba(20,40,80,.18)'; fillView();
+    ctx.globalCompositeOperation = 'lighter'; const red = Math.floor(Bt.b) % 2 === 0, k = 0.5 * Bt.pulse + 0.12;
+    const sg = ctx.createLinearGradient(red ? -60 : W + 60, 0, CX, 0); sg.addColorStop(0, red ? `rgba(255,30,40,${0.5 * k})` : `rgba(40,90,255,${0.5 * k})`); sg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = sg; ctx.fillRect(-60, -60, W + 120, H + 120);
+    const pg = ctx.createRadialGradient(CX, H + 80, 20, CX, H + 80, 420); pg.addColorStop(0, red ? `rgba(255,30,40,${k})` : `rgba(40,90,255,${k})`); pg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = pg; ctx.fillRect(-60, H - 400, W + 120, 520);
   }
   ctx.restore();
-  // exhaust from the stacks on every bar, blown back over the bed
-  const bt = Bt.barU * 4; ctx.save(); for (let i = 0; i < 4; i++) { const u = (Bt.barU + i / 4) % 1, r = 6 + u * 26; ctx.globalAlpha = 0.28 * (1 - u); for (const sd of [-1, 1]) ctx.drawImage(gasSmoke().c, CX + sd * 74 + (G ? G.ox : 0) - r + sd * u * 10, 122 + oy + u * 170 - r, r * 2, r * 2); } ctx.restore();
-  // sparks off the bed scraping the guardrail in the inferno
-  if (sec === 'inferno' && Math.sin(st * 3) > 0.3) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 14; i++) { const u = (time * 3 + i / 14) % 1, x = CX - 120 + (G ? G.ox : 0) - u * 30 - hash(i, 5, 1) * 20, y = CY + 140 + u * 300; ctx.fillStyle = `rgba(255,${200 - i * 6},90,${1 - u})`; ctx.fillRect(x, y, 2, 6); } ctx.restore(); }
 }
-const gasPool = () => twinBake('gasPool', -170, -160, 340, 320, 1, g => { const pg = g.createRadialGradient(0, 0, 10, 0, 0, 170); pg.addColorStop(0, 'rgba(255,190,90,.42)'); pg.addColorStop(0.5, 'rgba(255,150,50,.18)'); pg.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = pg; g.save(); g.scale(1, 0.94); g.beginPath(); g.arc(0, 0, 170, 0, TAU); g.fill(); g.restore(); });
-const gasBar = () => twinBake('gasBar', -60, -40, W + 120, 80, 1, g => { const bg = g.createLinearGradient(0, -40, 0, 40); bg.addColorStop(0, 'rgba(255,236,190,0)'); bg.addColorStop(0.5, 'rgba(255,236,190,.5)'); bg.addColorStop(1, 'rgba(255,236,190,0)'); g.fillStyle = bg; g.fillRect(-60, -40, W + 120, 80); });
-const gasSmoke = () => twinBake('gasSmoke', -32, -32, 64, 64, 1, g => { const sg = g.createRadialGradient(0, 0, 2, 0, 0, 30); sg.addColorStop(0, 'rgba(40,40,44,.9)'); sg.addColorStop(1, 'rgba(40,40,44,0)'); g.fillStyle = sg; g.fillRect(-32, -32, 64, 64); });
+const gasPool = () => twinBake('gasPool', -230, -200, 460, 400, 1, g => { const pg = g.createRadialGradient(0, 0, 10, 0, 0, 220); pg.addColorStop(0, 'rgba(255,190,90,.4)'); pg.addColorStop(0.5, 'rgba(255,150,50,.16)'); pg.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = pg; g.save(); g.scale(1, 0.9); g.beginPath(); g.arc(0, 0, 220, 0, TAU); g.fill(); g.restore(); });
+const gasBar = () => twinBake('gasBar', -500, -40, 1000, 80, 1, g => { const bg = g.createLinearGradient(0, -40, 0, 40); bg.addColorStop(0, 'rgba(255,236,190,0)'); bg.addColorStop(0.5, 'rgba(255,236,190,.5)'); bg.addColorStop(1, 'rgba(255,236,190,0)'); g.fillStyle = bg; g.fillRect(-500, -40, 1000, 80); });
 
 // ======================= the intro, drawn =======================
+// The world itself (road, traffic, rig, tank) is drawn by the background with the camera pulled back; the intro adds
+// the helicopter searchlight, the dispatch radio, the macro cut-ins, the roadblock, the title and the countdown.
 const gasPlate = () => twinBake('gasPlate', -60, -60, W + 120, H + 120, 1, g => {
   const pg = g.createLinearGradient(0, -60, 0, H + 60); pg.addColorStop(0, '#16201f'); pg.addColorStop(1, '#0a100f'); g.fillStyle = pg; g.fillRect(-60, -60, W + 120, H + 120);
   const rnd = mulberry(77); g.lineWidth = 0.6; for (let i = 0; i < 260; i++) { const y = rnd() * (H + 120) - 60; g.strokeStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},.05)`; g.beginPath(); g.moveTo(-60, y); g.lineTo(W + 60, y + (rnd() - 0.5) * 4); g.stroke(); }
   for (const y of [40, H - 40]) for (let x = 10; x < W; x += 34) { g.fillStyle = '#060a0a'; g.beginPath(); g.arc(x + 0.6, y + 0.8, 3.4, 0, TAU); g.fill(); g.fillStyle = '#5a7270'; g.beginPath(); g.arc(x, y, 2.8, 0, TAU); g.fill(); }
 });
-const gasStripes = () => twinBake('gasStripes', 0, 0, W + 160, 160, 1, g => { g.fillStyle = '#ffc81a'; g.fillRect(0, 0, W + 160, 160); g.fillStyle = '#121212'; for (let x = -160; x < W + 160; x += 80) { g.beginPath(); g.moveTo(x, 160); g.lineTo(x + 160, 0); g.lineTo(x + 200, 0); g.lineTo(x + 40, 160); g.closePath(); g.fill(); } const rnd = mulberry(3); for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(60,40,20,${rnd() * 0.3})`; g.fillRect(rnd() * (W + 160), rnd() * 160, 2, 2); } });
+const gasStripes = () => twinBake('gasStripes', 0, 0, W + 160, 160, 1, g => { g.fillStyle = '#ffc81a'; g.fillRect(0, 0, W + 160, 160); g.fillStyle = '#121212'; for (let x = -160; x < W + 160; x += 80) { g.beginPath(); g.moveTo(x, 160); g.lineTo(x + 160, 0); g.lineTo(x + 200, 0); g.lineTo(x + 40, 160); g.closePath(); g.fill(); } });
 const GT_C = [CX, CY + 40];
-function giBeatStep(t, t0) { const b = (t - t0) / GAS_P, k = Math.floor(b), u = b - k; return k + (1 - Math.exp(-u * 9)) * (1 + 0.25 * Math.exp(-u * 6) * Math.sin(u * 20)); }
-function giGauge(t) {
-  blit(gasPlate());
-  const z = 1 + 0.08 * (t - GT.open) / (GT.stamp - GT.open); ctx.save(); ctx.translate(GT_C[0], GT_C[1]); ctx.scale(z, z); ctx.translate(-GT_C[0], -GT_C[1]);
-  blit(twinBake('gasDialBig', GT_C[0] - 175, GT_C[1] - 175, 350, 350, 2, g => { g.fillStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.arc(GT_C[0] + 8, GT_C[1] + 10, 168, 0, TAU); g.fill(); gasGaugeDial(g, GT_C[0], GT_C[1], 165); }));
-  const v = 0.06 + 0.075 * giBeatStep(t, GT.open); gasNeedle(GT_C[0], GT_C[1], 165, v);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(200,230,255,.07)'; ctx.beginPath(); ctx.moveTo(GT_C[0] - 140, GT_C[1] - 80); ctx.lineTo(GT_C[0] - 60, GT_C[1] - 150); ctx.lineTo(GT_C[0] + 10, GT_C[1] - 150); ctx.lineTo(GT_C[0] - 120, GT_C[1] - 10); ctx.closePath(); ctx.fill(); ctx.restore();
+// the roadblock: police cars slewed across the lanes ahead, met on the downbeat at 5.32 and smashed aside
+const GT_BLOCK = [2, 3, 4, 5];
+function drawGasIntroWorld(t) {
+  if (t < GT.block - 0.5 || t > GT.crash + 2.5) return;
+  const s = t - GT.crash, y0 = -(GT.crash - t) * GAS_V - 30;
+  for (const ln of GT_BLOCK) {
+    let x = GAS_LANE_X(ln), y = y0 + (ln % 2 ? 40 : -30), rot = ln % 2 ? 0.3 : -0.25;
+    if (s > 0) { const d = ln - 4, push = d === 0 ? 1 : Math.abs(d) === 1 ? 0.6 : 0.25, sd = d === 0 ? 1 : Math.sign(d), k = 1 - Math.exp(-s * 3); x += sd * push * 560 * k; y -= push * 300 * k; rot += sd * push * s * 9; }
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot + HALF); ctx.drawImage(gasCarSpr(0, false, true).c, -50, -100, 100, 200);
+    ctx.globalCompositeOperation = 'lighter'; const red = Math.floor(t * 6.5) % 2 === 0; ctx.fillStyle = red ? 'rgba(255,30,40,.55)' : 'rgba(40,90,255,.55)'; ctx.beginPath(); ctx.arc(0, 10, 70, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  if (s < 0) { ctx.fillStyle = '#ffc81a'; ctx.fillRect(-460, y0 + 120, 920, 10); ctx.fillStyle = '#141414'; for (let x = -460; x < 460; x += 40) ctx.fillRect(x, y0 + 120, 20, 10); }
+}
+// a helicopter's searchlight sweeping the highway, then locking onto the truck
+function giSearch(t) {
+  const z = cam.z + cam.kz, ty = cam.fy + z * (CY + 100 - cam.fy), u = clamp((t - GT.open) / 1.0, 0, 1), x = CX + (1 - ease3(u)) * 260 * Math.cos(t * 1.7), y = ty + (1 - ease3(u)) * 220 * Math.sin(t * 2.3);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const l = ctx.createRadialGradient(x, y, 20, x, y, 190); l.addColorStop(0, 'rgba(220,235,255,.3)'); l.addColorStop(1, 'rgba(220,235,255,0)'); ctx.fillStyle = l; ctx.fillRect(x - 190, y - 190, 380, 380); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.35; ctx.translate(x + 60, y - 120); ctx.rotate(time * 30); ctx.fillStyle = '#000'; for (let i = 0; i < 4; i++) { ctx.rotate(HALF); ctx.fillRect(-5, 0, 10, 150); } ctx.restore();
+}
+function giDark(t, a) { if (a <= 0) return; ctx.save(); ctx.fillStyle = `rgba(0,0,6,${a})`; fillView(); ctx.restore(); }
+function giRadio(t, lines) {
+  ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(16, H - 214, W - 32, 18 + lines.length * 18);
+  ctx.fillStyle = Math.floor(t * 3) % 2 ? '#ff3b30' : '#5a1410'; ctx.beginPath(); ctx.arc(30, H - 201, 4, 0, TAU); ctx.fill();
+  lines.forEach(([str, t0], i) => { const s = t - t0; if (s < 0) return; const n = Math.min(str.length, Math.floor(s * 32)); text(str.slice(0, n), 42, H - 200 + i * 18, 9, i ? '#c3c3ca' : '#ffd23f', 'left', 700); });
   ctx.restore();
-  text('LINE PRESSURE', CX, H - 150, 12, 'rgba(255,210,63,.8)', 'center', 700);
+}
+function giGauge(t) {
+  blit(gasPlate()); const s = t - GT.gauge;
+  const z = 1.25 - 0.15 * ease3(clamp(s / 0.3, 0, 1)); ctx.save(); ctx.translate(GT_C[0], GT_C[1]); ctx.scale(z, z); ctx.rotate(Math.sin(s * 40) * 0.01); ctx.translate(-GT_C[0], -GT_C[1]);
+  blit(twinBake('gasDialBig', GT_C[0] - 175, GT_C[1] - 175, 350, 350, 2, g => { g.fillStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.arc(GT_C[0] + 8, GT_C[1] + 10, 168, 0, TAU); g.fill(); gasGaugeDial(g, GT_C[0], GT_C[1], 165); }));
+  gasNeedle(GT_C[0], GT_C[1], 165, 0.3 + 0.75 * ease3(clamp(s / 0.35, 0, 1)) + Math.sin(s * 60) * 0.02);
+  ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; beam(GT_C[0], GT_C[1] - 220, t * 9, 700, 10, 200, 'rgba(255,40,30,.25)'); beam(GT_C[0], GT_C[1] - 220, t * 9 + Math.PI, 700, 10, 200, 'rgba(255,40,30,.25)'); ctx.restore();
+  slamText('OVERPRESSURE', CX, 110, 40, '#ff3b30', s - 0.05, 99, { under: 'rgba(255,200,40,.35)' });
 }
 function giHazard(t) {
-  const s = t - GT.stamp, off = (t * 160) % 80;
-  for (let y = -80; y < H + 80; y += 160) ctx.drawImage(gasStripes().c, -80 - off, y, W + 160, 160);
+  const off = (t * 220) % 80; for (let y = -80; y < H + 80; y += 160) ctx.drawImage(gasStripes().c, -80 - off, y, W + 160, 160);
   ctx.fillStyle = 'rgba(0,0,0,.45)'; fillView();
-  // a red beacon sweeping round
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const ba = t * 7; beam(CX, CY + 40, ba, 600, 10, 160, 'rgba(255,40,30,.22)'); beam(CX, CY + 40, ba + Math.PI, 600, 10, 160, 'rgba(255,40,30,.22)'); ctx.restore();
-  const k = clamp(s / 0.12, 0, 1), sc = 1 + 0.6 * (1 - k) * (1 - k);
+  const s = t - GT.hazard, k = clamp(s / 0.12, 0, 1), sc = 1 + 0.6 * (1 - k) * (1 - k);
   ctx.save(); ctx.translate(CX, CY + 40); ctx.scale(sc, sc); withCtx(ctx, () => gasHazard(ctx, 0, 0, 120, 0)); ctx.restore();
-  const word = (str, t0, y, size, col) => { const e = t - t0; if (e < 0) return; slamText(str, CX, y, size, col, e, 99, { under: 'rgba(255,40,30,.4)' }); };
-  word('DANGER', GT.stamp, 120, 52, '#ffd23f'); word('FLAMMABLE GAS', GT.stamp2, H - 170, 30, '#ffffff');
-}
-function giValve(t) {
-  blit(gasPlate());
-  ctx.save(); ctx.translate(GT_C[0], GT_C[1]);
-  const pts = gasCoilPts(250); ctx.save(); ctx.rotate(-0.3 + 0.05 * (t - GT.valve)); ctx.beginPath(); pts.slice(0, -2).forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1])); ctx.lineCap = 'round'; ctx.strokeStyle = '#4a2410'; ctx.lineWidth = 22; ctx.stroke(); ctx.strokeStyle = '#b8642a'; ctx.lineWidth = 16; ctx.stroke(); ctx.strokeStyle = '#e89a5a'; ctx.lineWidth = 6; ctx.stroke(); ctx.strokeStyle = 'rgba(255,235,210,.7)'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-  ctx.fillStyle = '#2a3436'; ctx.beginPath(); ctx.arc(0, 0, 80, 0, TAU); ctx.fill(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; ctx.fillStyle = '#8a9a9a'; ctx.beginPath(); ctx.arc(Math.cos(a) * 66, Math.sin(a) * 66, 6, 0, TAU); ctx.fill(); }
-  withCtx(ctx, () => gasValveWheel(ctx, 0, 0, 120, 0.3 + 0.7 * giBeatStep(t, GT.valve)));
-  ctx.restore();
-  // gas spits off the flange on the off beats
-  const b = (t - GT.valve) / GAS_P, k = Math.floor(b), u = b - k;
-  if (k % 2 === 1) { ctx.save(); for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4 + k, d = 70 + u * 160, r = 14 + u * 50; ctx.globalAlpha = 0.7 * (1 - u); ctx.drawImage(gasPuff(0).c, GT_C[0] + Math.cos(a) * d - r, GT_C[1] + Math.sin(a) * d - r, r * 2, r * 2); } ctx.restore(); }
+  slamText('FLAMMABLE', CX, 120, 52, '#ffd23f', s, 99, { under: 'rgba(255,40,30,.4)' }); slamText('CLASS 2.1 GAS', CX, H - 170, 26, '#ffffff', s - 0.15, 99, { under: 'rgba(255,40,30,.4)' });
 }
 function giTitle(t) {
-  if (t >= GT.deck && t < GT.roll + 0.2) cineTitle('GAS TANK', 'HAZMAT CLASS 2  /  FLAMMABLE', t - GT.deck + 0.4, '#ffd23f', '#ff3b30', CY + R + 150);
+  if (t >= GT.title && t < GT.roll + 0.2) cineTitle('GAS TANK', 'HAZMAT CLASS 2  /  STOLEN', t - GT.title + 0.4, '#ffd23f', '#ff3b30', CY + R + 150);
   if (t >= GT.roll && t < GT.land) {
     const b = Math.floor((t - GT.roll) / GAS_P), e = t - GT.roll - b * GAS_P; slamText(['85%', '90%', '95%', '99%'][Math.min(3, b)], CX, CY + R + 140, 64, b >= 3 ? '#ff3b30' : '#ffd23f', e, 99, { under: 'rgba(255,60,30,.45)' });
     ctx.save(); ctx.globalAlpha = 0.25 + 0.2 * Math.exp(-e * 6); blit(bakeSprite('gasVig', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 170, CX, CY + 60, 560); v.addColorStop(0, 'rgba(255,60,20,0)'); v.addColorStop(1, 'rgba(255,60,20,.9)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); ctx.restore();
   }
 }
 function drawGasIntro(t) {
-  const live = t >= GT.road;
   ctx.save();
-  if (!live) { ctx.fillStyle = '#000'; fillView(); }
-  if (t >= GT.open && t < GT.stamp) introIris(t, GT.open, () => giGauge(t), '255,210,120');
-  else if (t >= GT.stamp && t < GT.valve) giHazard(t);
-  else if (t >= GT.valve && t < GT.road) giValve(t);
-  else if (live && t < GT.land) giTitle(t);
+  // the overlays live in screen space: undo the camera's pull-back
+  { const z = cam.z + cam.kz; if (Math.abs(z - 1) > 0.001) { ctx.translate(cam.fx, cam.fy); ctx.scale(1 / z, 1 / z); ctx.translate(-cam.fx, -cam.fy); } }
+  if (t < GT.open) { ctx.fillStyle = '#000'; fillView(); }
+  else if (t < GT.gauge) { giDark(t, 0.55); giSearch(t); giRadio(t, [['DISPATCH: STOLEN HAZMAT TANKER', GT.open + 0.2], ['NORTHBOUND. ALL UNITS RESPOND.', GT.open + 0.75]]); if (t < GT.open + 0.6) introIris(t, GT.open, () => {}, '255,210,120'); }
+  else if (t < GT.hazard) giGauge(t);
+  else if (t < GT.block) giHazard(t);
+  else if (t < GT.crash) giRadio(t, [['UNIT 7: ROADBLOCK IN PLACE', GT.block + 0.1], ['HE IS NOT SLOWING DOWN!', GT.block + 0.6]]);
+  else if (t < GT.land) { if (t < GT.crash + 0.25) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,170,90,${0.35 * (1 - (t - GT.crash) / 0.25)})`; fillView(); ctx.restore(); } giTitle(t); }
   introStarOut(t, GT.star, GT.open, 'gas');
-  if (!live) { blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); drawGrain(0.05); }
+  if (t < GT.open || (t >= GT.gauge && t < GT.block)) { blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); drawGrain(0.05); }
   ctx.restore();
-  if (!live) cineSkipHint();
+  if (t < GT.land - 0.4) cineSkipHint();
 }
 
 // ======================= WIRE CLUMP cinematic =======================
@@ -17672,7 +17791,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 66', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 67', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
