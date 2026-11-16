@@ -428,9 +428,9 @@ const sfx = {
 
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3', bot: 'assets/bot.mp3', twin: 'assets/twin.mp3', gas: 'assets/gas.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3', bot: 'assets/bot.mp3', twin: 'assets/twin.mp3', gas: 'assets/gas.mp3', mh: 'assets/mh.mp3' };
 // bar-aligned loop points (seconds, as Chromium decodes the files): the intro plays once, then the body loops on a crossfaded seam
-const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [52.14, 240.47], bot: [31.977, 153.77], twin: [18.366, 269.795], gas: [10.244, 152.999] };
+const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [52.14, 240.47], bot: [31.977, 153.77], twin: [18.366, 269.795], gas: [10.244, 152.999], mh: [14.4, 122.4] };
 function loopSrc(src, name) { const L = LOOPS[name]; if (L && src.buffer && src.buffer.duration > L[1] - 0.02) { src.loopStart = L[0]; src.loopEnd = Math.min(L[1], src.buffer.duration); } }
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
@@ -512,6 +512,7 @@ function updateMusic(rdt) {
   else if (fx && fx.type === 'botintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'twinintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'gasintro') { rate = 1; cut = 20000; vol = 0.66; }
+  else if (fx && fx.type === 'mhintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
@@ -736,10 +737,11 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : t.bot ? makeBotTexture(t) : t.twin ? makeTwinTexture(t) : t.gas ? makeGasTexture(t) : makeLogTexture(t);
+  if (t.mh) t.tex = mhTex(t.mh.under);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : t.bot ? makeBotTexture(t) : t.twin ? makeTwinTexture(t) : t.gas ? makeGasTexture(t) : t.mh ? makeMhTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else if (t.bot) drawBotLive(t); else if (t.twin) drawTwinLive(t); else if (t.gas) drawGasLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else if (t.bot) drawBotLive(t); else if (t.twin) drawTwinLive(t); else if (t.gas) drawGasLive(t); else if (t.mh) drawMhLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -915,7 +917,7 @@ function menuTarget() {
 }
 
 function newStage() {
-  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost', 'bot', 'twin', 'gas'][Math.floor(rand(9))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
+  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost', 'bot', 'twin', 'gas', 'mh'][Math.floor(rand(10))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
   let admType = null; if (adminNextType && stage % 5 !== 0) { admType = adminNextType; adminNextType = null; syncAdmin(); }
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
@@ -925,10 +927,10 @@ function newStage() {
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
   setHD(true);
-  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage), botB = boss && isBotStage(stage), twinB = boss && isTwinStage(stage), gasB = boss && isGasStage(stage);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage), botB = boss && isBotStage(stage), twinB = boss && isTwinStage(stage), gasB = boss && isGasStage(stage), mhB = boss && isMhStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
-  const type = tanker || gearB || tireB || wireB || frostB || botB || twinB || gasB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB || tireB || wireB || frostB || botB || twinB || gasB || mhB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   if (hasPassive('birdheart') && !boss && type !== 'branches' && stage > 1 && Math.random() < 0.3) {   // a bonus perch on any other log
     const taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a), (tgt.f.kegs || []).map(k => k.a), (tgt.f.ice || []).map(i => i.a), tgt.f.treehole ? [tgt.f.treehole.a] : [], tgt.f.bushes.map(b => b.a), tgt.f.moss.map(m => m.a));
@@ -950,6 +952,7 @@ function newStage() {
   if (botB) { setupBot(tgt); knivesTotal = knivesLeft = botTotal(tgt.bot); banner.t = 0; startBotIntro(tgt); }
   if (twinB) { setupTwin(tgt); knivesTotal = knivesLeft = TWIN_HP * 2; banner.t = 0; startTwinIntro(tgt); }
   if (gasB) { setupGas(tgt); knivesTotal = knivesLeft = GAS_HP; banner.t = 0; startGasIntro(tgt); }
+  if (mhB) { setupMh(tgt); knivesTotal = knivesLeft = MH_HP; banner.t = 0; startMhIntro(tgt); }
   if (nestB) {   // in disguise: a branched log with one beehive on it
     const F = tgt.f, taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a));
     const far = () => { let best = 0, bd = -1; for (let i = 0; i < 72; i++) { const a = i / 72 * TAU, d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } } taken.push(best); return best; };
@@ -1021,6 +1024,7 @@ function stepKnife(k) {
   if (t.bot && botFlightHit(k, t)) return;
   if (t.twin && twinFlightHit(k, t)) return;
   if (t.gas && gasFlightHit(k, t)) return;
+  if (t.mh && mhFlightHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -1153,6 +1157,7 @@ function clearStage() {
   if (t.bot) { botClear(t); return; }
   if (t.twin) { twinClear(t); return; }
   if (t.gas) { gasClear(t); return; }
+  if (t.mh) { mhClear(t); return; }
   if (t.nestBait) { if (t.nestGo && !fx) { t.nestPending = false; startNestIntro(t); } return; }
   if (t.nest && !t.nest.queen) { startQueenRise(t); return; }
   if (t.nest && !t.nest.dead) { t.nest.dead = true; startNestDeath(t); return; }
@@ -1754,6 +1759,9 @@ function updateFx(rdt) {
     case 'gasblow': updateGasBlow(t); break;
     case 'gasignite': updateGasIgnite(t); break;
     case 'gasdeath': updateGasDeath(t); break;
+    case 'mhintro': updateMhIntro(t); break;
+    case 'mhphase': updateMhPhase(t); break;
+    case 'mhdeath': updateMhDeath(t); break;
     case 'nestintro': updateNestIntro(t); break;
     case 'queenrise': updateQueenRise(t); break;
     case 'nestdeath': updateNestDeath(t); break;
@@ -2076,6 +2084,7 @@ function stickNormal(k, t) {
   if (t.bot && botSurfaceHit(k, t, a)) return;
   if (t.twin && twinSurfaceHit(k, t, a)) return;
   if (t.gas && gasSurfaceHit(k, t, a)) return;
+  if (t.mh && mhSurfaceHit(k, t, a)) return;
   if (F && F.mag && magPoleHit(k, t, a)) return;
   if (F && F.vines && F.vines.length && vineSnag(k, t, a)) return;
   if (F && F.stone && F.stone.length && stoneHit(k, t, a)) return;
@@ -2088,6 +2097,7 @@ function stickNormal(k, t) {
   if (t.bot) botStuck(t, s, a);
   if (t.twin) twinStuck(t, s, a);
   if (t.gas) gasStuck(t, s, a);
+  if (t.mh) mhStuck(t, s, a);
   if (F && F.ice && F.ice.length) iceStick(t, s, a);
   if (F && F.shrooms && F.shrooms.length) shroomStick(t, s, a);
   if (F && F.runes) runeStick(t, s, a);
@@ -5102,7 +5112,7 @@ function abilityMeetsLog(t, id, a) {
 let stunShield = 0, abilFeed = [];
 const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice', 'type:lodestone', 'type:bramble', 'type:fungal', 'type:runestone', 'type:spiralwood', 'type:resinwood', 'type:petrified', 'type:embercore', 'type:ringwood',
   'sub:swirl', 'sub:fire', 'sub:hive', 'sub:wire', 'sub:linked', 'bird:song', 'bird:crow', 'bird:pecker', 'bird:owl', 'apples', 'hidden',
-  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:bot', 'boss:twin', 'boss:gas', 'boss:classic'];
+  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:bot', 'boss:twin', 'boss:gas', 'boss:mh', 'boss:classic'];
 const KNIFE_COL = { strong: '#ffffff', marker: '#ff2e45', carve: '#f2cf94', chain: '#2ad8ff', cook: '#ffa04a' };
 function feed(txt, id) { abilFeed.push({ txt, col: KNIFE_COL[id] || '#ffffff', t: -abilFeed.filter(f => f.t < 0.3).length * 0.16 }); if (abilFeed.length > 7) abilFeed.shift(); }
 function updateFeed(dt) { for (const f of abilFeed) f.t += dt; abilFeed = abilFeed.filter(f => f.t < 2.6); }
@@ -5123,7 +5133,7 @@ function heal1() { if (lives < MAX_LIVES) { lives++; abil.pop['heart' + (lives -
 function boostAbility(n) { abil.boost = (abil.boost || 0) + n; }
 function interKeys(t) {
   const ks = [], F = t.f || {};
-  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost'); else if (t.bot) ks.push('boss:bot'); else if (t.twin) ks.push('boss:twin'); else if (t.gas) ks.push('boss:gas');
+  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost'); else if (t.bot) ks.push('boss:bot'); else if (t.twin) ks.push('boss:twin'); else if (t.gas) ks.push('boss:gas'); else if (t.mh) ks.push('boss:mh');
   else if (t.nest) { ks.push('boss:nest'); if (t.nest.queen) ks.push('boss:queen'); }
   else if (t.boss) ks.push('boss:classic');
   else if (t.type) ks.push('type:' + t.type);
@@ -5193,6 +5203,7 @@ const INTER = {
     'boss:bot': ['VINE BREAKER', 'The blow rips every tentacle off the lilies, splits the flytraps and staggers the swing. +1 hit.', c => { const B = c.t.bot; if (!B) return; for (const L of [B.lily, ...B.spec]) if (L) { L.tent = null; L.tentAt = 99; L.guard = 0; } B.obs = B.obs.filter(o => o.kind !== 'flytrap'); B.swW = 0.5; B.swT = 4; c.dmg(1); }],
     'boss:twin': ['GRAVITY SLING', 'The blow carries down the pith thread: the other twin takes 1 as well.', c => { const T = c.t.twin; if (!T || T.solo) return; const L = T.L[1 - T.lastI]; if (L && !L.dead) twinDamage(c.t, L, 1, false); }],
     'boss:gas': ['PRESSURE RELEASE', 'The blow knocks both vents open and drops the pressure by 30%.', c => { const G = c.t.gas; if (!G) return; for (const V of G.vents) if (V.st === 'capped') gasPopVent(c.t, V, true); gasPressure(G, -30); }],
+    'boss:mh': ['SKY HIGH', 'The blow bats every bird out of the sky and knocks the rats off the rim. +1 hit.', c => { const M = c.t.mh; if (!M) return; for (const b of M.birds) if (!b.dead) { b.dead = true; mhSplat(c.t, b.x, b.y, false); } for (const r of M.rats.slice()) { if (r.carry) c.t.stuck.push({ a: r.a, wob: 0.1 }); mhRatGone(c.t, r); } c.dmg(1); }],
     'boss:nest': ['SHOCKWAVE', 'Two wasps are blown out of the air and an infested patch is scoured clean.', c => { V.wasps(c, 2); c.t.nest.spots.sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a)).shift(); }],
     'boss:queen': ['ROYAL CRASH', 'The queen is knocked out of the air: dazed, and the next hit is x2.', c => V.daze(c)],
     'boss:classic': ['HEARTWOOD', 'The blow reaches the heartwood: +3 score.', c => c.score(3)],
@@ -5218,6 +5229,7 @@ const INTER = {
     'boss:bot': ['BOTANIST', 'The bud is identified and blooms at once, and every status on your knife is cleared.', c => { const B = c.t.bot; if (!B) return; if (B.lily && !B.lily.mature) { B.lily.t = B.lily.grow; B.lily.tent = null; } B.st.bloom = 0; B.st.splinter = 0; B.st.noKnife = 0; B.st.blind = 0; }],
     'boss:twin': ['BARYCENTRE', 'The mark finds their centre of mass: the orbit stalls for 4s and their next move waits.', c => { const T = c.t.twin; if (!T) return; T.still = 4; T.moveNext += 4; if (T.move) { T.move = null; T.eclipse = 0; } }],
     'boss:gas': ['SAFETY INSPECTION', 'Hot metal is cooled, the rails are locked for 10s and no fireball comes for 8s.', c => { const G = c.t.gas; if (!G) return; G.zones = []; G.railNext += 10; G.railWarn = 0; G.balls = []; G.ballNext += 8; }],
+    'boss:mh': ['SURVEYED', 'Every steam jet is capped, the blood is wiped away and the next tumble waits 8s.', c => { const M = c.t.mh; if (!M) return; M.jets = []; M.splats = []; M.flipNext += 8; }],
     'boss:nest': ['FLY SWATTER', 'The wasp nearest the mark is swatted, and the infested patch there is cleared.', c => { V.wasps(c, 1); const T = c.t.nest; T.spots = T.spots.filter(s => angDiff(s.a, c.a) > 0.5); }],
     'boss:queen': ['EXPOSED', 'The queen is marked: the next hit on the nest is x2.', c => { c.t.nest.exposed = true; }],
     'boss:classic': ['TRUE STRIKE', '+3 score.', c => c.score(3)],
@@ -5243,6 +5255,7 @@ const INTER = {
     'boss:bot': ['GARDEN SHEARS', 'Roses, floral vines, poison ivy and nightshade are sheared off the rim.', c => { const B = c.t.bot; if (!B) return; B.roses = []; B.flora = []; B.obs = B.obs.filter(o => o.kind === 'flytrap'); }],
     'boss:twin': ['TWIN CARVING', 'The stronger twin is whittled down by 1, and every branch, spiral and ring comes off both.', c => { const T = c.t.twin; if (!T) return; for (const L of T.L) { L.br = []; L.spiral = null; L.ring = null; } if (!T.solo && T.L.every(L => !L.dead)) { const L = T.L[0].hp >= T.L[1].hp ? T.L[0] : T.L[1]; twinDamage(c.t, L, 1, false); } }],
     'boss:gas': ['CUT THE RAILS', 'One steel rail is cut off the rim for good, and the hot metal is shaved cool.', c => { const G = c.t.gas; if (!G) return; if (G.rails.length > 1) { const Rl = G.rails.pop(), [x, y] = worldAt(c.t, Rl.a, R + 8); for (let i = 0; i < 4; i++) debris.push({ kind: 'shard', x, y, vx: rand(-400, 400), vy: rand(-500, -200), rot: rand(TAU), vr: rand(-14, 14), c: '#9aa4a6', pts: [[-8, -2], [8, -2], [8, 2], [-8, 2]] }); } G.zones = []; }],
+    'boss:mh': ['ENGRAVED', 'The rats are carved off the rim and every stolen knife is put back.', c => { const M = c.t.mh; if (!M) return; for (const r of M.rats.slice()) { if (r.carry) c.t.stuck.push({ a: r.a, wob: 0.1 }); mhRatGone(c.t, r); } M.ratNext += 6; }],
     'boss:nest': ['FLY SWATTERS', 'Two carved swatters knock two wasps out of orbit.', c => V.wasps(c, 2)],
     'boss:queen': ['WOODEN CROWN', 'The queen is distracted: her next move waits 6s longer.', c => { c.t.nest.queen.next += 6; }],
     'boss:classic': ['CHIP AWAY', '+2 score and a wooden knife.', c => { c.score(2); const [x, y] = worldAt(c.t, c.a, R); V.wood(c, x, y); }],
@@ -5268,6 +5281,7 @@ const INTER = {
     'boss:bot': ['ROOT SHOCK', 'The current runs down the roots: vine tentacles fried, spat knives dropped, the hollow shuts its eyes. +1 hit.', c => { const B = c.t.bot; if (!B) return; B.vtent = []; B.spits = []; B.st.noKnife = 0; if (B.hollow) B.hollow.eyeT = Math.floor(B.hollow.eyeT / 5.5) * 5.5 + 3.6; c.dmg(1); }],
     'boss:twin': ['THREAD CURRENT', 'The charge runs down the pith thread: both twins take 1 and the link burns out.', c => { const T = c.t.twin; if (!T) return; for (const L of T.L) L.link = 0; if (T.solo) { c.dmg(1); return; } for (const L of T.L) if (!L.dead) twinDamage(c.t, L, 1, false); }],
     'boss:gas': ['SHORT THE BURNER', 'The igniter shorts: no fireball for 12s, pressure down 15%. +1 hit.', c => { const G = c.t.gas; if (!G) return; G.balls = []; G.ballNext += 12; gasPressure(G, -15); c.dmg(1); }],
+    'boss:mh': ['LIGHTNING ROD', 'The iron earths the charge: no lightning for 12s, live iron goes dead. +1 hit.', c => { const M = c.t.mh; if (!M) return; M.live = 0; M.bolt = null; M.boltNext += 12; c.dmg(1); }],
     'boss:nest': ['ZAPPER', 'Half the orbiting wasps are fried.', c => V.wasps(c, Math.ceil(c.t.nest.wasps.length / 2))],
     'boss:queen': ['TASER', 'The queen is stunned out of the air: dazed, next hit x2.', c => V.daze(c)],
     'boss:classic': ['CONDUCTED', '+3 score.', c => c.score(3)],
@@ -5293,6 +5307,7 @@ const INTER = {
     'boss:bot': ['COMPOST', 'The heat brings back 40% sanity, and the surprise and electric lilies wither on the stem.', c => { const B = c.t.bot; if (!B) return; botSanity(B, 40); B.spec = B.spec.filter(L => LILIES[L.kind].good); }],
     'boss:twin': ['TWIN STEW', '+1 heart (or +3 score), and their next move waits 5s.', c => { const T = c.t.twin; if (!heal1()) c.score(3); if (T) T.moveNext += 5; }],
     'boss:gas': ['BARBECUE', '+1 heart (or +3 score), and the pressure drops 20%.', c => { const G = c.t.gas; if (!heal1()) c.score(3); if (G) gasPressure(G, -20); }],
+    'boss:mh': ['ROAST PIGEON', 'The next birds are cooked mid-air: +1 heart (or +3 score), the blood clears and no birds for 10s.', c => { const M = c.t.mh; if (!heal1()) c.score(3); if (M) { M.splats = []; M.birds = []; M.birdNext += 10; } }],
     'boss:nest': ['HONEY TRAP', 'Three wasps leave to eat.', c => V.wasps(c, 3)],
     'boss:queen': ['ROYAL BANQUET', 'The queen stops to feast: her next move waits 8s.', c => { c.t.nest.queen.next += 8; }],
     'boss:classic': ['FEAST', '+1 heart, or +3 score if your hearts are full.', c => { if (!heal1()) c.score(3); }],
@@ -5322,7 +5337,7 @@ function entryKeys(e) {
   if (e.cat === 'LOG TYPE') return ['type:' + e.type];
   if (e.sub === 'bird') return ['bird:' + (e.kind || 'song')];
   if (e.cat === 'BRANCH') return e.sub === 'plain' ? ['type:branches'] : ['sub:' + e.sub];
-  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.bot) return ['boss:bot']; if (e.twin) return ['boss:twin']; if (e.gas) return ['boss:gas']; if (e.nest) return ['boss:nest', 'boss:queen'];
+  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.bot) return ['boss:bot']; if (e.twin) return ['boss:twin']; if (e.gas) return ['boss:gas']; if (e.mh) return ['boss:mh']; if (e.nest) return ['boss:nest', 'boss:queen'];
   if (e.boss !== undefined) return ['boss:classic'];
   if (e.name === 'APPLES') return ['apples']; if (e.hidden) return ['hidden'];
   return [];
@@ -5339,7 +5354,7 @@ function interCount(id) { return INTER_KEYS.filter(k => interText(id, k)).length
 // ones you have never seen first), each with its own title slamming in where it happens. Finds are remembered.
 const BIX = {}, BIX_IDS = ['strong', 'marker', 'carve', 'chain', 'cook'];
 let bixFound = load('knaife.bix', {});
-const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : t.bot ? 'bot' : t.twin ? 'twin' : t.gas ? 'gas' : null;
+const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : t.bot ? 'bot' : t.twin ? 'twin' : t.gas ? 'gas' : t.mh ? 'mh' : null;
 const bixCount = (b, id) => BIX[b] ? BIX[b][id].length : 0;
 const bixFoundN = (b, id) => BIX[b] ? BIX[b][id].filter((_, i) => bixFound[b + ':' + id + ':' + i]).length : 0;
 function bixCtx(t, id, a, c0) {
@@ -5391,7 +5406,7 @@ function bossSetPieces(t, id, a, c0) {
 }
 // encyclopedia: how many set pieces this knife has on this boss, and the ones you have found
 function bixLines(e, id) {
-  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.bot ? 'bot' : e.twin ? 'twin' : e.gas ? 'gas' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
+  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.bot ? 'bot' : e.twin ? 'twin' : e.gas ? 'gas' : e.mh ? 'mh' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
   const found = BIX[b][id].map((x, i) => bixFound[b + ':' + id + ':' + i] ? x[0] : null).filter(Boolean);
   return [{ text: bixCount(b, id) + ' BOSS SET PIECES  /  ' + found.length + ' FOUND', size: 6, col: KNIFE_COL[id] || '#ffd23f' }].concat(found.slice(-3).map(n => ({ text: '- ' + n, size: 6, col: '#c3c3ca' })));
 }
@@ -6269,7 +6284,7 @@ const IX_SFX = {
   'type:bark': () => sfx.barkBreak(), 'type:treehole': () => sfx.gulp(), 'type:saw': () => sfx.sawKick(), 'type:blackout': () => sfx.breaker(), 'type:tnt': () => sfx.kegBoom(), 'type:ice': () => sfx.iceBreak(), 'type:lodestone': () => sfx.magPulse(), 'type:bramble': () => sfx.rustle(), 'type:fungal': () => sfx.sporeBurst(), 'type:runestone': () => sfx.runeHit(), 'type:spiralwood': () => sfx.spiralShift(), 'type:resinwood': () => sfx.resinCrack(), 'type:petrified': () => sfx.stoneHit(), 'type:embercore': () => sfx.flare(), 'type:ringwood': () => sfx.ringRise(),
   'sub:swirl': () => sfx.boing(), 'sub:fire': () => sfx.whoosh(), 'sub:hive': () => sfx.bees(), 'sub:wire': () => sfx.zap(0.5), 'sub:linked': () => sfx.chain(),
   'bird:song': () => sfx.tweet(), 'bird:crow': () => sfx.caw(), 'bird:pecker': () => sfx.peck(), 'bird:owl': () => sfx.hoot(), 'apples': () => sfx.apple(), 'hidden': () => sfx.reveal(),
-  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:bot': () => { sfx.woodSplit(); sfx.rustle(); }, 'boss:twin': () => { sfx.flare(); sfx.woodSplit(); }, 'boss:gas': () => { sfx.hiss(); sfx.clank(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
+  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:bot': () => { sfx.woodSplit(); sfx.rustle(); }, 'boss:twin': () => { sfx.flare(); sfx.woodSplit(); }, 'boss:gas': () => { sfx.hiss(); sfx.clank(); }, 'boss:mh': () => { sfx.clank(); sfx.hiss(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
 };
 const SIG_SFX = { strong: () => sfx.subDrop(), marker: () => sfx.markerOn(), carve: () => sfx.carve(), chain: () => sfx.zap(0.35), cook: () => sfx.sizzle() };
 function updateIx(rdt) {
@@ -6327,6 +6342,7 @@ const IX_DRAW = {
   'boss:bot'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + e.seed, d = 12 + ease3(Math.min(1, u * 1.6)) * 140; ctx.save(); ctx.translate(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d); ctx.rotate(a + u * 4); ctx.fillStyle = i % 3 ? '#ff2e45' : '#2f9a1f'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.5, 0, 0, TAU); ctx.fill(); ctx.restore(); } ctx.strokeStyle = '#2f9a1f'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 80, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:twin'(e, u) { ctx.globalAlpha = 1 - u * u; for (let k = 0; k < 2; k++) { const a = u * 6 + k * Math.PI + e.seed, d = 10 + ease3(Math.min(1, u * 1.4)) * 60; ctx.fillStyle = TWIN_COL[k]; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 9 * (1 - u * 0.5), 0, TAU); ctx.fill(); } ctx.strokeStyle = '#fde7b0'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 90, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:gas'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + e.seed, d = 14 + ease3(Math.min(1, u * 1.5)) * 70, r = 6 + u * 16; ctx.fillStyle = i % 2 ? '#e8f0ee' : '#ffd23f'; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, r, 0, TAU); ctx.fill(); } ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 90, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
+  'boss:mh'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + e.seed, d = 12 + ease3(Math.min(1, u * 1.5)) * 80; ctx.fillStyle = i % 3 ? '#8a8c8e' : '#b0101a'; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 5 + 6 * (1 - u), 0, TAU); ctx.fill(); } ctx.strokeStyle = '#ffb24a'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 90, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:tire'(e, u) { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#08080a'; for (const sd of [-1, 1]) for (let i = 0; i < 10; i++) { const x = e.x - 160 + ease3(u) * 320 * (i / 10), y = e.y + sd * 26 + i * 3; ctx.fillRect(x, y, 16, 8); } ctx.fillStyle = '#5c5c66'; for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(e.x - 120 + i * 34, e.y - u * 40 - (i % 2) * 10, 8 + u * 22, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; },
   'boss:nest'(e, u) { for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + e.seed, r = 20 + ease3(u) * 160; ctx.globalAlpha = 1 - u; drawHornet(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, 0.9, a, time + i); } ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 4; for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4, r = 60 + 40 * u; const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r, s = 10 * Math.min(1, u * 4); ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); ctx.stroke(); } ctx.globalAlpha = 1; },
   'boss:queen'(e, u) { const fall = ease3(Math.min(1, u * 1.6)) * 70, cr = u > 0.6; ctx.save(); ctx.translate(e.x, e.y - 90 + fall); ctx.globalAlpha = 1 - Math.max(0, u - 0.7) / 0.3; ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(-30, 14); ctx.lineTo(-30, -10); ctx.lineTo(-15, 4); ctx.lineTo(0, -18); ctx.lineTo(15, 4); ctx.lineTo(30, -10); ctx.lineTo(30, 14); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(0, 4, 5, 0, TAU); ctx.fill(); if (cr) { ctx.strokeStyle = '#08080a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-4, -16); ctx.lineTo(3, -2); ctx.lineTo(-5, 6); ctx.lineTo(2, 14); ctx.stroke(); } ctx.restore(); ctx.globalAlpha = 1; },
@@ -7086,7 +7102,166 @@ BIX.gas = {
     G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'), G_('pin', 'cook'),
   ],
 };
-const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost || t.bot || t.twin || t.gas));
+// ---------- THE MANHOLE: 30 situations ----------
+const MX = {
+  rats(c) { let n = 0; for (const r of c.T.rats.slice()) { if (r.carry) c.t.stuck.push({ a: r.a, wob: 0.1 }); mhRatGone(c.t, r); n++; } return n; },
+  birds(c) { let n = 0; for (const b of c.T.birds) if (!b.dead) { b.dead = true; mhSplat(c.t, b.x, b.y, false); n++; } return n; },
+  wipe(c) { c.T.splats = []; },
+  jets(c) { c.T.jets = []; c.T.jetNext = Math.max(c.T.jetNext, 5); },
+  steady(c) { const M = c.T; M.flip = null; M.sy = 1; M.under = false; M.flipNext = Math.max(M.flipNext, 8); },
+  ground(c, s) { const M = c.T; M.live = 0; M.bolt = null; M.boltNext += s; },
+  holdRats(c, s) { c.T.ratNext += s; },
+  holdBirds(c, s) { c.T.birdNext += s; },
+};
+const mxAt = c => { const r = c.T.rats[0]; return r ? c.at(r.a, R) : null; }, mxBird = c => { const b = c.T.birds.find(q => !q.dead); return b ? [b.x, b.y] : null; };
+BIX.mh = {
+  sit: [
+    ['STREET LEVEL', c => c.T.phase === 1], ['IN THE CLOUDS', c => c.T.phase === 2], ['THE STORM', c => c.T.phase === 3],
+    ['STEAM JET', c => c.T.jets.some(j => j.st === 'on')], ['IN YOUR LANE', c => c.T.jets.some(j => j.st === 'on' && mhFacing(c.t, j.a, 0.5))], ['HISSING', c => c.T.jets.some(j => j.st === 'warn')],
+    ['RAT ON THE RIM', c => c.T.rats.length > 0, mxAt], ['RAT THIEF', c => c.T.rats.some(r => r.carry), mxAt], ['TWO RATS', c => c.T.rats.length >= 2, mxAt],
+    ['BIRD INCOMING', c => c.T.birds.some(b => !b.dead), mxBird], ['DOOMED BIRD', c => c.T.birds.some(b => !b.dead && b.doomed), mxBird], ['BLOODY SCREEN', c => c.T.splats.length > 0], ['BLOODSTAINED', c => c.T.stains.length >= 3],
+    ['TUMBLING', c => !!c.T.flip], ['UNDERSIDE', c => c.T.under], ['LIVE IRON', c => c.T.live > 0], ['STATIC', c => !!c.T.bolt], ['STOLEN', c => c.T.stolen > 0],
+    ['HIGH ALTITUDE', c => mhAlt(mhSong()) > 600], ['LOW ALTITUDE', c => mhAlt(mhSong()) < 200],
+    ['FULL LID', c => knivesLeft >= 25], ['HALF WAY', c => knivesLeft >= 10 && knivesLeft <= 20], ['BARE IRON', c => c.n() === 0], ['BRISTLING', c => c.n() >= 5],
+    ['FINAL WORDS', c => knivesLeft <= 3], ['LAST HEART', c => lives === 1], ['FULL HEALTH', c => lives >= MAX_LIVES], ['STUNNED', c => stunT > 0], ['APPLE STASH', c => apples >= 3], ['PINCUSHION', c => c.n() >= 3],
+  ],
+  strong: [
+    ['KERB STOMP', 'Street level: +1 damage.', c => c.hit(1)],
+    ['CLOUD BUSTER', 'In the clouds: +1 damage.', c => c.hit(1)],
+    ['STORM BREAKER', 'The storm: the lightning is grounded for 8s.', c => MX.ground(c, 8)],
+    ['STEAM HAMMER', 'Steam jet: the jets are hammered shut.', c => MX.jets(c)],
+    ['PLOW THROUGH', 'A jet in your lane is shut.', c => MX.jets(c)],
+    ['PLUGGED', 'Hissing: the jet is plugged before it blows.', c => MX.jets(c)],
+    ['RAT SMASH', 'Rat on the rim: knocked off, +2 score.', c => c.pts(2 * MX.rats(c))],
+    ['GOTCHA', 'Rat thief: the knife is wrenched back.', c => MX.rats(c)],
+    ['DOUBLE TROUBLE', 'Two rats: both knocked off.', c => MX.rats(c)],
+    ['SHOO', 'Bird incoming: it is batted away.', c => MX.birds(c)],
+    ['SAVED IT', 'Doomed bird: knocked out of the way.', c => MX.birds(c)],
+    ['WIPER', 'Bloody screen: the blood is wiped off.', c => MX.wipe(c)],
+    ['GRISLY', 'Bloodstained: +2 score.', c => c.pts(2)],
+    ['STOP THE SPIN', 'Tumbling: it is slammed face up.', c => MX.steady(c)],
+    ['GUT CHECK', 'Underside: +1 damage.', c => c.hit(1)],
+    ['GROUNDED', 'Live iron: the charge is earthed.', c => MX.ground(c, 4)],
+    ['DISCHARGE', 'Static: the strike never comes.', c => MX.ground(c, 6)],
+    ['TAKE IT BACK', 'Stolen: +1 damage.', c => c.hit(1)],
+    ['THIN AIR', 'High altitude: +1 damage.', c => c.hit(1)],
+    ['LAUNCH PAD', 'Low altitude: +2 score.', c => c.pts(2)],
+    ['FIRST BLOW', 'Full lid: +1 damage.', c => c.hit(1)],
+    ['HALFWAY UP', 'Half way: 2 ability charge.', c => c.charge(2)],
+    ['CLEAN SHOT', 'Bare iron: 2 ability charge.', c => c.charge(2)],
+    ['SHAKE LOOSE', 'Bristling: +1 score per knife.', c => c.pts(c.n())],
+    G_('last', 'strong'), G_('heart', 'strong'), G_('full', 'strong'), G_('stun', 'strong'), G_('apples', 'strong'), G_('pin', 'strong'),
+  ],
+  marker: [
+    ['MAPPED', 'Street level: no rats for 10s.', c => MX.holdRats(c, 10)],
+    ['CLOUD CHART', 'In the clouds: no tumble for a while.', c => MX.steady(c)],
+    ['STORM WARNING', 'The storm: no lightning for 10s.', c => MX.ground(c, 10)],
+    ['VALVE TAG', 'Steam jet: shut.', c => MX.jets(c)],
+    ['LANE MARKED', 'A jet in your lane is shut.', c => MX.jets(c)],
+    ['LEAK FOUND', 'Hissing: plugged.', c => MX.jets(c)],
+    ['PEST CONTROL', 'Rat on the rim: removed, +2 score.', c => c.pts(2 * MX.rats(c))],
+    ['TRACKED', 'Rat thief: caught with the knife.', c => MX.rats(c)],
+    ['VERMIN', 'Two rats: both removed.', c => MX.rats(c)],
+    ['BIRD WATCH', 'Bird incoming: no more birds for 10s.', c => { MX.holdBirds(c, 10); }],
+    ['FLIGHT PATH', 'Doomed bird: steered clear.', c => MX.birds(c)],
+    ['CLEAR VIEW', 'Bloody screen: wiped.', c => MX.wipe(c)],
+    ['EVIDENCE', 'Bloodstained: +3 score.', c => c.pts(3)],
+    ['GYROSCOPE', 'Tumbling: steadied.', c => MX.steady(c)],
+    ['WEAK SPOT', 'Underside: +1 damage.', c => c.hit(1)],
+    ['INSULATED', 'Live iron: earthed.', c => MX.ground(c, 4)],
+    ['FORECAST', 'Static: no strike.', c => MX.ground(c, 6)],
+    ['RECOVERED', 'Stolen: +2 score.', c => c.pts(2)],
+    ['ALTIMETER', 'High altitude: +2 score.', c => c.pts(2)],
+    ['GROUND ZERO', 'Low altitude: +2 score.', c => c.pts(2)],
+    ['SURVEY', 'Full lid: 2 ability charge.', c => c.charge(2)],
+    ['MIDPOINT', 'Half way: +1 damage.', c => c.hit(1)],
+    ['CLEAN SLATE', 'Bare iron: 2 ability charge.', c => c.charge(2)],
+    ['TALLY', 'Bristling: +1 score per knife.', c => c.pts(c.n())],
+    G_('last', 'marker'), G_('heart', 'marker'), G_('full', 'marker'), G_('stun', 'marker'), G_('apples', 'marker'), G_('pin', 'marker'),
+  ],
+  carve: [
+    ['ENGRAVE', 'Street level: +1 damage.', c => c.hit(1)],
+    ['CLOUD CARVING', 'In the clouds: a wooden knife.', c => c.wood()],
+    ['ROD', 'The storm: no lightning for 8s.', c => MX.ground(c, 8)],
+    ['CHISEL SHUT', 'Steam jet: shut.', c => MX.jets(c)],
+    ['WEDGE', 'A jet in your lane is wedged shut.', c => MX.jets(c)],
+    ['CAULK', 'Hissing: caulked.', c => MX.jets(c)],
+    ['WHITTLED RAT', 'Rat on the rim: carved off, +2 score.', c => c.pts(2 * MX.rats(c))],
+    ['PRIED LOOSE', 'Rat thief: the knife is pried back.', c => MX.rats(c)],
+    ['RAT KING', 'Two rats: both carved off, a wooden knife.', c => { MX.rats(c); c.wood(); }],
+    ['DECOY', 'Bird incoming: it veers away.', c => MX.birds(c)],
+    ['BIRDHOUSE', 'Doomed bird: it is spared.', c => MX.birds(c)],
+    ['SCRAPE', 'Bloody screen: scraped clean.', c => MX.wipe(c)],
+    ['ETCHED', 'Bloodstained: +2 score.', c => c.pts(2)],
+    ['KEEL', 'Tumbling: steadied.', c => MX.steady(c)],
+    ['UNDERCUT', 'Underside: +1 damage.', c => c.hit(1)],
+    ['WOODEN HANDLE', 'Live iron: earthed.', c => MX.ground(c, 4)],
+    ['DRY WOOD', 'Static: no strike.', c => MX.ground(c, 6)],
+    ['REPLACEMENT', 'Stolen: a wooden knife.', c => c.wood()],
+    ['KITE', 'High altitude: +2 score.', c => c.pts(2)],
+    ['STUMP', 'Low altitude: +1 apple.', c => c.apple(1)],
+    ['FIRST CUT', 'Full lid: a wooden knife.', c => c.wood()],
+    ['HALF CUT', 'Half way: +1 apple.', c => c.apple(1)],
+    ['WHITTLE', 'Bare iron: +1 apple and 1 ability charge.', c => { c.apple(1); c.charge(1); }],
+    ['KNIFE RACK', 'Bristling: +1 score per knife, up to 4.', c => c.pts(Math.min(4, c.n()))],
+    G_('last', 'carve'), G_('heart', 'carve'), G_('full', 'carve'), G_('stun', 'carve'), G_('apples', 'carve'), G_('pin', 'carve'),
+  ],
+  chain: [
+    ['LIVE WIRE', 'Street level: +1 damage.', c => c.hit(1)],
+    ['STATIC CLOUD', 'In the clouds: +2 score.', c => c.pts(2)],
+    ['LIGHTNING ROD', 'The storm: no lightning for 10s, +1 damage.', c => { MX.ground(c, 10); c.hit(1); }],
+    ['SOLENOID', 'Steam jet: shut.', c => MX.jets(c)],
+    ['TRIP SWITCH', 'A jet in your lane is shut.', c => MX.jets(c)],
+    ['RELAY', 'Hissing: shut.', c => MX.jets(c)],
+    ['FRIED RAT', 'Rat on the rim: fried, +2 score.', c => c.pts(2 * MX.rats(c))],
+    ['ZAPPED THIEF', 'Rat thief: it drops the knife.', c => MX.rats(c)],
+    ['CIRCUIT', 'Two rats: both fried.', c => MX.rats(c)],
+    ['STUN BIRD', 'Bird incoming: stunned out of the sky.', c => MX.birds(c)],
+    ['DIVERT', 'Doomed bird: diverted.', c => MX.birds(c)],
+    ['FLASH CLEAN', 'Bloody screen: burnt off.', c => MX.wipe(c)],
+    ['CAUTERISE', 'Bloodstained: +2 score.', c => c.pts(2)],
+    ['GYRO', 'Tumbling: steadied.', c => MX.steady(c)],
+    ['SHORT', 'Underside: +1 damage.', c => c.hit(1)],
+    ['EARTHED', 'Live iron: the charge is yours, +1 damage.', c => { MX.ground(c, 4); c.hit(1); }],
+    ['CAPACITOR', 'Static: no strike, 1 ability charge.', c => { MX.ground(c, 6); c.charge(1); }],
+    ['TRACER', 'Stolen: +2 score.', c => c.pts(2)],
+    ['IONOSPHERE', 'High altitude: +1 damage.', c => c.hit(1)],
+    ['SPARK PLUG', 'Low altitude: +2 score.', c => c.pts(2)],
+    ['POWER UP', 'Full lid: +1 damage.', c => c.hit(1)],
+    ['HALF CHARGE', 'Half way: 1 ability charge, +1 score.', c => { c.charge(1); c.pts(1); }],
+    ['STATIC', 'Bare iron: +2 score, 1 ability charge.', c => { c.pts(2); c.charge(1); }],
+    ['CHAIN GANG', 'Bristling: +1 damage.', c => c.hit(1)],
+    G_('last', 'chain'), G_('heart', 'chain'), G_('full', 'chain'), G_('stun', 'chain'), G_('apples', 'chain'), G_('pin', 'chain'),
+  ],
+  cook: [
+    ['STREET FOOD', 'Street level: +1 apple.', c => c.apple(1)],
+    ['CANDY FLOSS', 'In the clouds: +2 score.', c => c.pts(2)],
+    ['STORM IN A TEACUP', 'The storm: no lightning for 8s.', c => MX.ground(c, 8)],
+    ['STEAMER', 'Steam jet: +2 score.', c => c.pts(2)],
+    ['LID ON', 'A jet in your lane is shut.', c => MX.jets(c)],
+    ['KETTLE', 'Hissing: +1 apple.', c => c.apple(1)],
+    ['RAT-A-TOUILLE', 'Rat on the rim: cooked, +2 score.', c => c.pts(2 * MX.rats(c))],
+    ['TAKEAWAY', 'Rat thief: the knife is returned.', c => MX.rats(c)],
+    ['STEW', 'Two rats: both cooked, +1 heart or +3 score.', c => { MX.rats(c); c.heart(); }],
+    ['ROAST PIGEON', 'Bird incoming: cooked mid-air, +1 apple.', c => { MX.birds(c); c.apple(1); }],
+    ['SUNDAY ROAST', 'Doomed bird: cooked first, +1 heart or +3 score.', c => { MX.birds(c); c.heart(); }],
+    ['KETCHUP', 'Bloody screen: wiped.', c => MX.wipe(c)],
+    ['RARE', 'Bloodstained: +2 score.', c => c.pts(2)],
+    ['PANCAKE FLIP', 'Tumbling: +3 score.', c => c.pts(3)],
+    ['CRISPY BOTTOM', 'Underside: +1 damage.', c => c.hit(1)],
+    ['HOT PLATE', 'Live iron: earthed, +2 score.', c => { MX.ground(c, 4); c.pts(2); }],
+    ['POPCORN', 'Static: no strike.', c => MX.ground(c, 6)],
+    ['LEFTOVERS', 'Stolen: +1 apple.', c => c.apple(1)],
+    ['IN-FLIGHT MEAL', 'High altitude: +1 heart, or +3 score.', c => c.heart()],
+    ['STREET VENDOR', 'Low altitude: +1 apple.', c => c.apple(1)],
+    ['PREHEAT', 'Full lid: 2 ability charge.', c => c.charge(2)],
+    ['HALF BAKED', 'Half way: +1 apple.', c => c.apple(1)],
+    ['CLEAN PLATE', 'Bare iron: 2 ability charge.', c => c.charge(2)],
+    ['SKEWERS', 'Bristling: +1 apple.', c => c.apple(1)],
+    G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'), G_('pin', 'cook'),
+  ],
+};
+const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost || t.bot || t.twin || t.gas || t.mh));
 let appleCase = null;
 function caseBanner(id, c, extra) {
   let sub = extra || CASE_SUB[c];
@@ -7913,7 +8088,7 @@ function drawTypeAmbience4(t) {
 
 // ======================= BEAT CLOCK + BOSS BACKGROUNDS =======================
 // Measured from the tracks: tempo, and where the first downbeat sits (seconds into the file).
-const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 198.8, down: 0.2303 }, bot: { bpm: 120.2, down: 0.03 }, twin: { bpm: 105.0, down: 0.0804 }, gas: { bpm: 195.02, down: 0.399 }, main: { bpm: 120, down: 0 } };
+const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 198.8, down: 0.2303 }, bot: { bpm: 120.2, down: 0.03 }, twin: { bpm: 105.0, down: 0.0804 }, gas: { bpm: 195.02, down: 0.399 }, mh: { bpm: 100.0, down: 0 }, main: { bpm: 120, down: 0 } };
 // playback position of a track, advanced on the audio clock so the beat never drifts
 function trackPos(tr, dA) {
   if (tr.pos === undefined) tr.pos = 0;
@@ -7945,13 +8120,14 @@ function bossBgKey(t) {
   if (t && t.bot && fx && fx.type === 'botintro' && fx.t >= TB.live) return 'bot';
   if (t && t.twin && fx && fx.type === 'twinintro' && fx.t >= TWN.live) return 'twin';
   if (t && t.gas && fx && fx.type === 'gasintro' && fx.t >= GT.open) return 'gas';
+  if (t && t.mh && fx && fx.type === 'mhintro' && fx.t >= MT.tilt) return 'mh';
   if (t && t.nest && fx && fx.type === 'nestintro' && fx.t >= NM.macro + TN.down) return 'nest';
   if (t && t.tire && fx && fx.type === 'tireintro' && fx.t >= TT.air) return 'tire';
   if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
   if (t && t.tank && fx && fx.type === 'tankintro' && fx.t > TI.top - 0.3) return 'boss';
   if (!t || introCovering()) return null;
   if (t.tank && !t.tank.hide) return 'boss'; if (t.gear && !t.gear.hide) return 'gear'; if (t.tire && !t.tire.hide) return 'tire';
-  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost'; if (t.bot && !t.bot.hide) return 'bot'; if (t.twin && !t.twin.hide) return 'twin'; if (t.gas && !t.gas.hide) return 'gas';
+  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost'; if (t.bot && !t.bot.hide) return 'bot'; if (t.twin && !t.twin.hide) return 'twin'; if (t.gas && !t.gas.hide) return 'gas'; if (t.mh && !t.mh.hide) return 'mh';
   return null;
 }
 const BG = {};
@@ -8102,6 +8278,7 @@ MUSIC_MAP.frost = {"e":"111222112223232232243224635844446689a9a9bbchrkllllkklkll
 MUSIC_MAP.bot = {"e":"jgiadabdlgdeie99qmkgzshhpkhkqnihtmidwojenjeknjdfwrjetnnmnkgmooprrprwxvnvqrrrvrqstsktxsjxprquwnpvymdoqlfossrrtsrptsouzrppttnqvrqzyvmuwnjvrqponnpurrqxuspxttposoqwtwnzysuvstnnqlouwsouxtzwttorquwutsnuqpsutrqloirurrssxrstqrqzuszsqrntzpvrqoyxtfwpqotwoqsurmtzottqpsutlblnkhuvncpmhhppkhrqjbsslblnjhnmhcvug8upohomggpm","b":"oan8d64mrb8kk85emcncngerod9puj7ominslblmcb8qcb7nnfrolhmlca8qch7tjhtzluzwoyyywwstlwwvrwmzjzwyyxxzlaankg9uvxxyxxyzxyxutquxzyysyxyzyzyxvmbwtxtvuwvwxururmqxutpvxxwxuwuwxuvxxutsvrxqrssurowqvxqxvvqnttsywqxttssnwisnwxtsprwkwtsvvswmvtrxruxtwxzjthwjxxwxxsswwxtwixvwszuxp6nclinlh7qd9qosa6ojobufmgkgcqpdabri98njf9ldacod","h":"728h14dj8fghafgm77af9bcjgkjmigfi97ig48mhh7haf8hc27ig52hhobobiamgukuiskuiznvukussvkozhtrkylqmguwt47igd9cd3121111111141116743123a125c1229jynkltmijykkoymiiylkwgvxjwmltrklzlljzmmiykkryjejhkkzkulozmkylwxkzmkhzklgwlkruligymkulwnmyokykswizmqjwlsiyotlgvtpwipsccjkgbi9h71547f1abj9kbng8ig587i428i4gcggfag11122213522327"};
 MUSIC_MAP.twin = {"e":"3676a89dkkighghhkhjhefggjookmiggltsrutvqutrpsuvrsqrssuursttttvwuuwusxttswutqvtuuusqqurttwrtrvusutlnklmomorusrlnnpijkijlkmlrqonnlgabedefiswwxwxywvxwxxyxyzxuvwwxwyyuwwwwwta77d9a7c8b7a888b8cbd9e9d9caeacbgdeegdfcfgfceegfhigedefejca8dbbdltuvwvtqvtsputsrtqqssqurssursuwstvtsrrtuvtrswtutwttttstvvqtqustsm9aad979ozwywzxxxuwxxyxzxwuwuwwxzywwvwxvuzxtusuvtsuxzzzwsttzzvxvtusuvtwvqfggfddhhegefdddc9bedefkswvywyvwxywyywxyyzvwxvwwwvvwwxvvrrprsxwwwwxyzxzzzzwxvxyxyywzwyyxtssrttsrsrqsusus","b":"2222455efiddhhdheadgdfhfghffkjhgqlpcxllfnoodpkqenkrelklejwrjonrjvtrprspmqqusrknlpnmnklkossposwotrmlhlionujmgphlhpccfcfcdzcjhnehga256388aqprpzrypuqvqxsznppsptrwpoonmnmqqw2223422343444334323433342223233h3839283g3929293m4436455a64456bevrqkujogrpsejkmelljanjhbskkcqmlhsxunqptptnmrvtruutnrppstrnpnsklom2234569psnsuzstznrvyptrvononrntonomsomnsihhjinmjijprptpmnmippqmolnmrmnlkefgcecchciefcdda255677dpklqorsqwvttzqqpplnlppmnklmmmrmqvfifsnuqvpvuzvzrztoqotzrqorutnzppqnnnnqqnnnrxztu","h":"12212235999daacevo85444997555459iijhmnloojkiilmknijhklpmohmlnnmpjtztvwutsttrwpwtvsxurtxtvwuuuwvtz987788eh887699cg997899di897g99c8222689cmsyuyszrzxyuyxxsuvwvvuzstuzuwuxxtk726221443254314431444143435443d2726252c2727282db53232242123349kjnhlllmkhmkkmlllilikmnljkkkkmooktvwtrvwzvvpswtvutwuxsxvstttwutvw9a8968eluxzvyzsvtzsztysztvyuxwuvywrwsupymnjmlmkjlihljljimkjmlliijkhlmjgh66666676766667b7222878cmuvuwwvusxutvtxyyvvuxqxtuwvwuuysxeeelvzrtuwtuwyrvuwxyszrwuxzxwussyysstwtutuwvuuv"};
 MUSIC_MAP.gas = {"e":"56ee86dff89ae866afcdddgdb646iflpvpnlppqppopmmmroqooksonppnoorqqrmnmmpqrooomooprqropmrpooqqrooqmrnxpmollknvrlppqplrsouptplttsooqowohkrnrmtomowvrhfgkggihiinolfihisuswvwvvsvtqywzwssuwswvxuwquuyyzvwurttwwsutstuuwussvsuvvusxovwvvpifg7536gb743342cdcdedgbgd88eac8eda8fgmrxrnionoqsmololpmsqpnoltqrqtnspqtvtnnqprqutonporprtnmrqrnqvnoprvopicbegggljehopmlljehklfkkjgeklnlmlegmnmtwurywxwvvusryvzztxuuvvxxwwsvuvyzywwsuuyxuvutuwxyutuwuvvvutxrxywwwxvyzyzzwyyuvyyzsuxwxzzzwwtuvxzzzyuvwuwywtsstxwytttvwxvywwvsxzxzj72","b":"34535534b85531016eeddeda7245goxzyadcchitzephfcwooda6ebovsdud9fpsnafbiiojqfugfhbdqeccecqgt9qdfddeppdds9cshvrgfvjathlfzgizgzqlhufcq8568586a55886a8dbedeeegcdefbdehohvjyiwfplrcsezfngsjxlsirioeurqsthydsfqdqgnkucwgohpfveufndnetdwgqqkr2111c7432351ca43c898c654c6649998hozzzcdbehhtwhrekbttlijcgaovubt9cepoodecdhxixbnajahbkhaafendsarbb9afdfccfhfhff6kptbiin8jsvbqjj8hrodkjg9nznoupergvhuhqetcsfzenhnezjuhkgoezbpcqhygvhpfthlkpezhmhtisirhmekjtcxhorqpysuuqkmerezjsdphsfpgmhnauerfwmopxuotsctkmezisfsflcseogoitjyq831","h":"0011112242225113222423345358adjsnmfdjeafiboajgjkmnfgihkohdjfj9gimneckchbidm9ji9anmidjfhajhkbl9gnrgw8l9whhht8cizjhozhoixlhivlfmznirzzzjzdcmzvzzz84224423647657aekorjijlilgkijmhgghjjhjjfkhmiiloiroonlhnkpjkrjijmjhjgkhjgjjklklggjklgpkd8752110120112122322121211111246cjrqlgcicchidoakdicolfbmjfhiimdl9kksneaide9hcl7jea8nleajfh8hhibjaa6832599d6bb59bb3baa4aba4aab79a94aaa4bbfinqonkjkhnihgiihmnfkkhkjjhimjmmijnqomlgojpmmslmllknkhhglgkhmkiihglnsmmkrlmpronliktnknkjsiliklklojoopknknnrqtylghltjlliirjpfmnljjith51"};
+MUSIC_MAP.mh = {"e":"srozzvvysswxjiiignsrvwsytqoysuroqpnzxuozwvqyqqntrtryuwrxrwrwtqmwuusnopovpqsotxvronpprrospqrqsroonomqruqrttrusrqoqopqrqqqpqnrrqrrqroqopprprpppoomllmrtrprrrsrpotttstttsqrpooqvupytsqynnquqopxtroxrqpsruzzqryxusqif","b":"zsnzyzxzuxwzkmqndywmvyvwsrmvryupnsozywmyxvpyponuqtputxvuqwrsqrjttvwmnqrwotuouxvompmqlqloknmsnrkrdmesqppqqtlppnohhkkplllnkohpjmlsllmrgljnimmkikiihjerspkqtppqlortusspwrnuomtpxunwuqoxmnpuqptwupwwtrurwuzzsryvyvrjd","h":"tqytqpxttuvtmmkhhtswosqutrttissznwuyquttuurvnuxzuulompqtpprtlposwpqsqrrulqlujqhggcgpqqszuztqwtrouzwnvqopuzsmtuulxstpiootqxrkuwrnsspkpqrttxrvpslmmignrqrrtuupvwokqqxlssrotvvqrmrxxstsuqtqxqtttorqupztypsuzsqrtmkeb"};
 const musicDec = {};
 function musicArr(name) {
   let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
@@ -15453,6 +15630,619 @@ function drawGasIntro(t) {
   if (t < GT.land - 0.4) cineSkipHint();
 }
 
+// ======================= BOSS: THE MANHOLE =======================
+// A cast-iron manhole cover blown off the street by a sewer blast and still climbing, seen from above as the city
+// falls away beneath it. STEAM still pours up round its rim and jets out in places: a jet down your lane blows your
+// knife aside. RATS rode it up: they run round the rim and steal stuck knives (each one they get away with heals it),
+// so hit them first. BIRDS cross its path: one that flies over it is smashed by the rising iron and bursts across your
+// screen in blood; hit a bird in your lane before it gets there. Into the clouds it starts to TUMBLE (edge on, it
+// cannot be hit), and in the storm LIGHTNING finds the iron: hit it while it is live and you are stunned.
+const MH_HP = 30, MH_PH2 = 20, MH_PH3 = 10;
+const MH_PAL = { name: 'THE MANHOLE', style: 'mh', bark: '#3a3c3e', barkHi: '#8a8c8e', barkLo: '#141516', sap: '#ffb24a', heart: '#1a1b1c', ring: 'rgba(0,0,0,.3)', ray: 'rgba(255,255,255,.06)', light: '#8a8c8e', dark: '#2a2c2e', knot: '#141516' };
+const isMhStage = n => isFirstBossSlot(n) && firstBoss === 'mh';
+const mhBusy = () => !!(fx && /^mh(intro|phase|death)/.test(fx.type));
+function setupMh(t) {
+  t.mh = { hide: true, dead: false, ox: 0, oy: 0, s: 1, sy: 1, phase: 1, jets: [], jetNext: 4, rats: [], ratNext: 6, birds: [], birdNext: 7, splats: [], stains: [],
+    flip: null, flipNext: 12, live: 0, bolt: null, boltNext: 10, flashHP: 0, jolt: 0, roar: 0, spinDir: 1, spinT: 6, stolen: 0, under: false };
+  t.pal = MH_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pat = tt => mhSpin(t, tt);
+}
+function mhSpin(t, tt) {
+  const M = t.mh; if (!M) return 0;
+  const base = 1.6 + (M.phase - 1) * 0.35;
+  return M.spinDir * base * (1 + 0.25 * Math.sin(tt * 1.3)) * (M.roar > 0 ? 0.4 : 1);
+}
+const mhFacing = (t, a, w) => angDiff(t.rot + a, HALF) < w;
+function mhFree(t, gap = 0.3) {
+  const M = t.mh, taken = t.stuck.map(s => s.a).concat(M.jets.map(j => j.a), M.rats.map(r => r.a));
+  let best = rand(TAU), bd = -1; for (let i = 0; i < 30; i++) { const a = rand(TAU), d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } }
+  return best;
+}
+// ---------- steam jets out of the rim ----------
+function mhJet(t) { const M = t.mh; M.jets.push({ a: mhFree(t), st: 'warn', t: 0, dur: M.phase > 2 ? 2.2 : 2.8 }); sfx.hiss(); }
+// ---------- rats ----------
+function mhRat(t) { const M = t.mh; M.rats.push({ a: rand(TAU), dir: Math.random() < 0.5 ? -1 : 1, sp: 0.9 + 0.35 * M.phase + rand(0.3), carry: null, t: 0, ph: rand(TAU), wait: 0.6 }); sfx.squeak ? sfx.squeak() : sfx.tweet(); floater('RATS ON THE LID', CX, CY - R - 40, '#c3c3ca'); }
+function mhRatGone(t, r, why) {
+  const M = t.mh, [x, y] = worldAt(t, r.a, R + 6), w = t.rot + r.a;
+  debris.push({ kind: 'shard', x, y, vx: Math.cos(w) * 420, vy: Math.sin(w) * 420 - 200, rot: rand(TAU), vr: rand(-20, 20), c: '#6a6870', pts: [[-8, -4], [8, -3], [9, 3], [-7, 4]] });
+  M.rats.splice(M.rats.indexOf(r), 1);
+}
+// ---------- birds: overhead silhouettes crossing; one over the lid is smashed by it ----------
+const MH_BIRDS = ['eagle', 'kite', 'falcon', 'vulture', 'harrier'];
+function mhBird(t, doomed) {
+  const M = t.mh, side = Math.random() < 0.5 ? -1 : 1, y0 = rand(80, H - 260), sp = rand(170, 250);
+  let x0 = side < 0 ? -80 : W + 80, tx, ty;
+  if (doomed) { tx = CX + rand(-20, 20); ty = CY + rand(-20, 20); } else { tx = CX + rand(-30, 30); ty = rand(CY + R + 50, KNIFE_Y - 60); }
+  const a = Math.atan2(ty - y0, tx - x0);
+  M.birds.push({ kind: MH_BIRDS[Math.floor(rand(MH_BIRDS.length))], x: x0, y: y0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ph: rand(TAU), sc: rand(0.75, 1.05), dead: false, doomed });
+  sfx.caw ? sfx.caw() : sfx.tweet();
+}
+function mhSplat(t, x, y, big) {
+  const M = t.mh;
+  for (let i = 0; i < 46; i++) { const a = rand(TAU), sp = rand(120, big ? 700 : 400); parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.4, 1), max: 1, c: ['#b0101a', '#7a0a10', '#e0202a', '#3a0408'][i % 4], s: 3, rot: 0, vr: 0 }); }
+  for (let i = 0; i < 8; i++) debris.push({ kind: 'shard', x, y, vx: rand(-360, 360), vy: rand(-420, 120), rot: rand(TAU), vr: rand(-14, 14), c: i % 2 ? '#2a2a30' : '#4a4650', pts: [[-6, -1.5], [6, -1], [6, 1], [-6, 1.5]] });
+  sfx.splat ? sfx.splat() : sfx.squish();
+  if (!big) return;
+  // blood across the screen, and on the lid
+  const n = 3 + Math.floor(rand(3));
+  for (let i = 0; i < n; i++) M.splats.push({ x: rand(20, W - 20), y: rand(60, H - 120), r: rand(36, 90), t: 0, seed: rand(999), drips: 3 + Math.floor(rand(4)) });
+  if (M.splats.length > 8) M.splats.splice(0, M.splats.length - 8);
+  M.stains.push({ a: rand(TAU), r: rand(0, R * 0.7), s: rand(14, 28), seed: rand(999) }); if (M.stains.length > 10) M.stains.shift();
+  shake = Math.max(shake, 14); kick(0.12, 0.04, 1, 0.5); floater('SPLAT', CX, CY - R - 44, '#e0202a'); sfx.squelch ? sfx.squelch() : sfx.splat();
+}
+// ---------- the tumble: it flips end over end, and edge on there is nothing to hit ----------
+function mhStartFlip(t) { const M = t.mh; M.flip = { t: 0, dur: 2.2, warn: 0.6 }; sfx.whoosh(); floater('IT TUMBLES', CX, CY - R - 40, '#c3c3ca'); }
+// ---------- lightning ----------
+function mhStartBolt(t) { const M = t.mh; M.bolt = { t: 0, warn: 1.0, x: rand(40, W - 40) }; sfx.voltRise ? sfx.voltRise() : sfx.riser(); floater('STATIC ON THE IRON', CX, CY - R - 40, '#7fd4ff'); }
+// ---------- knife in flight ----------
+function mhFlightHit(k, t) {
+  const M = t.mh; if (!M || M.hide || M.dead) return false;
+  const tip = k.y, a = normA(HALF - t.rot);
+  // birds crossing the lane
+  for (const b of M.birds) if (!b.dead && Math.abs(b.x - CX) < 34 * b.sc && Math.abs(tip - b.y) < 24) { b.dead = true; k.done = true; knivesLeft++; score++; mhSplat(t, b.x, b.y, false); floater('BIRD STRIKE  +1', b.x + 40, b.y, '#ffd23f'); sfx.clang(); return true; }
+  if (k.ability) return false;
+  // edge on: the knife sails past
+  if (M.flip && tip <= CY + R + KL && Math.abs(M.sy) < 0.35) { k.done = true; knivesLeft++; combo = 0; debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-200, 200), vy: -700, rot: 0, vr: rand(-10, 10) }); floater('EDGE ON: MISSED', CX, CY + R + 56, '#c3c3ca'); sfx.whoosh(); return true; }
+  // a steam jet down the lane
+  for (const J of M.jets) if (J.st === 'on' && mhFacing(t, J.a, 0.32) && tip <= CY + R + 150) { k.done = true; knivesLeft++; combo = 0; const sd = Math.random() < 0.5 ? -1 : 1; debris.push({ kind: 'knife', x: CX, y: k.y, vx: sd * rand(500, 700), vy: rand(-300, 100), rot: 0, vr: sd * rand(20, 30) }); burst(CX, k.y, 16, ['#ffffff', '#c8d0d0'], 320, 0, 2.6, 0.4); floater('STEAMED AWAY', CX + 50, k.y, '#e8f0ee'); sfx.hiss(); return true; }
+  if (M.live > 0 && tip <= CY + R + KL) return mhShock(k, t);
+  // rats on the rim
+  for (const r of M.rats) if (inArc(a, r.a, 0.13) && tip <= CY + R + 14) {
+    k.done = true; knivesLeft++; score += 2; const [x, y] = worldAt(t, r.a, R + 6);
+    burst(x, y, 20, ['#b0101a', '#6a6870', '#ffffff'], 340, 20, 2.4, 0.4); floater(r.carry ? 'RAT SKEWERED: KNIFE SAVED  +2' : 'RAT SKEWERED  +2', x, y - 30, '#ffd23f'); sfx.squish();
+    if (r.carry) t.stuck.push({ a: r.a, wob: 0.1 });
+    mhRatGone(t, r); return true;
+  }
+  return false;
+}
+function mhSurfaceHit(k, t, a) {
+  const M = t.mh; if (!M || k.ability) return false;
+  if (M.live > 0) return mhShock(k, t);
+  return false;
+}
+function mhShock(k, t) {
+  { k.done = true; knivesLeft++; combo = 0; zapT = 0.8; stunT = 2.2; stunMax = 2.2; for (let i = 0; i < 8; i++) fxp.push({ kind: 'bolt', x: CX + rand(-30, 30), y: CY + R, x2: CX + rand(-60, 60), y2: KNIFE_Y + rand(0, KL), life: rand(0.2, 0.5), max: 0.5 }); burst(CX, CY + R, 40, ['#ffffff', '#7fd4ff', '#2a6ad8'], 520, 0, 3, 0.5); floater('LIVE IRON: SHOCKED', CX, CY + R + 56, '#7fd4ff'); sfx.zap(1); shake = 16; debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-200, 200), vy: 200, rot: 0, vr: rand(-14, 14), zap: 1 }); return true; }
+  return false;
+}
+function mhStuck(t, s, a) {
+  const M = t.mh; M.jolt = 1; M.flashHP = 0.25;
+  const [x, y] = worldAt(t, a, R); burst(x, y, 16, ['#ffb24a', '#ffffff', '#8a8c8e'], 360, 30, 2.4, 0.4); sfx.clank();
+}
+function mhClear(t) { const M = t.mh; if (M.dead || mhBusy()) return; startMhDeath(t); }
+// ---------- per frame ----------
+function updateMh(t, dt) {
+  const M = t.mh; if (!M || M.hide || M.dead) return;
+  M.flashHP = Math.max(0, M.flashHP - dt); M.jolt = Math.max(0, M.jolt - dt * 4); M.roar = Math.max(0, M.roar - dt); M.live = Math.max(0, M.live - dt);
+  for (const s of M.splats) s.t += dt; M.splats = M.splats.filter(s => s.t < 8);
+  // birds fly whatever is happening
+  for (const b of M.birds) {
+    b.ph += dt * 9; if (b.dead) continue;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (Math.hypot(b.x - CX, b.y - CY) < R * 0.85 && !M.hide && Math.abs(M.sy) > 0.3) { b.dead = true; mhSplat(t, b.x, b.y, true); }
+  }
+  M.birds = M.birds.filter(b => !b.dead && b.x > -160 && b.x < W + 160 && b.y > -160 && b.y < H + 160);
+  if (mhBusy() || state !== 'play') return;
+  if (M.phase === 1 && knivesLeft > 0 && knivesLeft <= MH_PH2 && flying.length === 0) { startMhPhase(t, 2); return; }
+  if (M.phase === 2 && knivesLeft > 0 && knivesLeft <= MH_PH3 && flying.length === 0) { startMhPhase(t, 3); return; }
+  M.spinT -= dt; if (M.spinT <= 0) { M.spinT = rand(4, 7); M.spinDir *= -1; M.roar = 0.25; }
+  // steam jets
+  M.jetNext -= dt; if (M.jetNext <= 0) { M.jetNext = rand(4, 6.5) * (M.phase > 2 ? 0.75 : 1); if (M.jets.length < (M.phase > 1 ? 2 : 1)) mhJet(t); }
+  for (const J of M.jets) { J.t += dt; if (J.st === 'warn' && J.t > 0.8) { J.st = 'on'; J.t = 0; sfx.gush(); } else if (J.st === 'on' && J.t > J.dur) J.gone = true; }
+  M.jets = M.jets.filter(j => !j.gone);
+  // rats run the rim, grab knives and leap off with them
+  M.ratNext -= dt; if (M.ratNext <= 0) { M.ratNext = rand(12, 17) * (M.phase > 2 ? 0.7 : 1); if (M.rats.length < (M.phase > 1 ? 2 : 1)) mhRat(t); }
+  for (const r of M.rats.slice()) {
+    r.t += dt; r.ph += dt * 14; if (r.wait > 0) { r.wait -= dt; continue; }
+    r.a = normA(r.a + r.dir * r.sp * dt);
+    if (!r.carry) { const s = t.stuck.find(q => !q.ability && angDiff(q.a, r.a) < 0.07); if (s) { t.stuck.splice(t.stuck.indexOf(s), 1); r.carry = { t: 0 }; r.dir *= -1; r.sp *= 1.25; floater('A RAT GRABBED A KNIFE!', CX, CY - R - 40, '#ff5a4a'); sfx.squeak ? sfx.squeak() : sfx.tweet(); } }
+    else { r.carry.t += dt; if (r.carry.t > 2.6) { knivesLeft++; M.stolen++; floater('STOLEN: +1 TO THE LID', CX, CY - R - 40, '#ff5a4a'); mhRatGone(t, r); sfx.whoosh(); } }
+  }
+  // birds
+  M.birdNext -= dt; if (M.birdNext <= 0) { M.birdNext = rand(6, 9) * (M.phase > 1 ? 0.75 : 1); const n = M.phase > 2 && Math.random() < 0.4 ? 3 : 1; for (let i = 0; i < n; i++) pending.push({ t: i * 0.35, f: () => { if (tgt === t && !M.dead) mhBird(t, Math.random() < 0.55); } }); }
+  // the tumble
+  if (M.phase > 1) { M.flipNext -= dt; if (M.flipNext <= 0 && !M.flip) { M.flipNext = rand(9, 13) * (M.phase > 2 ? 0.8 : 1); mhStartFlip(t); } }
+  if (M.flip) { const F = M.flip; F.t += dt; const u = clamp((F.t - F.warn) / F.dur, 0, 1), th = TAU * u + 0.45 * Math.sin(2 * TAU * u); M.sy = Math.cos(th) * (F.t < F.warn ? 1 - 0.06 * Math.sin(F.t * 40) : 1); M.under = Math.cos(th) < 0; if (F.t > F.warn + F.dur) { M.flip = null; M.sy = 1; M.under = false; } }
+  // lightning in the storm
+  if (M.phase > 2) {
+    M.boltNext -= dt; if (M.boltNext <= 0 && !M.bolt) { M.boltNext = rand(8, 11); mhStartBolt(t); }
+    if (M.bolt) { M.bolt.t += dt; if (M.bolt.t > M.bolt.warn && !M.bolt.hit) { M.bolt.hit = true; M.live = 3; shake = 22; kick(0.3, 0.07, 1.5, 0.8); sfx.thunder ? sfx.thunder() : sfx.zap(1.2); sfx.zap(1); floater('LIVE IRON: DO NOT THROW', CX, CY - R - 46, '#7fd4ff'); } if (M.bolt.t > M.bolt.warn + 0.5) M.bolt = null; }
+  }
+}
+// ---------- phase changes: into the clouds, into the storm ----------
+function startMhPhase(t, n) {
+  const M = t.mh; M.phase = n;
+  fx = { type: 'mhphase', t: 0, lt: 0, freeze: 0, tg: t, n }; state = 'fx'; cinema(true, 0.9); camFocus(CX, CY, 1.12);
+  sfx.whoosh(); sfx.subDrop(); if (n === 3 && sfx.thunder) sfx.thunder(); shake = 18;
+}
+function updateMhPhase(t) {
+  const tg = fx.tg, M = tg.mh; tscale = 0.5;
+  if (!fx.hit && t > 0.3) {
+    fx.hit = true; kick(0.3, 0.06, 1.2, 0.8); shocks(CX, CY, 2, 260);
+    if (fx.n === 2) { floater('INTO THE CLOUDS', CX, CY - R - 46, '#e8f0ee'); M.flipNext = 3; }
+    else { floater('THE STORM', CX, CY - R - 46, '#7fd4ff'); M.boltNext = 2.5; M.live = 0; }
+  }
+  if (t > 1.5) { const n = fx.n; endFx('play'); floater(n === 2 ? 'IT TUMBLES NOW: EDGE ON IT CANNOT BE HIT' : 'LIGHTNING: NEVER THROW AT LIVE IRON', CX, CY + R + 70, '#f4f4f0'); }
+}
+// ---------- death: the iron cracks at the top of its climb and bursts ----------
+function startMhDeath(t) {
+  const M = t.mh; M.dead = true; M.birds = []; M.jets = []; M.flip = null; M.sy = 1; M.under = false;
+  fx = { type: 'mhdeath', t: 0, lt: 0, freeze: 0.3, x: CX, y: CY, lines: impactLinesFor(32, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.22); sfx.subDrop(); sfx.groanFar ? sfx.groanFar() : sfx.rumble(); buzz(40);
+}
+function updateMhDeath(t) {
+  const tg = fx.tg, M = tg.mh; tscale = t < 1.4 ? 0.45 : 0.75; M.crack = clamp(t / 1.3, 0, 1);
+  if (t < 1.4) { shake = Math.max(shake, 3 + 12 * M.crack); M.s = 1 + Math.sin(t * 50) * 0.01 * M.crack; if (Math.floor(t * 6) !== fx.z) { fx.z = Math.floor(t * 6); sfx.clank(); const a = rand(TAU); burst(CX + Math.cos(a) * R, CY + Math.sin(a) * R, 14, ['#ffb24a', '#8a8c8e', '#ffffff'], 380, 20, 2.6, 0.5); } }
+  if (t >= 1.4 && !fx.boom) {
+    fx.boom = true; M.s = 1; breakTarget(tg, 2.8);
+    for (let i = 0; i < 24; i++) { const a = rand(TAU), sp = rand(300, 900), pts = []; for (let j = 0; j < 5; j++) { const r = rand(7, 18), q = j / 5 * TAU + rand(-0.3, 0.3); pts.push([Math.cos(q) * r, Math.sin(q) * r]); } debris.push({ kind: 'shard', x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, rot: rand(TAU), vr: rand(-16, 16), c: ['#2a2c2e', '#4a4c4e', '#6a4a2a', '#1a1b1c'][i % 4], pts }); }
+    for (let i = 0; i < 80; i++) { const a = rand(TAU), sp = rand(200, 1000); parts.push({ x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 150, life: rand(0.7, 1.6), max: 1.6, c: ['#ffffff', '#c8d0d0', '#ffb24a', '#8a8c8e'][i % 4], s: 4, rot: rand(TAU), vr: rand(-8, 8) }); }
+    scheduleScreenHits(12, ['#ffb24a', '#c8d0d0', '#08080a'], 1.3); shocks(CX, CY, 5, 400); kick(0.8, 0.16, 2.2, 2.2); shake = 50; pfxRing(CX, CY, '#ffb24a', 420, 0.6);
+    floater('TERMINAL VELOCITY', CX, CY - 60, '#ffb24a'); setMusic('main'); tgt = null;
+    sfx.logExplode(); sfx.glassShatter ? sfx.glassShatter() : sfx.clang(); sfx.subDrop(); buzz([100, 40, 160]);
+  }
+  if (t > 1.6 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 3) endFx('clearing');
+}
+
+// ======================= THE MANHOLE intro, cut to DESERVED FATE (100 BPM, bars every 2.4s from 0) =======================
+// 1.2 the star opens on a night skyline under an orange crescent moon, lit windows blinking on the beat, and the
+// camera sinks slowly down the towers. 7.2 the music drops away and we are on a wet street at lamp level: a manhole
+// cover in the foreground, steam leaking round it, rattling harder on every beat. 10.5 the music crashes back in and
+// the sewer blows: the cover is fired into the sky, tumbling toward us. 11.4 the camera swings up and over it, the
+// street falls away into the city map below, the lid steadies face up; 12.6 the title; 14.4 it lands on the bar.
+const MT = { star: 0.3, open: 1.2, sink: 4.8, street: 7.2, boom: 10.5, tilt: 11.4, top: 12.6, land: 14.4 };
+const MSHOT = { reveal: MT.land };
+const MT_CUES = Object.keys(MT).filter(k => k !== 'land');
+const MH_BEAT = 0.6;
+function startMhIntro(t) {
+  fx = { type: 'mhintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0 }; state = 'fx';
+  const M = t.mh; M.hide = true; M.ox = M.oy = 0; M.s = 1; M.sy = 1; cinema(true, 1); setHD(true);
+  cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+  slamMusic('mh');
+}
+function skipMhIntro() { if (fx && fx.type === 'mhintro' && fx.t < MT.land - 0.35) { fx.t = MT.land - 0.35; fx.skipped = true; for (const k of MT_CUES) fx.cuts[k] = true; const M = fx.tg.mh; M.hide = false; M.ox = M.oy = 0; M.s = 1; M.sy = 1; } }
+function updateMhIntro(t) {
+  tscale = 0; const tg = fx.tg, M = tg.mh, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  const mp = introMusicClock('mh');
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.35) { fx.wait += d; fx.t = 0; fx.lt = 0; return; }
+  if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
+  const at = k => cineCue(k, MT[k]);
+  if (at('star')) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.2, 0.5); shocks(CX, CY + 40, 2, 300); }
+  if (at('open')) { sfx.reveal(); sfx.rumble(); }
+  if (at('street')) { sfx.thunk(); sfx.hiss(); shake = 6; }
+  if (t > MT.street && t < MT.boom) { const b = Math.floor((t - MT.street) / MH_BEAT); if (b !== fx.rb) { fx.rb = b; sfx.clank(); sfx.hiss(); shake = 3 + b * 2.2; kick(0.04 + 0.015 * b, 0.01, 0.4, 0.2); } }
+  if (at('boom')) { sfx.kegBoom ? sfx.kegBoom() : sfx.logExplode(); sfx.logExplode(); sfx.subDrop(); sfx.gush(); shake = 44; kick(0.5, 0.1, 2, 1.6); buzz([100, 40, 160]); bloomBoost = 0.8; }
+  if (at('tilt')) { sfx.whoosh(); sfx.riser(); }
+  if (at('top')) { sfx.whoosh(); sfx.subDrop(); shake = 12; }
+  if (t >= MT.tilt && t < MT.land) {
+    M.hide = false; const u = ease3(clamp((t - MT.tilt) / (MT.top - MT.tilt), 0, 1)), v = clamp((t - MT.top) / (MT.land - MT.top), 0, 1);
+    M.s = t < MT.top ? 0.42 + 0.73 * u : 1.15 - 0.15 * ease3(v); M.oy = -115 * (1 - u); M.ox = 0;
+    M.sy = t < MT.top ? Math.max(0.12, 0.3 + 0.7 * u + 0.25 * Math.sin(t * 11) * (1 - u)) : 1;
+    tg.rot += (t < MT.top ? 9 * (1 - u) + 1.5 : 1.5) * d;
+  }
+  if (t >= MT.land && !fx.landed) {
+    fx.landed = true; M.hide = false; M.ox = M.oy = 0; M.s = 1; M.sy = 1;
+    cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+    tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.3;
+    shake = 28; kick(0.3, 0.06, 0.8, 0.5); shocks(CX, CY, 3, 340); pfxRing(CX, CY, '#ffb24a', 320, 0.45);
+    for (let i = 0; i < 18; i++) { const a = i / 18 * TAU; parts.push({ x: CX + Math.cos(a) * R, y: CY + Math.sin(a) * R, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420, life: 0.7, max: 0.7, c: '#e8f0ee', s: 5, rot: 0, vr: 0 }); }
+    sfx.clank(); sfx.stamp(); sfx.subDrop(); sfx.knifeRise(); buzz([60, 30, 90]);
+    endFx('play'); floater('IT IS STILL CLIMBING', CX, CY - R - 50, '#ffb24a'); floater('MIND THE RATS AND THE BIRDS', CX, CY + R + 80, '#f4f4f0');
+  }
+  fxFilter = null;
+}
+// ======================= THE MANHOLE: art =======================
+// The top: cast iron, a raised rim, CITY OF KNAIFE / SANITARY SEWER round a lettering band, a raised diamond grid,
+// a centre medallion, two pick holes, rust and grime. The underside: rusty iron with radial ribs and sewer slime.
+function mhArcText(g, str, r, a0, size, dir = 1) {
+  g.save(); g.font = `700 ${size}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const step = size * 0.95 / r; let a = a0 - dir * step * (str.length - 1) / 2;
+  for (const ch of str) { g.save(); g.rotate(a); g.translate(0, -dir * r); if (dir < 0) g.rotate(Math.PI); g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText(ch, 0.8, 1); g.fillStyle = '#5a5c5e'; g.fillText(ch, 0, 0); g.fillStyle = 'rgba(255,220,170,.25)'; g.fillText(ch, -0.4, -0.5); g.restore(); a += dir * step; }
+  g.restore();
+}
+function mhTopArt(g, r) {
+  const rnd = mulberry(1313), k = r / 92;
+  const base = g.createRadialGradient(-r * 0.2, -r * 0.25, 4, 0, 0, r); base.addColorStop(0, '#46484a'); base.addColorStop(0.6, '#2e3032'); base.addColorStop(1, '#1c1d1e');
+  g.fillStyle = base; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+  // raised rim
+  g.lineWidth = 7 * k; g.strokeStyle = '#3a3c3e'; g.beginPath(); g.arc(0, 0, r - 4 * k, 0, TAU); g.stroke();
+  g.lineWidth = 1.5 * k; g.strokeStyle = 'rgba(255,230,190,.28)'; g.beginPath(); g.arc(0, 0, r - 7 * k, Math.PI * 1.05, Math.PI * 1.75); g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(0, 0, r - 1 * k, Math.PI * 0.05, Math.PI * 0.8); g.stroke();
+  // the lettering band
+  g.lineWidth = 1.5 * k; g.strokeStyle = '#141516'; g.beginPath(); g.arc(0, 0, r - 10 * k, 0, TAU); g.stroke(); g.beginPath(); g.arc(0, 0, r - 25 * k, 0, TAU); g.stroke();
+  mhArcText(g, 'CITY OF KNAIFE', r - 17.5 * k, 0, 8 * k, 1); mhArcText(g, 'SANITARY SEWER', r - 17.5 * k, Math.PI, 8 * k, -1);
+  for (const a of [HALF, -HALF]) { g.fillStyle = '#5a5c5e'; g.beginPath(); g.arc(Math.cos(a) * (r - 17.5 * k), Math.sin(a) * (r - 17.5 * k), 2.2 * k, 0, TAU); g.fill(); }
+  // raised diamond grid in the field
+  g.save(); g.beginPath(); g.arc(0, 0, r - 27 * k, 0, TAU); g.clip();
+  const step = 9 * k;
+  for (let y = -r; y < r; y += step) for (let x = -r + ((y / step) % 2 ? step / 2 : 0); x < r; x += step) {
+    const d = Math.hypot(x, y); if (d < 26 * k) continue;
+    g.save(); g.translate(x, y); g.rotate(Math.PI / 4);
+    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(-2.6 * k + 0.7, -2.6 * k + 0.9, 5.2 * k, 5.2 * k);
+    g.fillStyle = '#3e4042'; g.fillRect(-2.6 * k, -2.6 * k, 5.2 * k, 5.2 * k);
+    g.fillStyle = 'rgba(255,225,180,.18)'; g.fillRect(-2.6 * k, -2.6 * k, 5.2 * k, 1.2 * k);
+    g.restore();
+  }
+  g.restore();
+  // the centre medallion
+  g.fillStyle = '#26282a'; g.beginPath(); g.arc(0, 0, 24 * k, 0, TAU); g.fill();
+  g.lineWidth = 2.5 * k; g.strokeStyle = '#4a4c4e'; g.stroke(); g.lineWidth = 1 * k; g.strokeStyle = 'rgba(255,225,180,.3)'; g.beginPath(); g.arc(0, 0, 21 * k, Math.PI * 1.1, Math.PI * 1.7); g.stroke();
+  g.font = `400 ${11 * k}px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillText('MH', 1, 1 - 5 * k); g.fillStyle = '#6a6c6e'; g.fillText('MH', 0, -5 * k);
+  g.font = `700 ${6 * k}px ${FONT}`; g.fillStyle = '#5a5c5e'; g.fillText('No 13', 0, 8 * k);
+  // pick holes
+  for (const a of [0, Math.PI]) { g.save(); g.rotate(a); g.translate(r - 33 * k, 0); g.fillStyle = '#060606'; g.beginPath(); g.roundRect(-3 * k, -6 * k, 6 * k, 12 * k, 2 * k); g.fill(); g.strokeStyle = 'rgba(255,225,180,.25)'; g.lineWidth = 0.8 * k; g.stroke(); g.restore(); }
+  // rust, grime, wet sheen
+  for (let i = 0; i < 16; i++) { const a = rnd() * TAU, rr = rnd() * r * 0.95, x = Math.cos(a) * rr, y = Math.sin(a) * rr, s = (6 + rnd() * 16) * k, sg = g.createRadialGradient(x, y, 0, x, y, s); sg.addColorStop(0, rnd() < 0.6 ? 'rgba(140,64,22,.45)' : 'rgba(8,8,8,.45)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = sg; g.fillRect(x - s, y - s, 2 * s, 2 * s); }
+  for (let i = 0; i < 260; i++) { const a = rnd() * TAU, rr = rnd() * r; g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,.35)' : 'rgba(180,120,60,.2)'; g.fillRect(Math.cos(a) * rr, Math.sin(a) * rr, 1, 1); }
+  g.strokeStyle = '#0a0a0a'; g.lineWidth = 1.5 * k; g.beginPath(); g.arc(0, 0, r - 0.8, 0, TAU); g.stroke();
+}
+function mhUnderArt(g, r) {
+  const rnd = mulberry(2626), k = r / 92;
+  const base = g.createRadialGradient(0, 0, 4, 0, 0, r); base.addColorStop(0, '#6a4428'); base.addColorStop(0.6, '#4a2e1a'); base.addColorStop(1, '#2a1a10');
+  g.fillStyle = base; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+  g.lineWidth = 8 * k; g.strokeStyle = '#3a2416'; g.beginPath(); g.arc(0, 0, r - 5 * k, 0, TAU); g.stroke();
+  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; g.save(); g.rotate(a); g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(14 * k + 1, -4 * k + 1.5, r - 22 * k, 8 * k); g.fillStyle = '#5a3a22'; g.fillRect(14 * k, -4 * k, r - 22 * k, 8 * k); g.fillStyle = 'rgba(255,200,150,.18)'; g.fillRect(14 * k, -4 * k, r - 22 * k, 2 * k); g.restore(); }
+  g.fillStyle = '#5a3a22'; g.beginPath(); g.arc(0, 0, 16 * k, 0, TAU); g.fill(); g.strokeStyle = '#2a1a10'; g.lineWidth = 2 * k; g.stroke();
+  for (let i = 0; i < 12; i++) { const a = rnd() * TAU, rr = rnd() * r * 0.9, x = Math.cos(a) * rr, y = Math.sin(a) * rr, s = (8 + rnd() * 18) * k, sg = g.createRadialGradient(x, y, 0, x, y, s); sg.addColorStop(0, rnd() < 0.5 ? 'rgba(90,120,40,.55)' : 'rgba(160,80,30,.5)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = sg; g.fillRect(x - s, y - s, 2 * s, 2 * s); }
+  for (let i = 0; i < 300; i++) { const a = rnd() * TAU, rr = rnd() * r; g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,.4)' : 'rgba(200,120,60,.25)'; g.fillRect(Math.cos(a) * rr, Math.sin(a) * rr, 1.2, 1.2); }
+  g.strokeStyle = '#120a06'; g.lineWidth = 1.5 * k; g.beginPath(); g.arc(0, 0, r - 0.8, 0, TAU); g.stroke();
+}
+const MH_TEX = {};
+function mhTex(under) { const key = under ? 'u' : 't'; if (MH_TEX[key]) return MH_TEX[key]; const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX); (under ? mhUnderArt : mhTopArt)(g, R); return (MH_TEX[key] = c); }
+function makeMhTexture(t) { return mhTex(false); }
+// a rat, nose up
+const mhRatSpr = () => bakeSprite('mhRat', -10, -18, 20, 36, g => {
+  g.fillStyle = '#5a5860'; g.beginPath(); g.ellipse(0, 2, 6.5, 11, 0, 0, TAU); g.fill();
+  g.fillStyle = '#6e6c74'; g.beginPath(); g.ellipse(0, -9, 4.4, 6, 0, 0, TAU); g.fill();
+  g.fillStyle = '#d89aa0'; g.beginPath(); g.arc(-3.4, -12, 1.8, 0, TAU); g.fill(); g.beginPath(); g.arc(3.4, -12, 1.8, 0, TAU); g.fill();
+  g.fillStyle = '#e8a0a8'; g.beginPath(); g.arc(0, -15.4, 1.2, 0, TAU); g.fill();
+  g.fillStyle = '#111'; g.fillRect(-2.2, -10, 1.2, 1.2); g.fillRect(1, -10, 1.2, 1.2);
+  g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.ellipse(-2, 0, 2, 7, 0, 0, TAU); g.fill();
+});
+function drawMhRat(r) {
+  ctx.save(); ctx.rotate(r.a); ctx.translate(R - 9, 0); ctx.rotate(r.dir > 0 ? Math.PI : 0); ctx.translate(Math.sin(r.ph) * 0.8, 0);
+  ctx.strokeStyle = '#d89aa0'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 12); for (let j = 1; j <= 6; j++) ctx.lineTo(Math.sin(r.ph * 0.7 + j * 0.9) * 3 * j / 6, 12 + j * 3.4); ctx.stroke();
+  blit(mhRatSpr());
+  if (r.carry) { ctx.save(); ctx.translate(0, -18); ctx.rotate(HALF); ctx.scale(0.32, 0.32); drawKnife(); ctx.restore(); }
+  ctx.restore();
+}
+// everything on the lid that moves: the glow up through the pick holes, blood, rats, live iron, cracks
+function drawMhLive(t) {
+  const M = t.mh; if (!M) return;
+  if (!M.under) for (const a of [0, Math.PI]) {
+    ctx.save(); ctx.rotate(a); ctx.translate(R - 33, 0); ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 14); g.addColorStop(0, 'rgba(255,190,110,.75)'); g.addColorStop(1, 'rgba(255,140,60,0)'); ctx.fillStyle = g; ctx.fillRect(-14, -14, 28, 28); ctx.restore();
+  }
+  for (const s of M.stains) { const x = Math.cos(s.a) * s.r, y = Math.sin(s.a) * s.r; ctx.save(); ctx.translate(x, y); ctx.fillStyle = 'rgba(110,8,14,.85)'; ctx.beginPath(); for (let j = 0; j < 10; j++) { const a = j / 10 * TAU, rr = s.s * (0.6 + 0.4 * hash(j, Math.floor(s.seed), 1)); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); for (let j = 0; j < 7; j++) { const a = hash(j, Math.floor(s.seed), 2) * TAU, rr = s.s * (1.1 + 0.8 * hash(j, Math.floor(s.seed), 3)); ctx.beginPath(); ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, 1.5 + 2.5 * hash(j, Math.floor(s.seed), 4), 0, TAU); ctx.fill(); } ctx.fillStyle = 'rgba(255,120,120,.2)'; ctx.beginPath(); ctx.ellipse(-s.s * 0.2, -s.s * 0.25, s.s * 0.3, s.s * 0.15, -0.5, 0, TAU); ctx.fill(); ctx.restore(); }
+  for (const r of M.rats) drawMhRat(r);
+  for (const J of M.jets) if (J.st === 'warn') { ctx.save(); ctx.rotate(J.a); ctx.globalAlpha = 0.6; for (let i = 0; i < 3; i++) { const u = (time * 3 + i / 3) % 1; ctx.drawImage(gasPuff(0).c, R - 6 + u * 14 - 6, -6, 12, 12); } ctx.restore(); }
+  if (M.live > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(127,212,255,${0.5 + 0.5 * Math.sin(time * 40)})`; ctx.lineWidth = 2; for (let i = 0; i < 5; i++) { const a0 = hash(i, Math.floor(time * 18), 1) * TAU; ctx.beginPath(); for (let j = 0; j <= 6; j++) { const a = a0 + j * 0.12, rr = R - 4 + (hash(i, j, Math.floor(time * 18)) - 0.5) * 10; ctx[j ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr); } ctx.stroke(); } const g = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R + 10); g.addColorStop(0, 'rgba(80,160,255,0)'); g.addColorStop(1, `rgba(80,160,255,${0.35 * Math.min(1, M.live)})`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R + 10, 0, TAU); ctx.fill(); ctx.restore(); }
+  if (M.crack > 0) { ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2.4; for (let i = 0; i < 9; i++) { let a = i / 9 * TAU + 0.3, x = 0, y = 0; const n = Math.ceil(6 * M.crack); ctx.beginPath(); ctx.moveTo(0, 0); for (let j = 0; j < n; j++) { a += (hash(i, j, 7) - 0.5) * 0.6; x += Math.cos(a) * 15; y += Math.sin(a) * 15; ctx.lineTo(x, y); } ctx.stroke(); } ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,180,90,${0.3 * M.crack})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); ctx.restore(); }
+  if (M.jolt > 0) { ctx.fillStyle = `rgba(255,255,255,${0.12 * M.jolt})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+}
+// ---------- birds: overhead silhouettes after the field guide, flapping ----------
+function mhBirdShape(kind, f) {
+  // returns [wingSpan, wingDepth, tailType, fingers, tone]
+  return { eagle: [52, 15, 'fan', 5, '#2a2b30'], kite: [46, 11, 'fork', 3, '#3a3438'], falcon: [40, 9, 'narrow', 0, '#2e2f34'], vulture: [62, 17, 'short', 6, '#3a3a3e'], harrier: [50, 8, 'long', 2, '#34353a'] }[kind];
+}
+function drawMhBird(b) {
+  const [span, depth, tail, fingers, tone] = mhBirdShape(b.kind), fl = 0.72 + 0.28 * Math.sin(b.ph), sw = span * fl;
+  ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx) + HALF); ctx.scale(b.sc, b.sc);
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.save(); ctx.translate(10, 16); ctx.scale(0.9, 0.9); mhBirdPath(span * fl, depth, tail, fingers); ctx.fill(); ctx.restore();
+  ctx.fillStyle = tone; mhBirdPath(sw, depth, tail, fingers); ctx.fill();
+  if (b.kind === 'vulture' || b.kind === 'kite') { ctx.fillStyle = 'rgba(200,190,190,.25)'; ctx.beginPath(); ctx.moveTo(-6, -2); ctx.lineTo(-sw * 0.8, depth * 0.1); ctx.lineTo(-sw * 0.75, depth * 0.45); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(6, -2); ctx.lineTo(sw * 0.8, depth * 0.1); ctx.lineTo(sw * 0.75, depth * 0.45); ctx.lineTo(6, 6); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+function mhBirdPath(sw, depth, tail, fingers) {
+  ctx.beginPath();
+  ctx.moveTo(0, -18); ctx.quadraticCurveTo(4, -14, 4, -6);
+  if (tail === 'falcon' || tail === 'narrow') { ctx.lineTo(sw, depth * 0.9); ctx.lineTo(sw * 0.4, depth * 0.6); }
+  else { ctx.lineTo(sw * 0.85, -depth * 0.35); for (let j = 0; j < fingers; j++) { const u = j / Math.max(1, fingers); ctx.lineTo(sw + 2, -depth * 0.3 + u * depth); ctx.lineTo(sw * 0.94, -depth * 0.15 + (u + 0.5 / fingers) * depth); } ctx.lineTo(sw * 0.9, depth * 0.6); ctx.lineTo(sw * 0.3, depth * 0.55); }
+  ctx.lineTo(5, 6);
+  if (tail === 'fork') { ctx.lineTo(7, 26); ctx.lineTo(0, 16); ctx.lineTo(-7, 26); }
+  else if (tail === 'fan') { ctx.lineTo(9, 22); ctx.lineTo(-9, 22); }
+  else if (tail === 'long') { ctx.lineTo(4, 30); ctx.lineTo(-4, 30); }
+  else if (tail === 'narrow') { ctx.lineTo(4, 22); ctx.lineTo(-4, 22); }
+  else { ctx.lineTo(7, 14); ctx.lineTo(-7, 14); }
+  ctx.lineTo(-5, 6);
+  if (tail === 'falcon' || tail === 'narrow') { ctx.lineTo(-sw * 0.4, depth * 0.6); ctx.lineTo(-sw, depth * 0.9); }
+  else { ctx.lineTo(-sw * 0.3, depth * 0.55); ctx.lineTo(-sw * 0.9, depth * 0.6); for (let j = fingers - 1; j >= 0; j--) { const u = j / Math.max(1, fingers); ctx.lineTo(-sw * 0.94, -depth * 0.15 + (u + 0.5 / fingers) * depth); ctx.lineTo(-sw - 2, -depth * 0.3 + u * depth); } ctx.lineTo(-sw * 0.85, -depth * 0.35); }
+  ctx.lineTo(-4, -6); ctx.quadraticCurveTo(-4, -14, 0, -18); ctx.closePath();
+}
+// ---------- blood on the screen ----------
+function mhSplatSpr(seed) {
+  return bakeSprite('mhSplat' + (seed % 6), -100, -100, 200, 200, g => {
+    const rnd = mulberry(seed % 6 * 97 + 11), bg = g.createRadialGradient(-10, -14, 4, 0, 0, 60); bg.addColorStop(0, '#c0141e'); bg.addColorStop(0.7, '#8a0a12'); bg.addColorStop(1, '#5a060a');
+    g.fillStyle = bg; g.beginPath(); for (let j = 0; j < 24; j++) { const a = j / 24 * TAU, rr = 40 + rnd() * 22 + (j % 3 === 0 ? rnd() * 22 : 0); g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.closePath(); g.fill();
+    for (let j = 0; j < 22; j++) { const a = rnd() * TAU, rr = 60 + rnd() * 34, s = 2 + rnd() * 7; g.beginPath(); g.arc(Math.cos(a) * rr, Math.sin(a) * rr, s, 0, TAU); g.fill(); }
+    for (let j = 0; j < 6; j++) { const a = rnd() * TAU, l = 30 + rnd() * 30; g.strokeStyle = '#8a0a12'; g.lineWidth = 3 + rnd() * 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(Math.cos(a) * 40, Math.sin(a) * 40); g.lineTo(Math.cos(a) * (40 + l), Math.sin(a) * (40 + l)); g.stroke(); }
+    g.fillStyle = 'rgba(255,160,160,.25)'; g.beginPath(); g.ellipse(-16, -18, 16, 8, -0.5, 0, TAU); g.fill();
+  });
+}
+function drawMhSplats(M) {
+  for (const s of M.splats) {
+    const a = Math.min(1, (8 - s.t) / 2) * Math.min(1, s.t / 0.06), k = s.r / 60 * (0.85 + 0.15 * Math.min(1, s.t / 0.15));
+    ctx.save(); ctx.globalAlpha = a * 0.92; ctx.translate(s.x, s.y); ctx.rotate(s.seed);
+    ctx.scale(k, k); blit(mhSplatSpr(Math.floor(s.seed)));
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = a * 0.85; ctx.fillStyle = '#7a0a10';
+    for (let j = 0; j < s.drips; j++) { const x = s.x + (hash(j, Math.floor(s.seed), 1) - 0.5) * s.r * 1.1, l = Math.min(s.r * 1.6, s.t * 26 * (0.5 + hash(j, Math.floor(s.seed), 2))), w = 3 + 3 * hash(j, Math.floor(s.seed), 3); ctx.fillRect(x - w / 2, s.y + s.r * 0.3, w, l); ctx.beginPath(); ctx.arc(x, s.y + s.r * 0.3 + l, w * 0.75, 0, TAU); ctx.fill(); }
+    ctx.restore();
+  }
+}
+// ======================= THE MANHOLE: in front of the lid =======================
+function drawMhFront(t) {
+  const M = t.mh; if (!M || M.hide) return;
+  const Bt = beatInfo('mh');
+  // the blast still driving it: steam billowing out from under the rim, swelling on the beat
+  ctx.save(); const sp = gasPuff(0);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + time * 0.4, u = (time * 0.9 + hash(i, 3, 1)) % 1, d = R * M.s * (1.02 + 0.55 * u) + Bt.pulse * 6, r = (12 + 20 * u) * (0.8 + 0.4 * Bt.pulse); ctx.globalAlpha = 0.16 * (1 - u); ctx.drawImage(sp.c, CX + M.ox + Math.cos(a) * d - r, CY + M.oy + Math.sin(a) * d * Math.abs(M.sy) - r, r * 2, r * 2); }
+  ctx.restore();
+  // steam jets out of the rim
+  for (const J of M.jets) if (J.st === 'on') {
+    const w = t.rot + J.a, c = Math.cos(w), s = Math.sin(w), x0 = CX + c * (R + 4), y0 = CY + s * (R + 4), k = clamp(J.t / 0.15, 0, 1) * clamp((J.dur - J.t) / 0.4, 0, 1);
+    ctx.save(); for (let i = 0; i < 14; i++) { const u = (time * 2.8 + i / 14) % 1, d = u * 180 * k, r = 7 + u * 32, wob = Math.sin(i * 7.3 + time * 3) * u * 20; ctx.globalAlpha = (1 - u) * 0.8 * k; ctx.drawImage(sp.c, x0 + c * d - s * wob - r, y0 + s * d + c * wob - r, r * 2, r * 2); } ctx.restore();
+  }
+  // birds, above everything in the sky
+  for (const b of M.birds) if (!b.dead) drawMhBird(b);
+  // clouds between the lid and us
+  drawMhSkyFront();
+  // lightning: a warning crackle, then the strike
+  if (M.bolt) {
+    const B = M.bolt;
+    if (B.t < B.warn) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(127,212,255,${0.3 + 0.3 * Math.sin(time * 50)})`; ctx.lineWidth = 1.5; for (let i = 0; i < 4; i++) { const a = hash(i, Math.floor(time * 20), 2) * TAU; ctx.beginPath(); ctx.moveTo(CX + Math.cos(a) * R, CY + Math.sin(a) * R); ctx.lineTo(CX + Math.cos(a) * (R + 18), CY + Math.sin(a) * (R + 18)); ctx.stroke(); } ctx.restore(); }
+    else { const a = 1 - (B.t - B.warn) / 0.5; let x = B.x, y = -40; const pts = [[x, y]]; for (let k = 0; k < 10; k++) { x += (hash(k, Math.floor(B.x), 3) - 0.5) * 50 + (CX - x) * 0.18; y += (CY - 40) / 10; pts.push([x, y]); } pts.push([CX, CY]); ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (const [w, al] of [[12, 0.2], [4, 0.6], [1.6, 1]]) { ctx.strokeStyle = `rgba(200,225,255,${al * a})`; ctx.lineWidth = w; ctx.beginPath(); pts.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](...p)); ctx.stroke(); } ctx.restore(); }
+  }
+}
+function drawMhScreen(t) {
+  const M = t.mh; if (!M) return;
+  if (M.splats.length) drawMhSplats(M);
+}
+// ---------- HUD: health, altitude, what to watch ----------
+function drawMhHUD() {
+  const t = tgt; if (!t || !t.mh || t.mh.hide) return;
+  const M = t.mh, x0 = CX - 100, y = 104;
+  let fill = 1; if (fx && fx.type === 'mhintro') fill = clamp((fx.t - MSHOT.reveal - 0.4) / 0.9, 0, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  const cw = 200 / MH_HP; for (let i = 0; i < MH_HP; i++) { ctx.fillStyle = i < knivesLeft * fill ? (M.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i < MH_PH3 ? '#7fd4ff' : i < MH_PH2 ? '#e8f0ee' : '#ffb24a') : '#1a1816'; ctx.fillRect(x0 + i * cw, y, cw - 1.5, 8); }
+  const alt = Math.round(mhAlt(mhSong())), ph = ['STREET', 'THE CLOUDS', 'THE STORM'][M.phase - 1];
+  text('ALTITUDE ' + alt + ' M   /   ' + ph, CX, y + 20, 7, '#c3c3ca', 'center', 700);
+  let msg = 'IT IS STILL CLIMBING', mc = '#9aa0a6';
+  if (M.live > 0) { msg = 'LIVE IRON: DO NOT THROW'; mc = Math.sin(time * 14) > 0 ? '#7fd4ff' : '#ffffff'; }
+  else if (M.bolt) { msg = 'LIGHTNING IS COMING'; mc = '#7fd4ff'; }
+  else if (M.rats.some(r => r.carry)) { msg = 'A RAT HAS YOUR KNIFE: HIT IT'; mc = Math.sin(time * 14) > 0 ? '#ff5a4a' : '#ffffff'; }
+  else if (M.birds.some(b => b.doomed)) { msg = 'A BIRD IS ABOUT TO HIT IT'; mc = '#e0202a'; }
+  else if (M.flip) { msg = 'IT IS TUMBLING: WAIT FOR THE FACE'; mc = '#e8f0ee'; }
+  else if (M.jets.some(j => j.st === 'on' && mhFacing(t, j.a, 0.5))) { msg = 'STEAM DOWN YOUR LANE: WAIT'; mc = '#e8f0ee'; }
+  else if (M.rats.length) { msg = 'RATS ON THE RIM: SKEWER THEM'; mc = '#c3c3ca'; }
+  text(msg, CX, y + 32, 7, mc, 'center', 700);
+}
+// ======== THE MANHOLE background: overhead, the city falling away below, clouds rushing past, cut to DESERVED FATE ========
+// The camera rides above the climbing lid looking straight down. The city's lit grid shrinks toward the middle of
+// the screen as the lid gains height; cloud banks rise past, first huge and soft as the camera goes through them,
+// then shrinking away beneath. The song decides the weather:
+//   10.5 city: low cloud, street lights pulsing, aircraft lights blinking on the beat
+//   43.2 clouds: a cloud sea with gaps over the city
+//   64.8 storm: dark thunderheads lit by lightning on the bar, rain streaking away below
+//   84.0 above: the calm over the cloud tops under the moon
+//   86.4 high: thin air, the city a far-off glow, an airliner crossing far below
+const MH_SEC = [[0, 'city'], [43.2, 'clouds'], [64.8, 'storm'], [84.0, 'above'], [86.4, 'high'], [122.4, 'city']];
+function mhSong() { const Bb = BEATS.mh; return beatOf('mh') * 60 / Bb.bpm + Bb.down; }
+function mhSection(st) { let s = 'city', s0 = 0; for (const [t0, k] of MH_SEC) if (st >= t0) { s = k; s0 = t0; } return [s, st - s0]; }
+function mhAlt(st) { return 30 + 8.8 * Math.max(0, st - 10.5); }
+const MHV = { lt: -1, alt: 30, loops: 0, last: 0 };
+// ---------- the city map, baked once and tiled ----------
+const MH_CT = 1000;
+const mhCity = () => twinBake('mhCity', 0, 0, MH_CT, MH_CT, 1, g => {
+  const rnd = mulberry(4242);
+  g.fillStyle = '#080b10'; g.fillRect(0, 0, MH_CT, MH_CT);
+  const av = [], st = [];
+  for (let i = 0; i < 8; i++) av.push(i * 125 + 8);
+  for (let i = 0; i < 8; i++) st.push(i * 125 + 70);
+  // blocks of buildings between the streets
+  for (let bx = 0; bx < 8; bx++) for (let by = 0; by < 16; by++) {
+    const x0 = bx * 125 + 18, y0 = by * 62.5 + 6, w = 125 - 26, h = 62.5 - 12;
+    if (rnd() < 0.06) { g.fillStyle = '#0c1a10'; g.fillRect(x0, y0, w, h); for (let k = 0; k < 14; k++) { g.fillStyle = 'rgba(30,70,40,.6)'; g.beginPath(); g.arc(x0 + rnd() * w, y0 + rnd() * h, 3 + rnd() * 5, 0, TAU); g.fill(); } continue; }
+    let x = x0; while (x < x0 + w - 8) {
+      const bw = Math.min(x0 + w - x, 12 + rnd() * 34); let y = y0;
+      while (y < y0 + h - 6) {
+        const bh = Math.min(y0 + h - y, 10 + rnd() * 26), tone = 18 + rnd() * 26, blue = rnd() < 0.3;
+        g.fillStyle = blue ? `rgb(${tone * 0.8 | 0},${tone + 6 | 0},${tone + 20 | 0})` : `rgb(${tone | 0},${tone + 2 | 0},${tone + 8 | 0})`; g.fillRect(x + 1, y + 1, bw - 2, bh - 2);
+        g.fillStyle = 'rgba(255,200,140,.12)'; g.fillRect(x + 1, y + 1, bw - 2, 1.2); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + 1, y + bh - 2.2, bw - 2, 1.2);
+        for (let k = 0; k < (bw * bh) / 60; k++) { g.fillStyle = rnd() < 0.7 ? `rgba(255,${200 + rnd() * 40 | 0},${120 + rnd() * 60 | 0},${0.4 + rnd() * 0.5})` : 'rgba(150,220,255,.7)'; g.fillRect(x + 2 + rnd() * (bw - 4), y + 2 + rnd() * (bh - 4), 1.2, 1.2); }
+        if (rnd() < 0.06) { g.fillStyle = 'rgba(60,255,180,.35)'; g.fillRect(x + 2, y + 2, bw - 4, bh - 4); }
+        y += bh;
+      }
+      x += bw;
+    }
+  }
+  // streets: dark tarmac with orange sodium light, the avenues brightest
+  const road = (x, y, w, h, main) => { g.fillStyle = '#0e1014'; g.fillRect(x, y, w, h); const gl = main ? 'rgba(255,170,70,.5)' : 'rgba(255,170,70,.28)'; g.fillStyle = gl; if (w > h) g.fillRect(x, y + h / 2 - 1.5, w, 3); else g.fillRect(x + w / 2 - 1.5, y, 3, h); };
+  for (const x of av) road(x - 5, 0, 12, MH_CT, true);
+  for (let by = 0; by < 16; by++) road(0, by * 62.5 - 3, MH_CT, by % 2 ? 6 : 10, by % 2 === 0);
+  // a river curving through, and a lit boulevard cutting across the grid
+  g.strokeStyle = '#06101c'; g.lineWidth = 46; g.beginPath(); g.moveTo(-20, 620); g.bezierCurveTo(300, 540, 520, 900, 1020, 760); g.stroke(); g.strokeStyle = 'rgba(120,170,255,.12)'; g.lineWidth = 2; g.stroke();
+  for (const y0 of [-1000, 0]) { g.strokeStyle = '#0e1014'; g.lineWidth = 16; g.beginPath(); g.moveTo(0, y0 + 1000); g.lineTo(1000, y0); g.stroke(); g.strokeStyle = 'rgba(255,200,110,.55)'; g.lineWidth = 3; g.stroke(); }
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (const x of av) { const lg = g.createLinearGradient(x - 14, 0, x + 14, 0); lg.addColorStop(0, 'rgba(255,150,50,0)'); lg.addColorStop(0.5, 'rgba(255,150,50,.22)'); lg.addColorStop(1, 'rgba(255,150,50,0)'); g.fillStyle = lg; g.fillRect(x - 14, 0, 28, MH_CT); }
+  for (let by = 0; by < 16; by += 2) { const y = by * 62.5, lg = g.createLinearGradient(0, y - 12, 0, y + 12); lg.addColorStop(0, 'rgba(255,150,50,0)'); lg.addColorStop(0.5, 'rgba(255,150,50,.18)'); lg.addColorStop(1, 'rgba(255,150,50,0)'); g.fillStyle = lg; g.fillRect(0, y - 12, MH_CT, 24); }
+  for (let i = 0; i < 40; i++) { const x = av[Math.floor(rnd() * 8)], y = rnd() * MH_CT; g.fillStyle = 'rgba(255,220,160,.8)'; g.fillRect(x - 1, y, 2, 2); }
+  g.restore();
+});
+// tall towers with aircraft warning lights, in city coordinates
+const MH_TOWERS = Array.from({ length: 14 }, (_, i) => [30 + hash(i, 61, 1) * 940, 30 + hash(i, 61, 2) * 940, i % 4]);
+// ---------- clouds ----------
+const mhCloud = k => twinBake('mhCloud' + k, -150, -100, 300, 200, 1, g => {
+  const rnd = mulberry(k * 53 + 9), col = [['236,242,255', '150,170,210'], ['70,80,100', '24,28,40'], ['255,214,170', '150,100,90'], ['220,228,245', '120,130,160']][k % 4];
+  for (let i = 0; i < 16; i++) { const x = (rnd() - 0.5) * 200, y = (rnd() - 0.5) * 110, r = 30 + rnd() * 50, cg = g.createRadialGradient(x - r * 0.25, y - r * 0.3, r * 0.1, x, y, r); cg.addColorStop(0, `rgba(${col[0]},.85)`); cg.addColorStop(0.6, `rgba(${col[1]},.45)`); cg.addColorStop(1, `rgba(${col[1]},0)`); g.fillStyle = cg; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+});
+// the cloud field: altitude bands that match the song's sections
+const MH_CLOUDS = (() => {
+  const rnd = mulberry(909), out = [];
+  const band = (n, a0, a1, kind, spread) => { for (let i = 0; i < n; i++) out.push({ a: a0 + rnd() * (a1 - a0), x: (rnd() - 0.5) * spread, y: (rnd() - 0.5) * spread, s: 0.8 + rnd() * 1.2, k: kind, r: rnd() * TAU }); };
+  band(14, 120, 300, 2, 900); band(34, 330, 490, 0, 1100); band(36, 520, 700, 1, 1000); band(12, 760, 1000, 3, 1400);
+  return out.sort((p, q) => p.a - q.a);
+})();
+function mhCloudDraw(c, alt, Bt, front) {
+  const d = alt + 300 - c.a; if (d < 10) return;
+  const s = 300 / d; if (front ? s < 1 : s >= 1) return;
+  if (front && (d > 220 || s > 3.2)) return; if (!front && s < 0.06) return; const a = Math.min(1, d / 90) * (front ? 0.2 * Math.min(1, (220 - d) / 80 + 0.3) : 0.9) * (s < 0.08 ? s / 0.08 : 1);
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(CX + c.x * s, CY + c.y * s); ctx.rotate(c.r); ctx.scale(s * c.s, s * c.s);
+  ctx.drawImage(mhCloud(c.k).c, -150, -100, 300, 200);
+  ctx.restore();
+}
+function mhViewAlt() {
+  const st = mhSong(), dt = clamp(time - MHV.lt, 0, 0.1); MHV.lt = time;
+  const want = mhAlt(st); MHV.alt += (want - MHV.alt) * Math.min(1, dt * (Math.abs(want - MHV.alt) > 200 ? 1.2 : 12));
+  return MHV.alt;
+}
+BG.mh = (Bt, px, py) => {
+  const st = mhSong(), [sec, s] = mhSection(st), alt = mhViewAlt(), F = musicFeel('mh');
+  // the city, far below
+  bgFill('mhSky', [[0, '#04060a'], [1, '#04060a']]);
+  const cs = 300 / (alt + 300), sz = MH_CT * cs, ox = CX - sz / 2 + Math.sin(time * 0.05) * 20 * cs, oy = CY - sz / 2 + time * 3 * cs % sz;
+  ctx.save(); ctx.translate(CX, CY); ctx.rotate(time * 0.01); ctx.translate(-CX, -CY);
+  const ix0 = Math.floor((-200 - ox) / sz) - 1, ix1 = Math.ceil((W + 200 - ox) / sz), iy0 = Math.floor((-200 - oy) / sz) - 1, iy1 = Math.ceil((H + 200 - oy) / sz);
+  for (let ix = ix0; ix <= ix1; ix++) for (let iy = iy0; iy <= iy1; iy++) ctx.drawImage(mhCity().c, ox + ix * sz, oy + iy * sz, sz, sz);
+  // the city breathing with the beat, aircraft lights blinking in turn
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,150,60,${0.04 + 0.06 * Bt.pulse})`; fillView();
+  for (let ix = ix0; ix <= ix1; ix++) for (let iy = iy0; iy <= iy1; iy++) for (const [tx, ty, ph] of MH_TOWERS) { const on = Math.floor(Bt.b) % 4 === ph ? Bt.pulse : 0.15; if (on < 0.2) continue; const x = ox + (ix + tx / MH_CT) * sz, y = oy + (iy + ty / MH_CT) * sz; if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue; ctx.fillStyle = `rgba(255,40,30,${on})`; ctx.beginPath(); ctx.arc(x, y, 2 + 4 * on, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  ctx.restore();
+  // haze over the city as we climb
+  ctx.save(); ctx.fillStyle = `rgba(14,18,30,${clamp((alt - 100) / 1400, 0, 0.55)})`; fillView(); ctx.restore();
+  // an airliner far below in the high section
+  if (sec === 'high') { const u = (s % 9) / 9, x = -60 + u * (W + 120), y = CY + 160 - u * 80; ctx.save(); ctx.translate(x, y); ctx.rotate(-0.25 + HALF); ctx.scale(0.5, 0.5); ctx.fillStyle = '#c8ccd4'; ctx.fillRect(-4, -26, 8, 52); ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(-30, 8); ctx.lineTo(30, 8); ctx.closePath(); ctx.fill(); ctx.fillRect(-10, 20, 20, 4); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = Math.floor(Bt.b * 2) % 2 ? 'rgba(255,40,30,.9)' : 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(-30, 8, 3, 0, TAU); ctx.arc(30, 8, 3, 0, TAU); ctx.fill(); ctx.restore(); }
+  // clouds below the lid, far ones first
+  for (const c of MH_CLOUDS) mhCloudDraw(c, alt, Bt, false);
+  // lightning inside the thunderheads on the bar
+  if (sec === 'storm' && Bt.down > 0.05) { const x = hash(Bt.bar, 3, 1) * W, y = 80 + hash(Bt.bar, 3, 2) * (H - 200); ctx.save(); ctx.globalCompositeOperation = 'lighter'; const lg = ctx.createRadialGradient(x, y, 10, x, y, 260); lg.addColorStop(0, `rgba(190,210,255,${0.55 * Bt.down})`); lg.addColorStop(1, 'rgba(120,150,255,0)'); ctx.fillStyle = lg; ctx.fillRect(x - 260, y - 260, 520, 520); ctx.restore(); }
+  if (sec === 'above') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const mg = ctx.createRadialGradient(W * 0.75, H * 0.2, 20, W * 0.75, H * 0.2, 420); mg.addColorStop(0, 'rgba(200,215,255,.18)'); mg.addColorStop(1, 'rgba(200,215,255,0)'); ctx.fillStyle = mg; fillView(); ctx.restore(); }
+  // rain falling away below in the storm, streaks converging on the city
+  if (sec === 'storm') { ctx.save(); ctx.strokeStyle = 'rgba(180,200,230,.35)'; ctx.lineWidth = 1; for (let i = 0; i < 40; i++) { const a = hash(i, 4, 1) * TAU, u = (time * 1.6 + hash(i, 4, 2)) % 1, r0 = 520 * (1 - u), r1 = r0 - 40; ctx.beginPath(); ctx.moveTo(CX + Math.cos(a) * r0, CY + Math.sin(a) * r0); ctx.lineTo(CX + Math.cos(a) * r1, CY + Math.sin(a) * r1); ctx.stroke(); } ctx.restore(); }
+};
+// clouds above the lid, between it and us: drawn in front, soft
+function drawMhSkyFront() { if (state === 'menu') return; const alt = MHV.alt, Bt = beatInfo('mh'); let n = 0; for (const c of MH_CLOUDS) { const d = alt + 300 - c.a; if (d >= 10 && d <= 220 && 300 / d <= 3.2 && n++ < 4) mhCloudDraw(c, alt, Bt, true); } }
+
+// ======================= the intro, drawn =======================
+const mhSkyline = () => twinBake('mhSkyline', 0, 0, W, 1700, 1, g => {
+  const rnd = mulberry(1717), sg = g.createLinearGradient(0, 0, 0, 900); sg.addColorStop(0, '#020308'); sg.addColorStop(0.7, '#070b16'); sg.addColorStop(1, '#101828'); g.fillStyle = sg; g.fillRect(0, 0, W, 1700);
+  for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${rnd() * 0.4})`; g.fillRect(rnd() * W, rnd() * 650, 1, 1); }
+  // the horizon: a haze of far lights
+  const hz = 900; g.fillStyle = '#0a0e18'; g.fillRect(0, hz, W, 800);
+  for (let i = 0; i < 260; i++) { g.fillStyle = rnd() < 0.8 ? `rgba(255,${190 + rnd() * 50 | 0},120,${0.3 + rnd() * 0.6})` : 'rgba(150,220,255,.7)'; g.fillRect(rnd() * W, hz - 6 + rnd() * 18, 1.5, 1.5); }
+  // three rows of buildings, nearer and taller, windows lit warm and cold
+  const row = (n, base, hmin, hmax, tone, win) => { for (let i = 0; i < n; i++) { const w = 26 + rnd() * 60, x = rnd() * (W + 40) - 20, h = hmin + rnd() * (hmax - hmin), y = base - h; g.fillStyle = tone; g.fillRect(x, y, w, h + 900); for (let wy = y + 6; wy < base + 600; wy += 9) for (let wx = x + 4; wx < x + w - 4; wx += 7) if (rnd() < win) { g.fillStyle = rnd() < 0.75 ? `rgba(255,${180 + rnd() * 60 | 0},${100 + rnd() * 60 | 0},${0.5 + rnd() * 0.5})` : 'rgba(140,210,255,.8)'; g.fillRect(wx, wy, 3, 4); } } };
+  row(18, hz + 40, 30, 120, '#0b0f18', 0.25); row(12, hz + 160, 120, 320, '#080b12', 0.32); row(7, hz + 420, 300, 600, '#05070c', 0.38);
+  // one tower washed in cold blue light
+  const tx = W * 0.62, tw = 90, ty = hz + 420 - 520; const bl = g.createLinearGradient(tx, 0, tx + tw, 0); bl.addColorStop(0, '#0a2a44'); bl.addColorStop(0.6, '#1a6aa0'); bl.addColorStop(1, '#0a2238'); g.fillStyle = bl; g.fillRect(tx, ty, tw, 1300);
+  g.fillStyle = 'rgba(160,230,255,.8)'; for (let wy = ty + 10; wy < 1700; wy += 14) g.fillRect(tx + 6, wy, tw - 12, 2);
+});
+function miSky(t) {
+  const u = clamp((t - MT.open) / (MT.street - MT.open), 0, 1), pan = (u * u * (3 - 2 * u)) * 900;
+  ctx.save(); ctx.translate(0, -pan); blit(mhSkyline());
+  // the moon: an orange crescent
+  ctx.save(); ctx.translate(W * 0.56, 240); ctx.fillStyle = '#ff8a3a'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill(); ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(-2, -6, 13, 0, TAU); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const mg = ctx.createRadialGradient(W * 0.56, 245, 2, W * 0.56, 245, 60); mg.addColorStop(0, 'rgba(255,140,60,.25)'); mg.addColorStop(1, 'rgba(255,140,60,0)'); ctx.fillStyle = mg; ctx.fillRect(W * 0.56 - 60, 185, 120, 120); ctx.restore();
+  // windows switching on and off with the beat, a red light on the blue tower
+  const Bt = beatInfo('mh'); ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 40; i++) { if (Math.floor(Bt.b + hash(i, 5, 1) * 4) % 3) continue; ctx.fillStyle = 'rgba(255,210,140,.8)'; ctx.fillRect(hash(i, 5, 2) * W, 930 + hash(i, 5, 3) * 700, 3, 4); }
+  ctx.fillStyle = `rgba(255,40,30,${0.3 + 0.7 * Bt.pulse})`; ctx.beginPath(); ctx.arc(W * 0.62 + 45, 900 + 420 - 524, 3, 0, TAU); ctx.fill();
+  ctx.restore(); ctx.restore();
+  const cap = (str, t0, y) => { const s = t - t0; if (s < 0) return; text(str.slice(0, Math.floor(s * 26)), CX, y, 11, `rgba(232,236,240,${clamp((MT.street - 0.15 - t) / 0.3, 0, 1)})`, 'center', 700); };
+  cap('THE CITY SLEEPS', MT.open + 0.8, H - 150); cap('SOMETHING DOES NOT', MT.sink, H - 128);
+}
+const mhStreet = () => twinBake('mhStreet', -60, -60, W + 120, H + 120, 1, g => {
+  g.fillStyle = '#07080b'; g.fillRect(-60, -60, W + 120, H + 120);
+  const vy = 300, sg = g.createLinearGradient(0, 0, 0, vy); sg.addColorStop(0, '#05060a'); sg.addColorStop(1, '#2a1a10'); g.fillStyle = sg; g.fillRect(0, 0, W, vy);
+  // buildings either side, receding
+  for (const sd of [-1, 1]) {
+    const nb = [sd < 0 ? -60 : W + 60, H - 120], nt = [sd < 0 ? -60 : W + 60, -60], fb = [CX + sd * 30, vy + 6], ft = [CX + sd * 30, vy - 70];
+    g.fillStyle = '#0b0c10'; g.beginPath(); g.moveTo(...ft); g.lineTo(...fb); g.lineTo(...nb); g.lineTo(...nt); g.closePath(); g.fill();
+    const P = (u, v) => { const uu = 1 - Math.pow(1 - u, 2.2); const bx = fb[0] + (nb[0] - fb[0]) * uu, by = fb[1] + (nb[1] - fb[1]) * uu, tx = ft[0] + (nt[0] - ft[0]) * uu, ty = ft[1] + (nt[1] - ft[1]) * uu; return [bx + (tx - bx) * v, by + (ty - by) * v]; };
+    const rnd = mulberry(sd > 0 ? 71 : 72);
+    for (let i = 0; i < 14; i++) for (let j = 1; j < 11; j++) { if (rnd() < 0.45) continue; const [x0, y0] = P(i / 14 + 0.01, j / 11), [x1, y1] = P((i + 0.6) / 14, (j + 0.45) / 11); g.fillStyle = rnd() < 0.8 ? `rgba(255,${170 + rnd() * 60 | 0},${90 + rnd() * 50 | 0},${0.35 + rnd() * 0.5})` : 'rgba(140,210,255,.6)'; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0 + (y1 - y0) * 0.1); g.lineTo(x1, y1); g.lineTo(x0, y0 + (y1 - y0) * 0.9); g.closePath(); g.fill(); }
+    for (let i = 1; i < 6; i++) { const [x0, y0] = P(i / 6, 0), [x1, y1] = P(i / 6, 1); g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1 + i; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+  }
+  // the road, wet, with lamp reflections smeared toward us
+  const rg = g.createLinearGradient(0, vy, 0, H); rg.addColorStop(0, '#1e140c'); rg.addColorStop(0.4, '#140e09'); rg.addColorStop(1, '#0a0806'); g.fillStyle = rg; g.beginPath(); g.moveTo(CX - 30, vy); g.lineTo(CX + 30, vy); g.lineTo(W + 200, H); g.lineTo(-200, H); g.closePath(); g.fill();
+  for (const sd of [-1, 1]) { g.fillStyle = '#16120e'; g.beginPath(); g.moveTo(CX + sd * 30, vy); g.lineTo(CX + sd * 40, vy); g.lineTo(sd < 0 ? -10 : W + 10, H - 90); g.lineTo(sd < 0 ? -10 : W + 10, H - 110); g.closePath(); g.fill(); }
+  g.fillStyle = 'rgba(255,240,220,.3)'; for (let k = 0; k < 8; k++) { const u = k / 8, y = vy + Math.pow(u, 1.8) * (H - vy), w = 2 + u * 6, l = 4 + u * 26; g.fillRect(CX - w / 2, y, w, l); }
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 5; k++) { const u = (k + 0.5) / 5, x = CX + 46 + u * u * 170, y = vy - 34 - u * 60, r = 2 + u * 5; g.save(); g.globalCompositeOperation = 'source-over'; g.fillStyle = '#16181c'; g.fillRect(x - 0.6 - u, y, 1.2 + 2 * u, (vy - y) + 14 + u * u * 300); g.fillRect(x - 6 - 10 * u, y - 1, 6 + 10 * u, 2 + u); g.restore(); const lg = g.createRadialGradient(x, y, 0, x, y, r * 5); lg.addColorStop(0, 'rgba(255,200,110,.9)'); lg.addColorStop(1, 'rgba(255,160,60,0)'); g.fillStyle = lg; g.fillRect(x - r * 5, y - r * 5, r * 10, r * 10); const rl = g.createLinearGradient(0, vy, 0, H); rl.addColorStop(0, 'rgba(255,170,70,.0)'); rl.addColorStop(0.3, `rgba(255,170,70,${0.12 + 0.1 * u})`); rl.addColorStop(1, 'rgba(255,170,70,0)'); g.fillStyle = rl; g.fillRect(x - r, vy, r * 2, H - vy); }
+  const hz = g.createRadialGradient(CX, vy, 10, CX, vy, 300); hz.addColorStop(0, 'rgba(255,170,90,.35)'); hz.addColorStop(1, 'rgba(255,170,90,0)'); g.fillStyle = hz; g.fillRect(0, 0, W, H);
+  g.restore();
+});
+// the lid in the street, drawn in perspective
+function miLid(x, y, rx, ry, rot, glow) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+  ctx.fillStyle = '#0a0806'; ctx.beginPath(); ctx.arc(0, 4 * rx / ry * 0 + 3, rx + 6, 0, TAU); ctx.fill();
+  ctx.rotate(rot); const k = rx / (R + 4); ctx.scale(k, k); ctx.drawImage(mhTex(false), -(R + 4), -(R + 4), 2 * (R + 4), 2 * (R + 4)); ctx.restore();
+  if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.translate(x, y); ctx.scale(1, ry / rx); ctx.strokeStyle = `rgba(255,170,80,${glow})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, rx + 4, 0, TAU); ctx.stroke(); ctx.restore(); }
+}
+function miStreet(t) {
+  blit(mhStreet());
+  const b = Math.floor((t - MT.street) / MH_BEAT), u = (t - MT.street) / MH_BEAT - b, inten = clamp((t - MT.street) / (MT.boom - MT.street), 0, 1), jump = Math.exp(-u * 7) * (4 + 14 * inten);
+  // steam leaking up round it
+  ctx.save(); for (let i = 0; i < 12; i++) { const v = (time * 0.5 + i / 12) % 1, x = CX + (hash(i, 2, 1) - 0.5) * 140 + Math.sin(v * 5 + i) * 20, y = 585 - v * 360, r = 20 + v * 70; ctx.globalAlpha = (1 - v) * (0.25 + 0.35 * inten); ctx.drawImage(gasPuff(0).c, x - r, y - r, r * 2, r * 2); } ctx.restore();
+  miLid(CX, 610 - jump, 172, 46, Math.sin(b * 1.3) * 0.08, 0.35 + 0.6 * inten * Math.exp(-u * 4));
+  if (jump > 2) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(CX, 604, 10, CX, 604, 170); g.addColorStop(0, `rgba(255,180,90,${0.4 * inten * Math.exp(-u * 5)})`); g.addColorStop(1, 'rgba(255,140,60,0)'); ctx.fillStyle = g; ctx.fillRect(CX - 170, 434, 340, 340); ctx.restore(); }
+}
+// the blast: a column of steam and fire, the lid fired up into the sky, tumbling
+function miBoom(t) {
+  const s = t - MT.boom, u = clamp(s / (MT.tilt - MT.boom), 0, 1), e = 1 - Math.pow(1 - u, 2);
+  const tilt = e * 260;   // the camera tilting up after it: the street drops away
+  ctx.save(); ctx.translate(0, tilt); blit(mhStreet()); ctx.restore();
+  ctx.save(); ctx.fillStyle = '#04060a'; ctx.fillRect(-60, -60, W + 120, tilt + 60); ctx.restore();
+  // the geyser
+  ctx.save(); for (let i = 0; i < 22; i++) { const v = (s * 1.8 + i / 22) % 1, y = 600 + tilt - v * 900, r = 40 + v * 120; ctx.globalAlpha = 0.6 * (1 - v); ctx.drawImage(gasPuff(i % 3 ? 0 : 1).c, CX + Math.sin(i * 3.7) * 40 * v - r, y - r, r * 2, r * 2); } ctx.restore();
+  const fl = Math.exp(-s * 5); if (fl > 0.02) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(CX, 600 + tilt, 10, CX, 600 + tilt, 420); g.addColorStop(0, `rgba(255,210,140,${0.8 * fl})`); g.addColorStop(1, 'rgba(255,120,40,0)'); ctx.fillStyle = g; ctx.fillRect(-60, 180 + tilt, W + 120, 840); ctx.restore(); }
+  // the lid: up, smaller, tumbling
+  const y = 600 - e * 460, rx = 150 - 112 * e, spin = s * 14; miLid(CX, y, rx, Math.max(4, rx * Math.abs(Math.cos(spin))), s * 6, 0);
+}
+// the swing up and over: the street folds away beneath, steam veils the cut, the city map is under us
+function miTilt(t) {
+  const u = clamp((t - MT.tilt) / 0.9, 0, 1);
+  const v = clamp(u / 0.45, 0, 1); if (v < 1) { ctx.save(); ctx.globalAlpha = 1 - v; ctx.translate(CX, H); ctx.scale(1, 1 - 0.8 * v); ctx.translate(-CX, -H + v * 300); blit(mhStreet()); ctx.restore(); }
+  ctx.save(); for (let i = 0; i < 22; i++) { const a = i / 22 * TAU, d = 30 + u * 520, r = 120 + u * 160; ctx.globalAlpha = 0.7 * (1 - u); ctx.drawImage(gasPuff(0).c, CX + Math.cos(a) * d - r, CY + Math.sin(a) * d - r, r * 2, r * 2); } ctx.restore();
+}
+function miTop(t) {
+  cineTitle('THE MANHOLE', 'SANITARY SEWER  No. 13', t - MT.top + 0.3, '#ffb24a', '#7fd4ff', CY + R + 150);
+}
+function drawMhIntro(t) {
+  ctx.save();
+  if (t < MT.tilt) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= MT.open && t < MT.street) introIris(t, MT.open, () => miSky(t), '255,170,100');
+  else if (t >= MT.street && t < MT.boom) miStreet(t);
+  else if (t >= MT.boom && t < MT.tilt) miBoom(t);
+  else if (t >= MT.tilt && t < MT.top) miTilt(t);
+  else if (t >= MT.top && t < MT.land) miTop(t);
+  introStarOut(t, MT.star, MT.open, 'mh');
+  if (t < MT.tilt) { blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); drawGrain(0.05); }
+  ctx.restore();
+  if (t < MT.land - 0.4) cineSkipHint();
+}
+
 // ======================= WIRE CLUMP cinematic =======================
 // ======================= FEEL + VFX (build 48) =======================
 // Screen shake as trauma: shake (pixels, as the game has always set it) maps to trauma 0..1, and the offset is
@@ -15960,6 +16750,7 @@ function update(dt) {
     if (t.bot) updateBot(t, dt);
     if (t.twin) updateTwin(t, dt);
     if (t.gas) updateGas(t, dt);
+    if (t.mh) updateMh(t, dt);
     if (t.nestPending && state === 'play' && !fx) { t.nestPending = false; startNestIntro(t); }
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
@@ -16001,7 +16792,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.gas) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost || tgt.bot || tgt.twin || tgt.gas ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.gas && !tgt.mh) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost || tgt.bot || tgt.twin || tgt.gas || tgt.mh ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   updatePieces(dt);
 }
@@ -16105,7 +16896,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone')) || (tgt.bot && tgt.bot.hide) || (tgt.twin && (tgt.twin.hide || !tgt.twin.solo)) || (tgt.gas && tgt.gas.hide)) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone')) || (tgt.bot && tgt.bot.hide) || (tgt.twin && (tgt.twin.hide || !tgt.twin.solo)) || (tgt.gas && tgt.gas.hide) || (tgt.mh && tgt.mh.hide)) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -16120,6 +16911,7 @@ function drawTarget() {
   if (t.frost) { ctx.translate(t.frost.ox, t.frost.oy); ctx.scale(t.frost.s, t.frost.s); }
   if (t.bot) { ctx.translate(t.bot.ox, t.bot.oy); ctx.scale(t.bot.s, t.bot.s); }
   if (t.gas) { ctx.translate(t.gas.ox, t.gas.oy); ctx.scale(t.gas.s, t.gas.s); }
+  if (t.mh) { ctx.translate(t.mh.ox, t.mh.oy); ctx.scale(t.mh.s, t.mh.s * t.mh.sy); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0) - (k.pen || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); if (k.freeze !== undefined) drawFrozenCoat(k); ctx.restore(); }
   drawLogSide(t);
@@ -16270,7 +17062,7 @@ function drawHUD() {
     ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(x, ty, now ? 7.5 : 6, 0, TAU); ctx.fill();
     ctx.fillStyle = done ? '#ffd23f' : now ? '#ffffff' : '#38383f'; ctx.beginPath(); ctx.arc(x, ty, now ? 5.5 : 4, 0, TAU); ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isBotStage(stage) ? 'LITANY OF THE BOTANY' : isTwinStage(stage) ? 'TWIN LOGS' : isGasStage(stage) ? 'GAS TANK' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isBotStage(stage) ? 'LITANY OF THE BOTANY' : isTwinStage(stage) ? 'TWIN LOGS' : isGasStage(stage) ? 'GAS TANK' : isMhStage(stage) ? 'THE MANHOLE' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 48, 11, bossName ? '#ff8a95' : 'rgba(255,255,255,.75)', 'center', 700);
   drawTypeMeter();
   comboPop = Math.max(0, comboPop - 0.06);
@@ -16285,9 +17077,9 @@ function drawHUD() {
     ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
   drawAbilFeed();
-  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD(); drawBotHUD(); drawBotStatus(); drawTwinHUD(); drawGasHUD();
+  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD(); drawBotHUD(); drawBotStatus(); drawTwinHUD(); drawGasHUD(); drawMhHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost || tgt.bot || tgt.twin || tgt.gas))) drawMagazine();
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost || tgt.bot || tgt.twin || tgt.gas || tgt.mh))) drawMagazine();
 }
 
 // the knife magazine: a slotted steel rack, lit knives still to throw, empty slots spent, the next one up highlighted
@@ -16761,6 +17553,7 @@ function drawScene() {
   if (tgt && tgt.bot) drawBotFront(tgt);
   if (tgt && tgt.twin) { drawTwinLogs(tgt); drawTwinFront(tgt); }
   if (tgt && tgt.gas) drawGasFront(tgt);
+  if (tgt && tgt.mh) drawMhFront(tgt);
   if (frostRays.length) drawFrostRays();
   if (tgt && tgt.tank && !tgt.tank.hide) drawTankRobot(tgt);
   if (bossBgKey(tgt) === 'boss') drawTankFore();
@@ -16801,6 +17594,7 @@ function drawScene() {
   if (fx && fx.type === 'botintro') drawBotIntro(fx.t);
   if (fx && fx.type === 'twinintro') drawTwinIntro(fx.t);
   if (fx && fx.type === 'gasintro') drawGasIntro(fx.t);
+  if (fx && fx.type === 'mhintro') drawMhIntro(fx.t);
   if (fx && fx.type === 'tiredeflate') drawTireDeflate(fx.t);
   if (fx && fx.type === 'nestintro') drawNestIntro(fx.t);
   if (fx && fx.type === 'abkill') drawAbKill(fx.t);
@@ -16828,6 +17622,7 @@ function drawScene() {
   if (tgt && tgt.bot && state !== 'menu') drawBotScreen(tgt);
   if (tgt && tgt.twin && state !== 'menu') drawTwinScreen(tgt);
   if (tgt && tgt.gas && state !== 'menu') drawGasScreen(tgt);
+  if (tgt && tgt.mh && state !== 'menu') drawMhScreen(tgt);
 
   if (state !== 'menu') drawForeground();
   ctx.restore();
@@ -16835,7 +17630,7 @@ function drawScene() {
   if (ixq.length && state !== 'menu') drawIxTitles();
   if (sporeT > 0 && state !== 'menu') drawSporeHaze();
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal) || (fx.type === 'botintro' && fx.t < BSHOT.reveal) || (fx.type === 'twinintro' && fx.t < TWSHOT.reveal) || (fx.type === 'gasintro' && fx.t < GSHOT2.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal) || (fx.type === 'botintro' && fx.t < BSHOT.reveal) || (fx.type === 'twinintro' && fx.t < TWSHOT.reveal) || (fx.type === 'gasintro' && fx.t < GSHOT2.reveal) || (fx.type === 'mhintro' && fx.t < MSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -17106,7 +17901,7 @@ function drawBackdrop() {
     if (state !== 'menu') { ctx.save(); ctx.translate(px * 0.5, py * 0.5); ctx.globalAlpha = 0.05 + (tgt ? tgt.hit * 0.06 : 0); dtext(String(stage).padStart(2, '0'), CX, CY + 6, 250, '#ffffff', 'center', null, -0.18); ctx.restore(); }
   }
   if (!bk && state !== 'menu') { drawMillFloor(px, py); drawMillLight(px, py); }
-  if (bk !== 'boss' && bk !== 'twin' && bk !== 'gas') {
+  if (bk !== 'boss' && bk !== 'twin' && bk !== 'gas' && bk !== 'mh') {
   // hanging chains and hooks, swinging with the camera
   ctx.save(); ctx.translate(px * 0.8, py * 0.8);
   for (let i = 0; i < 5; i++) {
@@ -17126,7 +17921,7 @@ function drawBackdrop() {
   }
   }
   // rotating reticle around the log
-  ctx.save(); if ((tgt && tgt.twin && !tgt.twin.solo) || bossBgKey(tgt) === 'gas') ctx.globalAlpha = 0; ctx.translate(CX, CY); ctx.rotate(-time * 0.6);
+  ctx.save(); if ((tgt && tgt.twin && !tgt.twin.solo) || bossBgKey(tgt) === 'gas' || bossBgKey(tgt) === 'mh') ctx.globalAlpha = 0; ctx.translate(CX, CY); ctx.rotate(-time * 0.6);
   ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
   ctx.beginPath(); ctx.arc(0, 0, R + 44, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = '#ffffff';
@@ -17135,7 +17930,7 @@ function drawBackdrop() {
   ctx.strokeStyle = '#38383f'; ctx.lineWidth = 1.5;
   for (let i = 0; i < 24; i++) { ctx.rotate(TAU / 24); ctx.beginPath(); ctx.moveTo(0, -R - 30); ctx.lineTo(0, -R - (i % 3 ? 34 : 40)); ctx.stroke(); }
   ctx.restore();
-  if (bk === 'gas') return;
+  if (bk === 'gas' || bk === 'mh') return;
   // runway: dashed lane from the knife to the log, scrolling upward
   ctx.fillStyle = '#2a2a31';
   const lo = (time * 260) % 24;
@@ -17147,7 +17942,7 @@ function drawBackdrop() {
 // the plane in front of the action: sawdust in the air and out-of-focus rigging that slides the other way
 function introCovering() { return !!(fx && /intro$/.test(fx.type)); }
 function drawForeground() {
-  if (introCovering() || bossBgKey(tgt) === 'boss' || bossBgKey(tgt) === 'twin' || bossBgKey(tgt) === 'gas') return;
+  if (introCovering() || bossBgKey(tgt) === 'boss' || bossBgKey(tgt) === 'twin' || bossBgKey(tgt) === 'gas' || bossBgKey(tgt) === 'mh') return;
   const px = plx.x, py = plx.y;
   for (let i = 0; i < 34; i++) {
     const dz = 1.15 + hash(i, 8, 1) * 1.5, sp = 6 + hash(i, 8, 2) * 16;
@@ -17353,15 +18148,16 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of nine bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of nine bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
-  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of nine bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
-  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of nine bosses, at random). THE ICE LAYER takes 18 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). Two or three FROZEN SPECIES blocks sit on the rim: break them to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin, and a CRYSTAL BURST rings the rim with spikes every few seconds: hold your throw. The RAW LOG takes 18 more: PARTIAL ICE regrows the shell if left 35s, and BREAKAWAYS fire icicles. Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
-  { cat: 'BOSS', name: 'LITANY OF THE BOTANY', bot: true, how: 'Stage 5 (one of nine bosses, at random). Five great VINES lock its spin to the arc between two of them. VINE PHASE: a white spider lily buds in the arc and blooms after 10s; black tentacles crawl out to strangle it, so hit them. Strike 3 bloomed lilies and a vine tears away, widening the arc: four phases, then it spins free and 5 hits end it. Special lilies: blue (counts double), red (half a heart), golden (5 apples), surprise (blinds you) and electric (shocks you). Flytraps snap when open, poison ivy costs half a heart, nightshade a whole one. Floral vines make 35% of throws bloom instead (60s), roses splinter you (10 throws, 20% to lose a heart), vine tentacles steal your knife 6s (cut them as they reach). The mature hollow swallows knives and spits them back (parry); hit it 5 times while its eyes are shut. Breakaways bare eyes that drain your SANITY.', abil: 'Ability knives pass the growths on the rim.' },
-  { cat: 'BOSS', name: 'TWIN LOGS', twin: true, how: 'Stage 5 (one of nine bosses, at random). CASTOR and POLLUX, 20 HP each, were cut from one tree and orbit one another in a forest grove. ORBIT: they reverse without warning, swap places through the middle (and flip whose turn it is), SHELTER (the stronger parks in front of its twin and takes your throws), WHIRL and PLUNGE at you. TURNS: your throw homes in on one twin, the next on the other, and so on; whoever is in the way takes it instead. INTERTWINED PITH: if their HP drifts more than 6 apart the stronger twin charges you and the run is over, so use eclipses and misses to rebalance. ABILITIES: either twin grows BRANCHES (snap them, but the throw is spent), turns to SPIRALWOOD (its knives slide every 2 hits), raises a RINGWOOD band (aim for the gaps) or forms a PITH LINK (every hit lands on both). ONE LAST LOG: kill one and the other takes the centre as an ordinary log.', abil: 'Ability knives home in on the twin whose turn it is and hit it for double: watch the balance.' },
-  { cat: 'BOSS', name: 'GAS TANK', gas: true, how: 'Stage 5 (one of nine bosses, at random). An upright tank of flammable gas strapped to a truck racing down a night highway, 30 hits. PRESSURE: the gauge on its lid climbs all the time, faster with each knife and while its vents are capped; at 100% it BLOWS OUT, costs you a heart and blasts knives off it. VENTS: hit a red vent cap to pop it and the vent blows, bleeding pressure, but a vent blowing down your lane blasts your throws aside. HEATING REGION: quench the rim while it only glows orange; never hit it white hot. RAILS: steel ladders on the rim that break your knife, and they shift. IGNITION at 14 left: the vents breathe fire and it lobs FIREBALLS down the lane; knock them out of the air. CRITICAL at 5: everything speeds up.', abil: 'Ability knives pass the vents, rails and hot metal.' },
-  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of nine bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of nine bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of ten bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of ten bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
+  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of ten bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
+  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of ten bosses, at random). THE ICE LAYER takes 18 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). Two or three FROZEN SPECIES blocks sit on the rim: break them to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin, and a CRYSTAL BURST rings the rim with spikes every few seconds: hold your throw. The RAW LOG takes 18 more: PARTIAL ICE regrows the shell if left 35s, and BREAKAWAYS fire icicles. Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
+  { cat: 'BOSS', name: 'LITANY OF THE BOTANY', bot: true, how: 'Stage 5 (one of ten bosses, at random). Five great VINES lock its spin to the arc between two of them. VINE PHASE: a white spider lily buds in the arc and blooms after 10s; black tentacles crawl out to strangle it, so hit them. Strike 3 bloomed lilies and a vine tears away, widening the arc: four phases, then it spins free and 5 hits end it. Special lilies: blue (counts double), red (half a heart), golden (5 apples), surprise (blinds you) and electric (shocks you). Flytraps snap when open, poison ivy costs half a heart, nightshade a whole one. Floral vines make 35% of throws bloom instead (60s), roses splinter you (10 throws, 20% to lose a heart), vine tentacles steal your knife 6s (cut them as they reach). The mature hollow swallows knives and spits them back (parry); hit it 5 times while its eyes are shut. Breakaways bare eyes that drain your SANITY.', abil: 'Ability knives pass the growths on the rim.' },
+  { cat: 'BOSS', name: 'TWIN LOGS', twin: true, how: 'Stage 5 (one of ten bosses, at random). CASTOR and POLLUX, 20 HP each, were cut from one tree and orbit one another in a forest grove. ORBIT: they reverse without warning, swap places through the middle (and flip whose turn it is), SHELTER (the stronger parks in front of its twin and takes your throws), WHIRL and PLUNGE at you. TURNS: your throw homes in on one twin, the next on the other, and so on; whoever is in the way takes it instead. INTERTWINED PITH: if their HP drifts more than 6 apart the stronger twin charges you and the run is over, so use eclipses and misses to rebalance. ABILITIES: either twin grows BRANCHES (snap them, but the throw is spent), turns to SPIRALWOOD (its knives slide every 2 hits), raises a RINGWOOD band (aim for the gaps) or forms a PITH LINK (every hit lands on both). ONE LAST LOG: kill one and the other takes the centre as an ordinary log.', abil: 'Ability knives home in on the twin whose turn it is and hit it for double: watch the balance.' },
+  { cat: 'BOSS', name: 'GAS TANK', gas: true, how: 'Stage 5 (one of ten bosses, at random). An upright tank of flammable gas strapped to a truck racing down a night highway, 30 hits. PRESSURE: the gauge on its lid climbs all the time, faster with each knife and while its vents are capped; at 100% it BLOWS OUT, costs you a heart and blasts knives off it. VENTS: hit a red vent cap to pop it and the vent blows, bleeding pressure, but a vent blowing down your lane blasts your throws aside. HEATING REGION: quench the rim while it only glows orange; never hit it white hot. RAILS: steel ladders on the rim that break your knife, and they shift. IGNITION at 14 left: the vents breathe fire and it lobs FIREBALLS down the lane; knock them out of the air. CRITICAL at 5: everything speeds up.', abil: 'Ability knives pass the vents, rails and hot metal.' },
+  { cat: 'BOSS', name: 'THE MANHOLE', mh: true, how: 'Stage 5 (one of ten bosses, at random). A cast-iron manhole cover blown off the street by a sewer blast and still climbing, 30 hits. STEAM jets out of its rim: one down your lane blows your knife aside. RATS rode it up: they run the rim, grab stuck knives and leap off with them (each one they steal heals it), so skewer them first. BIRDS cross its path: one that flies over the lid is smashed by the rising iron and bursts across your screen in blood; hit a bird in your lane before it gets there. INTO THE CLOUDS (20 left) it TUMBLES: edge on it cannot be hit. THE STORM (10 left): lightning makes the iron live, and a knife thrown at live iron stuns you.', abil: 'Ability knives cut through steam, rats and live iron.' },
+  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of ten bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of ten bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -17389,6 +18185,7 @@ function demoFor(e) {
   if (e.type === 'blackout') { const D = t.f.dark; D.hold = 0; D.lvl = 1; D.lamps = [{ a: 0.2, w: 0.5, t: 0.6, dur: 1e9, seed: 1 }, { a: 2.9, w: 0.4, t: 0.6, dur: 1e9, seed: 2 }]; t.stuck = [{ a: 0.4 }, { a: 1.7 }, { a: 4.4 }]; }
   if (e.nest) { setupNest(t); t.nest.hide = false; t.stuck = [{ a: 0.4, inf: 1 }, { a: 2.6, inf: 1 }]; t.nest.breaches.push({ a: 4.4, spent: false, born: -9, seed: 3 }); }
   if (e.wire) { setupWire(t); const T = t.wire; T.hide = false; T.grounds = [{ a: 1.4, t: 0, life: 1e9, grow: 1, seed: 1 }]; T.cutters = [{ a: 3.7, t: 1.5, dur: 1e9, in: 1 }]; T.volt = 0.5; }
+  if (e.mh) { setupMh(t); const M = t.mh; M.hide = false; M.rats = [{ a: 2.0, dir: 1, sp: 0, carry: { t: 0 }, t: 0, ph: 0, wait: 1e9 }]; M.stains = [{ a: 4.2, r: 40, s: 22, seed: 7 }]; M.jets = [{ a: 5.2, st: 'on', t: 1, dur: 1e9 }]; t.stuck = [{ a: 0.8 }, { a: 3.3 }]; }
   if (e.gas) { setupGas(t); const G = t.gas; G.hide = false; G.P = G.Pv = 64; G.zones = [{ a: 3.4, w: 0.3, st: 'warm', t: 1, seed: 1 }]; G.vents[1].st = 'blowing'; G.vents[1].t = 0; G.vents[1].dur = 1e9; t.stuck = [{ a: 1.6 }, { a: 4.3 }]; }
   if (e.twin) { setupTwin(t); const T = t.twin; T.hide = false; T.D = 74; T.L[0].stuck = [{ a: 0.6 }, { a: 2.8 }]; T.L[1].stuck = [{ a: 1.4 }, { a: 4.1 }]; T.L[0].br = [{ a: 4.6, alive: true, grow: 1, leaf: true }]; T.L[1].ring = { t: 1, life: 1e9, rise: 1, rot: 0.4, sp: 0, gaps: [0, Math.PI] }; T.L[1].hp = 17; }
   if (e.bot) { setupBot(t); const B = t.bot; B.hide = false; for (const v of B.vines) { v.ex = CX + Math.cos(v.a) * 190; v.ey = CY + Math.sin(v.a) * 190; } B.lily = { kind: 'white', a: HALF, t: 4, grow: 10, mature: false, seed: 2, tentAt: 99, tent: { t: 1.2, st: 'crawl', hp: 1 } }; B.spec = [{ kind: 'red', a: HALF + 0.9, t: 9, grow: 6, mature: true, seed: 5, tentAt: 99, guard: 0 }]; B.roses = [{ a: 3.6, t: 5, life: 99, seed: 3 }]; B.obs = [{ kind: 'flytrap', a: 5.0, t: 5, life: 999, cyc: 0, open: true, seed: 4, hitT: 0 }]; B.eyes = [{ a: 2.6, w: 0.2, t: 5, seed: 6 }]; B.hollow = { a: 0.3, hp: 5, eyeT: 0, closed: false, stored: 1, cd: 9, hitT: 0, grow: 1, seed: 1 }; }
@@ -17773,7 +18570,7 @@ function drawEncyScreen() {
 function drawDemoLog(t, x, y, s) {
   const saved = tgt; tgt = t;
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.translate(-CX, -CY);
-  if (t.twin) { const T = t.twin; T.ang = time * 0.5; for (const L of T.L) L.rot = time * (L.i ? -1.1 : 1.1); twinPlace(T); drawTwinBack(t); drawTwinLogs(t); } if (t.bot) drawBotVines(t); drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.bot) drawBotFront(t); if (t.gas) drawGasFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
+  if (t.twin) { const T = t.twin; T.ang = time * 0.5; for (const L of T.L) L.rot = time * (L.i ? -1.1 : 1.1); twinPlace(T); drawTwinBack(t); drawTwinLogs(t); } if (t.bot) drawBotVines(t); drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.bot) drawBotFront(t); if (t.gas) drawGasFront(t); if (t.mh) drawMhFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
   if (ENTRIES[ui.idx].apple) { ctx.save(); ctx.translate(CX, CY); ctx.scale(2.4, 2.4); drawApple(); ctx.restore(); }
   ctx.restore(); tgt = saved;
 }
@@ -17791,7 +18588,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 67', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 68', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -17990,6 +18787,7 @@ view.addEventListener('pointerdown', e => {
   if (fx && fx.type === 'botintro') { skipBotIntro(); return; }
   if (fx && fx.type === 'twinintro') { skipTwinIntro(); return; }
   if (fx && fx.type === 'gasintro') { skipGasIntro(); return; }
+  if (fx && fx.type === 'mhintro') { skipMhIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -17998,7 +18796,7 @@ view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (e.p
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
   if (adminOpen) return;
-  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro' || fx.type === 'botintro' || fx.type === 'twinintro' || fx.type === 'gasintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro' || fx.type === 'botintro' || fx.type === 'twinintro' || fx.type === 'gasintro' || fx.type === 'mhintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
@@ -18036,7 +18834,7 @@ function frame(now) {
 // ======================= ADMIN PANEL =======================
 // A gear button in the corner opens it (the game pauses): pick the next log type and the next boss, jump around, cheat.
 let adminOpen = false, adminNextType = null, adminNextBoss = null, adminGod = false;
-const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost'], ['bot', 'Litany of the Botany'], ['twin', 'Twin Logs'], ['gas', 'Gas Tank']];
+const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost'], ['bot', 'Litany of the Botany'], ['twin', 'Twin Logs'], ['gas', 'Gas Tank'], ['mh', 'The Manhole']];
 function syncAdmin() {
   const ty = document.getElementById('admType'), bo = document.getElementById('admBoss'), note = document.getElementById('admNote');
   if (!ty) return;
@@ -18050,7 +18848,7 @@ function adminJump(n) {
   flying = []; debris = []; parts = []; pieces = []; impactT = 0; gray = 0; frac = null; gridFrac = null; finale = false; stunT = 0; zapT = 0; lightIn = 0;
   if (lives <= 0) lives = MAX_LIVES;
   stage = n; setMusic('main'); newStage();
-  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.gas && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
+  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.gas && !tgt.mh && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
 }
 function setAdmin(open) {
   adminOpen = open; const pn = document.getElementById('adm');

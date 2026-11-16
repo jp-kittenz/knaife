@@ -2,6 +2,34 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 68
+- **New boss: The Manhole.** Stage 5 now picks one of ten bosses at random.
+- **The fight:** a cast-iron manhole cover blown off the street by a sewer blast and still climbing, seen from above as the city falls away beneath it. It takes 30 hits.
+  - **Steam jets:** steam bursts out of the rim with a hiss. A jet blowing down your lane blows your knife aside.
+  - **Rats:** rats that rode it up run round the rim, grab stuck knives and leap off with them; every knife they steal heals the lid. Skewer a rat to stop it, and any knife it was carrying goes back in.
+  - **Birds:** eagles, kites, falcons, vultures and harriers fly across in overhead silhouette. One that flies over the lid is smashed by the rising iron and bursts across your screen in blood that drips and slowly fades, leaving stains on the lid. Hit a bird in your lane before it gets there.
+  - **Into the clouds (20 hits left):** the lid tumbles end over end, showing its rusty, slimy underside. Edge on, it cannot be hit.
+  - **The storm (10 hits left):** lightning strikes the iron. A knife thrown at live iron stuns you, and birds come in flocks.
+  - **Death:** it cracks at the top of its climb and bursts (TERMINAL VELOCITY).
+- **Art:**
+  - **Top:** a raised rim, CITY OF KNAIFE / SANITARY SEWER lettering, a raised diamond grid, an MH No 13 medallion, rust, and two pick holes glowing with the fire below.
+  - **Underside:** rusty radial ribs and sewer slime.
+  - **Rats:** the rats carry stolen knives in their teeth.
+- **Background:** looking straight down from above the climbing lid. A night city of lit streets, towers, a river and a glowing boulevard shrinks away as the lid gains height, and cloud banks rise past it. The song decides the weather:
+  - **Low cloud:** street lights pulse and aircraft lights blink on the beat.
+  - **Cloud sea:** a sea of cloud with gaps over the city.
+  - **Storm:** thunderheads lit by lightning on every bar, with rain streaking away below.
+  - **Above the clouds:** a calm moonlit stretch over the cloud tops.
+  - **Thin air:** an airliner crosses far below.
+- **Music:** DESERVED FATE (100 BPM), cut so the intro sits on the song's quiet break, and looping after the intro.
+- **Intro, timed to the song:**
+  - **Skyline:** a night skyline under an orange crescent moon, windows blinking on the beat, with the camera sinking down the towers.
+  - **Street:** when the music drops away, a wet street at lamp level with a manhole in the foreground, rattling harder and leaking steam on every beat.
+  - **Blast:** when the music crashes back in, the sewer blows and the cover is fired into the sky, tumbling.
+  - **Overhead:** the camera swings up and over it as the street folds away into the city map below.
+  - **Landing:** THE MANHOLE title, then it lands on the bar.
+- **Abilities and set pieces:** one interaction per knife ability, and 30 situations for each knife on this boss.
+
 ## Build 67
 - **Gas Tank: the truck, the road and the fight reworked.**
 - **The truck, after the reference:** a semi with a rounded red cab and wraparound windscreen, a black coupling with the fifth wheel and red and blue air lines, and a long ribbed box trailer with amber side markers. The tank rides in a steel cradle on the trailer roof, chained to the roof rails, with a hazmat placard and FLAMMABLE GAS stencilled behind it.
