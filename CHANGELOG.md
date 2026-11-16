@@ -2,6 +2,31 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 65
+- **Twin Logs: forest redesign.** The space theme is gone. The fight now takes place in THE TWIN GROVE, a forest clearing at night.
+- **Background:** three layers of swaying pines, a moon, mist, falling leaves, god rays, great framing trunks and ferns in the corners. It follows the song section by section:
+  - **Main:** dusk with god rays, and fireflies that blink in turn on each beat of the bar.
+  - **Break:** a misty gale with leaves streaming sideways.
+  - **Dip:** the grove goes dark.
+  - **Drops:** a storm with rain, and lightning behind the pines on every other bar.
+  - **Quiet middle:** still night, a big moon and owl eyes in the trees.
+  - **Build:** the wind rises and the horizon warms bar by bar.
+  - **Beat:** the pines bob on the bass and the ferns kick on the downbeat.
+- **New intro, timed to the song:**
+  - **The tree:** one great tree stands in the dark forest.
+  - **The axe:** it bites into the trunk on each of the three hi-hats.
+  - **The split:** on the low hit a lightning bolt splits the tree and the halves fall apart.
+  - **The saw:** a circular saw slams down three times and cuts two rounds.
+  - **The rounds:** on the drum roll they rise and turn to face you, then circle a glowing seed with roots twisting between them.
+  - **Text:** the "Syzygy of the Unyielding" titles are removed; the title card now reads TWIN LOGS / CASTOR & POLLUX.
+- **Arena:**
+  - **Arrows:** the red orbit arrows are removed. A ring of fireflies now traces the orbit, with a bright head that runs round it on the eighth notes.
+  - **Pith thread:** the thread between the piths is now two twisting roots with buds. They split and glow hot as the HP gap grows.
+  - **Seed:** the twins orbit a glowing acorn.
+  - **Shelter:** the Eclipse move is now SHELTER. A whirl of leaves surrounds the twin standing guard.
+- **The logs:** moss cushions and a winding ivy vine on the bark, and moonlight rim light.
+- **Death:** the last log falls to "TIMBER!".
+
 ## Build 64
 - **New boss: Twin Logs (Castor and Pollux).** Stage 5 now picks one of eight bosses at random.
 - **The fight:**
