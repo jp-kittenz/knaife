@@ -2,6 +2,37 @@
 
 Build numbers are shown in the bottom-right corner of the main menu.
 
+## Build 66
+- **New boss: Gas Tank.** Stage 5 now picks one of nine bosses at random.
+- **The fight:** an upright tank of flammable gas strapped to the bed of a truck racing down a night highway, seen from above. It takes 30 hits.
+  - **Pressure:** the gauge on its lid climbs all the time. It rises faster with every knife you land and while its vents are capped. At 100% the tank BLOWS OUT: you lose a heart and knives are blasted off it.
+  - **Vents:** hit a red vent cap to pop it. The vent then blows for a few seconds and bleeds pressure, but while it blows down your lane it blasts your throws aside.
+  - **Heating region:** a patch of the rim heats up under a warning sign. Hit it while it only glows orange to quench it (+1). Never hit it once it burns white hot.
+  - **Rails:** steel ladders on the rim break any knife that hits them, and every so often they slide to a new place.
+  - **Ignition (14 hits left):** the burner lights, the vents breathe fire, and it lobs fireballs down your lane. Throw a knife into a fireball to knock it out of the air.
+  - **Critical (5 hits left):** it spins and shifts faster.
+  - **Death:** the tank goes up in a fireball.
+- **Art:** the tank lid is drawn as one piece:
+  - **Lid:** a teal steel dome inside a riveted rim with a hazard-striped band, and a weld seam.
+  - **Fittings:** a copper coil runs from the central red valve wheel out to the pressure gauge, beside a flammable warning triangle and LPG / UN 1075 stencils.
+  - **Rim:** the rails, vent pipes and heating region are mounted on the rim.
+  - **On the truck:** the tank sits in a steel cradle on the truck's diamond-plate bed, chained to the deck, with the cab ahead and a hazmat placard on the rear bumper.
+- **Background:** the road streams under the truck at a speed locked to the tempo. A sodium lamp sweeps over the truck every half bar, cat's eyes and lane dashes rush past, the road weaves, the tyres roll and exhaust puffs out on every bar. The surroundings follow the song:
+  - **Highway:** lamps and a guardrail.
+  - **Tunnel:** a ceiling light sweeps over on every beat.
+  - **Refinery:** pipelines and flare-stack glow.
+  - **Bridge:** girder shadows cross on every beat.
+  - **The chase:** police lights flash red and blue.
+  - **Inferno:** a blast on every bar, embers, and sparks off the guardrail.
+- **Music:** Spero (195 BPM), looping from the drop.
+- **Intro, timed to the song:**
+  - **Gauge:** a pressure gauge in macro, its needle ticking up on every beat.
+  - **Hazard:** stripes scroll past, and DANGER / FLAMMABLE GAS are stamped on.
+  - **Valve:** the red valve wheel turns as gas spits off it.
+  - **The truck:** it roars up into frame and swerves round traffic, then the camera pushes in on the tank under the title.
+  - **Countdown:** a pressure count climbs 85% / 90% / 95% / 99% on the drum roll, and the fight starts on the drop.
+- **Abilities and set pieces:** one interaction per knife ability, and 30 situations for each knife on this boss.
+
 ## Build 65
 - **Twin Logs: forest redesign.** The space theme is gone. The fight now takes place in THE TWIN GROVE, a forest clearing at night.
 - **Background:** three layers of swaying pines, a moon, mist, falling leaves, god rays, great framing trunks and ferns in the corners. It follows the song section by section:

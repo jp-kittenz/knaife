@@ -428,9 +428,9 @@ const sfx = {
 
 // ---------- music: two tracks (main / boss) that crossfade; each plays as an <audio> element first and
 // is upgraded to a decoded Web Audio buffer when possible (needed for the pitch/muffle effects) ----------
-const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3', bot: 'assets/bot.mp3', twin: 'assets/twin.mp3' };
+const TRACKS = { main: 'assets/music.mp3', boss: 'assets/boss.mp3', gear: 'assets/gear.mp3', tire: 'assets/tire.mp3', nest: 'assets/nest.mp3', queen: 'assets/queen.mp3', wire: 'assets/wire.mp3', frost: 'assets/frost.mp3', bot: 'assets/bot.mp3', twin: 'assets/twin.mp3', gas: 'assets/gas.mp3' };
 // bar-aligned loop points (seconds, as Chromium decodes the files): the intro plays once, then the body loops on a crossfaded seam
-const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [52.14, 240.47], bot: [31.977, 153.77], twin: [18.366, 269.795] };
+const LOOPS = { nest: [33.199, 110.0094], queen: [0.121, 19.3236], wire: [38.235, 93.609], frost: [52.14, 240.47], bot: [31.977, 153.77], twin: [18.366, 269.795], gas: [10.244, 152.999] };
 function loopSrc(src, name) { const L = LOOPS[name]; if (L && src.buffer && src.buffer.duration > L[1] - 0.02) { src.loopStart = L[0]; src.loopEnd = Math.min(L[1], src.buffer.duration); } }
 const music = { tracks: {}, cur: 'main', rate: 1, cut: 20000, t: 0, unlocked: false };
 function trackObj(name) {
@@ -511,6 +511,7 @@ function updateMusic(rdt) {
   else if (fx && fx.type === 'frostintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'botintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'twinintro') { rate = 1; cut = 20000; vol = 0.66; }
+  else if (fx && fx.type === 'gasintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx && fx.type === 'tireintro') { rate = 1; cut = 20000; vol = 0.62; }
   else if (fx && fx.type === 'gearintro') { rate = 1; cut = 20000; vol = 0.66; }
   else if (fx) { rate = 0.55 + 0.45 * tscale; cut = fx.t < fx.freeze ? 400 : 1600 + 8000 * tscale; }
@@ -735,10 +736,10 @@ function drawLive(t) {
 }
 
 function drawFace(t) {
-  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : t.bot ? makeBotTexture(t) : t.twin ? makeTwinTexture(t) : makeLogTexture(t);
+  if (!t.tex) t.tex = t.tank ? makeTankTexture(t) : t.gear ? makeGearTexture(t) : t.tire ? makeTireTexture(t) : t.nest ? makeNestTexture(t) : t.wire ? makeWireTexture(t) : t.frost ? makeFrostTexture(t) : t.bot ? makeBotTexture(t) : t.twin ? makeTwinTexture(t) : t.gas ? makeGasTexture(t) : makeLogTexture(t);
   const h = (R + 4);
   ctx.drawImage(t.tex, -h, -h, h * 2, h * 2);
-  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else if (t.bot) drawBotLive(t); else if (t.twin) drawTwinLive(t); else drawLive(t);
+  if (t.tank) drawTankLive(t); else if (t.gear) drawGearLive(t); else if (t.tire) drawTireLive(t); else if (t.nest) drawNestLive(t); else if (t.wire) drawWireLive(t); else if (t.frost) drawFrostLive(t); else if (t.bot) drawBotLive(t); else if (t.twin) drawTwinLive(t); else if (t.gas) drawGasLive(t); else drawLive(t);
   if (t.marks) drawMarks(t);
 }
 
@@ -914,7 +915,7 @@ function menuTarget() {
 }
 
 function newStage() {
-  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost', 'bot', 'twin'][Math.floor(rand(8))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
+  if (isFirstBossSlot(stage)) { firstBoss = adminNextBoss || forceBoss || ['tank', 'gear', 'tire', 'nest', 'wire', 'frost', 'bot', 'twin', 'gas'][Math.floor(rand(9))]; if (adminNextBoss) { adminNextBoss = null; syncAdmin(); } }
   let admType = null; if (adminNextType && stage % 5 !== 0) { admType = adminNextType; adminNextType = null; syncAdmin(); }
   const boss = stage % 5 === 0;
   knivesTotal = boss ? Math.min(8 + Math.floor(stage / 5), 12) : Math.min(5 + Math.ceil(stage * 0.6), 10);
@@ -924,10 +925,10 @@ function newStage() {
   const nApples = Math.random() < (boss ? 0.9 : 0.55) ? (Math.random() < 0.35 ? 2 : 1) : 0;
   const appleAngles = placeAngles(nApples, 0.5, stuck);
   setHD(true);
-  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage), botB = boss && isBotStage(stage), twinB = boss && isTwinStage(stage);
+  const tanker = boss && isTankStage(stage), gearB = boss && isGearStage(stage), tireB = boss && isTireStage(stage), nestB = boss && isNestStage(stage), wireB = boss && isWireStage(stage), frostB = boss && isFrostStage(stage), botB = boss && isBotStage(stage), twinB = boss && isTwinStage(stage), gasB = boss && isGasStage(stage);
   const pal = boss && !nestB ? BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length] : WOODS[Math.floor(rand(WOODS.length))];
   tgt = makeTarget(pal, tanker ? makePattern(4, false) : makePattern(stage, boss && !nestB), stuck, appleAngles, boss && !nestB);
-  const type = tanker || gearB || tireB || wireB || frostB || botB || twinB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
+  const type = tanker || gearB || tireB || wireB || frostB || botB || twinB || gasB ? 'plain' : nestB ? 'branches' : forceType || admType || (stage === 1 ? 'plain' : !boss && hasPassive('birdheart') && Math.random() < 0.3 ? 'branches' : Math.random() < 0.12 ? 'plain' : LOG_TYPES[Math.floor(rand(LOG_TYPES.length))]);
   decorate(tgt, type);
   if (hasPassive('birdheart') && !boss && type !== 'branches' && stage > 1 && Math.random() < 0.3) {   // a bonus perch on any other log
     const taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a), (tgt.f.kegs || []).map(k => k.a), (tgt.f.ice || []).map(i => i.a), tgt.f.treehole ? [tgt.f.treehole.a] : [], tgt.f.bushes.map(b => b.a), tgt.f.moss.map(m => m.a));
@@ -948,6 +949,7 @@ function newStage() {
   if (frostB) { setupFrost(tgt); knivesTotal = knivesLeft = FROST_ICE; banner.t = 0; startFrostIntro(tgt); }
   if (botB) { setupBot(tgt); knivesTotal = knivesLeft = botTotal(tgt.bot); banner.t = 0; startBotIntro(tgt); }
   if (twinB) { setupTwin(tgt); knivesTotal = knivesLeft = TWIN_HP * 2; banner.t = 0; startTwinIntro(tgt); }
+  if (gasB) { setupGas(tgt); knivesTotal = knivesLeft = GAS_HP; banner.t = 0; startGasIntro(tgt); }
   if (nestB) {   // in disguise: a branched log with one beehive on it
     const F = tgt.f, taken = tgt.stuck.map(s => s.a).concat(tgt.apples.map(a => a.a));
     const far = () => { let best = 0, bd = -1; for (let i = 0; i < 72; i++) { const a = i / 72 * TAU, d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } } taken.push(best); return best; };
@@ -1018,6 +1020,7 @@ function stepKnife(k) {
   if (t.frost && frostFlightHit(k, t)) return;
   if (t.bot && botFlightHit(k, t)) return;
   if (t.twin && twinFlightHit(k, t)) return;
+  if (t.gas && gasFlightHit(k, t)) return;
   // hit another knife?
   let hitWood = false;
   if (!k.pierce) for (const s of t.stuck) {
@@ -1149,6 +1152,7 @@ function clearStage() {
   if (t.frost) { frostClear(t); return; }
   if (t.bot) { botClear(t); return; }
   if (t.twin) { twinClear(t); return; }
+  if (t.gas) { gasClear(t); return; }
   if (t.nestBait) { if (t.nestGo && !fx) { t.nestPending = false; startNestIntro(t); } return; }
   if (t.nest && !t.nest.queen) { startQueenRise(t); return; }
   if (t.nest && !t.nest.dead) { t.nest.dead = true; startNestDeath(t); return; }
@@ -1746,6 +1750,10 @@ function updateFx(rdt) {
     case 'twinsplit': updateTwinSplit(t); break;
     case 'twincharge': updateTwinCharge(t); break;
     case 'twindeath': updateTwinDeath(t); break;
+    case 'gasintro': updateGasIntro(t); break;
+    case 'gasblow': updateGasBlow(t); break;
+    case 'gasignite': updateGasIgnite(t); break;
+    case 'gasdeath': updateGasDeath(t); break;
     case 'nestintro': updateNestIntro(t); break;
     case 'queenrise': updateQueenRise(t); break;
     case 'nestdeath': updateNestDeath(t); break;
@@ -2067,6 +2075,7 @@ function stickNormal(k, t) {
   if (t.frost && frostSurfaceHit(k, t, a)) return;
   if (t.bot && botSurfaceHit(k, t, a)) return;
   if (t.twin && twinSurfaceHit(k, t, a)) return;
+  if (t.gas && gasSurfaceHit(k, t, a)) return;
   if (F && F.mag && magPoleHit(k, t, a)) return;
   if (F && F.vines && F.vines.length && vineSnag(k, t, a)) return;
   if (F && F.stone && F.stone.length && stoneHit(k, t, a)) return;
@@ -2078,6 +2087,7 @@ function stickNormal(k, t) {
   if (t.frost) frostStuck(t, s, a);
   if (t.bot) botStuck(t, s, a);
   if (t.twin) twinStuck(t, s, a);
+  if (t.gas) gasStuck(t, s, a);
   if (F && F.ice && F.ice.length) iceStick(t, s, a);
   if (F && F.shrooms && F.shrooms.length) shroomStick(t, s, a);
   if (F && F.runes) runeStick(t, s, a);
@@ -5092,7 +5102,7 @@ function abilityMeetsLog(t, id, a) {
 let stunShield = 0, abilFeed = [];
 const INTER_KEYS = ['type:plain', 'type:branches', 'type:holes', 'type:bushes', 'type:moss', 'type:bark', 'type:treehole', 'type:saw', 'type:blackout', 'type:tnt', 'type:ice', 'type:lodestone', 'type:bramble', 'type:fungal', 'type:runestone', 'type:spiralwood', 'type:resinwood', 'type:petrified', 'type:embercore', 'type:ringwood',
   'sub:swirl', 'sub:fire', 'sub:hive', 'sub:wire', 'sub:linked', 'bird:song', 'bird:crow', 'bird:pecker', 'bird:owl', 'apples', 'hidden',
-  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:bot', 'boss:twin', 'boss:classic'];
+  'boss:tank', 'boss:gear', 'boss:tire', 'boss:nest', 'boss:queen', 'boss:wire', 'boss:frost', 'boss:bot', 'boss:twin', 'boss:gas', 'boss:classic'];
 const KNIFE_COL = { strong: '#ffffff', marker: '#ff2e45', carve: '#f2cf94', chain: '#2ad8ff', cook: '#ffa04a' };
 function feed(txt, id) { abilFeed.push({ txt, col: KNIFE_COL[id] || '#ffffff', t: -abilFeed.filter(f => f.t < 0.3).length * 0.16 }); if (abilFeed.length > 7) abilFeed.shift(); }
 function updateFeed(dt) { for (const f of abilFeed) f.t += dt; abilFeed = abilFeed.filter(f => f.t < 2.6); }
@@ -5113,7 +5123,7 @@ function heal1() { if (lives < MAX_LIVES) { lives++; abil.pop['heart' + (lives -
 function boostAbility(n) { abil.boost = (abil.boost || 0) + n; }
 function interKeys(t) {
   const ks = [], F = t.f || {};
-  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost'); else if (t.bot) ks.push('boss:bot'); else if (t.twin) ks.push('boss:twin');
+  if (t.tank) ks.push('boss:tank'); else if (t.gear) ks.push('boss:gear'); else if (t.tire) ks.push('boss:tire'); else if (t.wire) ks.push('boss:wire'); else if (t.frost) ks.push('boss:frost'); else if (t.bot) ks.push('boss:bot'); else if (t.twin) ks.push('boss:twin'); else if (t.gas) ks.push('boss:gas');
   else if (t.nest) { ks.push('boss:nest'); if (t.nest.queen) ks.push('boss:queen'); }
   else if (t.boss) ks.push('boss:classic');
   else if (t.type) ks.push('type:' + t.type);
@@ -5182,6 +5192,7 @@ const INTER = {
     'boss:frost': ['AVALANCHE BREAKER', 'The blast shatters every frozen knife on the rim and every grown crystal; in the raw log it clears the partial ice and the breakaways. +1 hit.', c => { const T = c.t.frost; if (!T || T.layer === 'core') return; for (const s of c.t.stuck.filter(q => q.frozen)) { c.t.stuck.splice(c.t.stuck.indexOf(s), 1); const [x, y] = worldAt(c.t, s.a, R + 24); frostShatter(x, y, 16); } T.crystals = T.crystals.filter(k => !k.grown); T.partial = []; T.partialT = 0; T.breaks = []; c.dmg(1); }],
     'boss:bot': ['VINE BREAKER', 'The blow rips every tentacle off the lilies, splits the flytraps and staggers the swing. +1 hit.', c => { const B = c.t.bot; if (!B) return; for (const L of [B.lily, ...B.spec]) if (L) { L.tent = null; L.tentAt = 99; L.guard = 0; } B.obs = B.obs.filter(o => o.kind !== 'flytrap'); B.swW = 0.5; B.swT = 4; c.dmg(1); }],
     'boss:twin': ['GRAVITY SLING', 'The blow carries down the pith thread: the other twin takes 1 as well.', c => { const T = c.t.twin; if (!T || T.solo) return; const L = T.L[1 - T.lastI]; if (L && !L.dead) twinDamage(c.t, L, 1, false); }],
+    'boss:gas': ['PRESSURE RELEASE', 'The blow knocks both vents open and drops the pressure by 30%.', c => { const G = c.t.gas; if (!G) return; for (const V of G.vents) if (V.st === 'capped') gasPopVent(c.t, V, true); gasPressure(G, -30); }],
     'boss:nest': ['SHOCKWAVE', 'Two wasps are blown out of the air and an infested patch is scoured clean.', c => { V.wasps(c, 2); c.t.nest.spots.sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a)).shift(); }],
     'boss:queen': ['ROYAL CRASH', 'The queen is knocked out of the air: dazed, and the next hit is x2.', c => V.daze(c)],
     'boss:classic': ['HEARTWOOD', 'The blow reaches the heartwood: +3 score.', c => c.score(3)],
@@ -5206,6 +5217,7 @@ const INTER = {
     'boss:frost': ['SURVEY LINE', 'The frost wind is pinned down: it holds steady for 8s, and every crack streak is erased before a crystal grows.', c => { const T = c.t.frost; if (!T) return; T.windT = T.wind; T.windNext = Math.max(T.windNext, 8); T.gust = 0; T.crystals = T.crystals.filter(k => k.grown); T.crystalNext += 4; T.bst = 'idle'; T.burstNext = Math.max(T.burstNext, 10); }],
     'boss:bot': ['BOTANIST', 'The bud is identified and blooms at once, and every status on your knife is cleared.', c => { const B = c.t.bot; if (!B) return; if (B.lily && !B.lily.mature) { B.lily.t = B.lily.grow; B.lily.tent = null; } B.st.bloom = 0; B.st.splinter = 0; B.st.noKnife = 0; B.st.blind = 0; }],
     'boss:twin': ['BARYCENTRE', 'The mark finds their centre of mass: the orbit stalls for 4s and their next move waits.', c => { const T = c.t.twin; if (!T) return; T.still = 4; T.moveNext += 4; if (T.move) { T.move = null; T.eclipse = 0; } }],
+    'boss:gas': ['SAFETY INSPECTION', 'Hot metal is cooled, the rails are locked for 10s and no fireball comes for 8s.', c => { const G = c.t.gas; if (!G) return; G.zones = []; G.railNext += 10; G.railWarn = 0; G.balls = []; G.ballNext += 8; }],
     'boss:nest': ['FLY SWATTER', 'The wasp nearest the mark is swatted, and the infested patch there is cleared.', c => { V.wasps(c, 1); const T = c.t.nest; T.spots = T.spots.filter(s => angDiff(s.a, c.a) > 0.5); }],
     'boss:queen': ['EXPOSED', 'The queen is marked: the next hit on the nest is x2.', c => { c.t.nest.exposed = true; }],
     'boss:classic': ['TRUE STRIKE', '+3 score.', c => c.score(3)],
@@ -5230,6 +5242,7 @@ const INTER = {
     'boss:frost': ['ICE SCULPT', 'The nearest frozen artifact is carved free: a frozen knife pops out, a crystal seal is cut open, or the species block is split on the spot.', c => { const T = c.t.frost; if (!T) return; const s = c.t.stuck.filter(q => q.frozen).sort((p, q) => angDiff(p.a, c.a) - angDiff(q.a, c.a))[0]; if (s) { c.t.stuck.splice(c.t.stuck.indexOf(s), 1); const [x, y] = worldAt(c.t, s.a, R + 24); frostShatter(x, y, 20); return; } const q = T.arts.slice().sort((p, r) => angDiff(p.a, c.a) - angDiff(r.a, c.a))[0]; if (q) { T.arts.splice(T.arts.indexOf(q), 1); const [x, y] = worldAt(c.t, q.a, R + 16); frostShatter(x, y, 30); if (q.kind === 'species') frostRelease(c.t, q, x, y); } }],
     'boss:bot': ['GARDEN SHEARS', 'Roses, floral vines, poison ivy and nightshade are sheared off the rim.', c => { const B = c.t.bot; if (!B) return; B.roses = []; B.flora = []; B.obs = B.obs.filter(o => o.kind === 'flytrap'); }],
     'boss:twin': ['TWIN CARVING', 'The stronger twin is whittled down by 1, and every branch, spiral and ring comes off both.', c => { const T = c.t.twin; if (!T) return; for (const L of T.L) { L.br = []; L.spiral = null; L.ring = null; } if (!T.solo && T.L.every(L => !L.dead)) { const L = T.L[0].hp >= T.L[1].hp ? T.L[0] : T.L[1]; twinDamage(c.t, L, 1, false); } }],
+    'boss:gas': ['CUT THE RAILS', 'One steel rail is cut off the rim for good, and the hot metal is shaved cool.', c => { const G = c.t.gas; if (!G) return; if (G.rails.length > 1) { const Rl = G.rails.pop(), [x, y] = worldAt(c.t, Rl.a, R + 8); for (let i = 0; i < 4; i++) debris.push({ kind: 'shard', x, y, vx: rand(-400, 400), vy: rand(-500, -200), rot: rand(TAU), vr: rand(-14, 14), c: '#9aa4a6', pts: [[-8, -2], [8, -2], [8, 2], [-8, 2]] }); } G.zones = []; }],
     'boss:nest': ['FLY SWATTERS', 'Two carved swatters knock two wasps out of orbit.', c => V.wasps(c, 2)],
     'boss:queen': ['WOODEN CROWN', 'The queen is distracted: her next move waits 6s longer.', c => { c.t.nest.queen.next += 6; }],
     'boss:classic': ['CHIP AWAY', '+2 score and a wooden knife.', c => { c.score(2); const [x, y] = worldAt(c.t, c.a, R); V.wood(c, x, y); }],
@@ -5254,6 +5267,7 @@ const INTER = {
     'boss:frost': ['COLD SNAP CIRCUIT', 'The current runs through the ice: every knife still freezing cracks loose before it sets, and the tentacles are shocked limp for 6s. +1 hit.', c => { const T = c.t.frost; if (!T) return; for (const s of c.t.stuck.filter(q => q.freeze !== undefined && !q.frozen)) c.t.stuck.splice(c.t.stuck.indexOf(s), 1); if (T.tent) { T.tent.cd = Math.max(T.tent.cd, 6); if (T.tent.st === 'reach') { T.tent.st = 'recoil'; T.tent.t = 0; } } c.dmg(1); }],
     'boss:bot': ['ROOT SHOCK', 'The current runs down the roots: vine tentacles fried, spat knives dropped, the hollow shuts its eyes. +1 hit.', c => { const B = c.t.bot; if (!B) return; B.vtent = []; B.spits = []; B.st.noKnife = 0; if (B.hollow) B.hollow.eyeT = Math.floor(B.hollow.eyeT / 5.5) * 5.5 + 3.6; c.dmg(1); }],
     'boss:twin': ['THREAD CURRENT', 'The charge runs down the pith thread: both twins take 1 and the link burns out.', c => { const T = c.t.twin; if (!T) return; for (const L of T.L) L.link = 0; if (T.solo) { c.dmg(1); return; } for (const L of T.L) if (!L.dead) twinDamage(c.t, L, 1, false); }],
+    'boss:gas': ['SHORT THE BURNER', 'The igniter shorts: no fireball for 12s, pressure down 15%. +1 hit.', c => { const G = c.t.gas; if (!G) return; G.balls = []; G.ballNext += 12; gasPressure(G, -15); c.dmg(1); }],
     'boss:nest': ['ZAPPER', 'Half the orbiting wasps are fried.', c => V.wasps(c, Math.ceil(c.t.nest.wasps.length / 2))],
     'boss:queen': ['TASER', 'The queen is stunned out of the air: dazed, next hit x2.', c => V.daze(c)],
     'boss:classic': ['CONDUCTED', '+3 score.', c => c.score(3)],
@@ -5278,6 +5292,7 @@ const INTER = {
     'boss:frost': ['THAW', 'The heat bites: -3 ice (or -2 on the raw log), every crystal melts, the partial ice steams away and a glass knife turns back to steel.', c => { const T = c.t.frost; if (!T) return; if (T.layer === 'ice') T.iceHP = Math.max(0, T.iceHP - 3); else if (T.layer === 'raw') T.rawHP = Math.max(0, T.rawHP - 2); for (const k of T.crystals) k.t = Math.max(k.t, k.life); T.partial = []; T.partialT = 0; T.crystalKnives = Math.max(0, T.crystalKnives - 1); T.flashHP = 0.3; }],
     'boss:bot': ['COMPOST', 'The heat brings back 40% sanity, and the surprise and electric lilies wither on the stem.', c => { const B = c.t.bot; if (!B) return; botSanity(B, 40); B.spec = B.spec.filter(L => LILIES[L.kind].good); }],
     'boss:twin': ['TWIN STEW', '+1 heart (or +3 score), and their next move waits 5s.', c => { const T = c.t.twin; if (!heal1()) c.score(3); if (T) T.moveNext += 5; }],
+    'boss:gas': ['BARBECUE', '+1 heart (or +3 score), and the pressure drops 20%.', c => { const G = c.t.gas; if (!heal1()) c.score(3); if (G) gasPressure(G, -20); }],
     'boss:nest': ['HONEY TRAP', 'Three wasps leave to eat.', c => V.wasps(c, 3)],
     'boss:queen': ['ROYAL BANQUET', 'The queen stops to feast: her next move waits 8s.', c => { c.t.nest.queen.next += 8; }],
     'boss:classic': ['FEAST', '+1 heart, or +3 score if your hearts are full.', c => { if (!heal1()) c.score(3); }],
@@ -5307,7 +5322,7 @@ function entryKeys(e) {
   if (e.cat === 'LOG TYPE') return ['type:' + e.type];
   if (e.sub === 'bird') return ['bird:' + (e.kind || 'song')];
   if (e.cat === 'BRANCH') return e.sub === 'plain' ? ['type:branches'] : ['sub:' + e.sub];
-  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.bot) return ['boss:bot']; if (e.twin) return ['boss:twin']; if (e.nest) return ['boss:nest', 'boss:queen'];
+  if (e.tanker) return ['boss:tank']; if (e.gear) return ['boss:gear']; if (e.tire) return ['boss:tire']; if (e.wire) return ['boss:wire']; if (e.frost) return ['boss:frost']; if (e.bot) return ['boss:bot']; if (e.twin) return ['boss:twin']; if (e.gas) return ['boss:gas']; if (e.nest) return ['boss:nest', 'boss:queen'];
   if (e.boss !== undefined) return ['boss:classic'];
   if (e.name === 'APPLES') return ['apples']; if (e.hidden) return ['hidden'];
   return [];
@@ -5324,7 +5339,7 @@ function interCount(id) { return INTER_KEYS.filter(k => interText(id, k)).length
 // ones you have never seen first), each with its own title slamming in where it happens. Finds are remembered.
 const BIX = {}, BIX_IDS = ['strong', 'marker', 'carve', 'chain', 'cook'];
 let bixFound = load('knaife.bix', {});
-const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : t.bot ? 'bot' : t.twin ? 'twin' : null;
+const bixBoss = t => t.tank ? 'tank' : t.gear ? 'gear' : t.tire ? 'tire' : t.nest ? 'nest' : t.wire ? 'wire' : t.frost ? 'frost' : t.bot ? 'bot' : t.twin ? 'twin' : t.gas ? 'gas' : null;
 const bixCount = (b, id) => BIX[b] ? BIX[b][id].length : 0;
 const bixFoundN = (b, id) => BIX[b] ? BIX[b][id].filter((_, i) => bixFound[b + ':' + id + ':' + i]).length : 0;
 function bixCtx(t, id, a, c0) {
@@ -5376,7 +5391,7 @@ function bossSetPieces(t, id, a, c0) {
 }
 // encyclopedia: how many set pieces this knife has on this boss, and the ones you have found
 function bixLines(e, id) {
-  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.bot ? 'bot' : e.twin ? 'twin' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
+  const b = e.tanker ? 'tank' : e.gear ? 'gear' : e.tire ? 'tire' : e.wire ? 'wire' : e.frost ? 'frost' : e.bot ? 'bot' : e.twin ? 'twin' : e.gas ? 'gas' : e.nest ? 'nest' : null; if (!b || !BIX[b]) return [];
   const found = BIX[b][id].map((x, i) => bixFound[b + ':' + id + ':' + i] ? x[0] : null).filter(Boolean);
   return [{ text: bixCount(b, id) + ' BOSS SET PIECES  /  ' + found.length + ' FOUND', size: 6, col: KNIFE_COL[id] || '#ffd23f' }].concat(found.slice(-3).map(n => ({ text: '- ' + n, size: 6, col: '#c3c3ca' })));
 }
@@ -6254,7 +6269,7 @@ const IX_SFX = {
   'type:bark': () => sfx.barkBreak(), 'type:treehole': () => sfx.gulp(), 'type:saw': () => sfx.sawKick(), 'type:blackout': () => sfx.breaker(), 'type:tnt': () => sfx.kegBoom(), 'type:ice': () => sfx.iceBreak(), 'type:lodestone': () => sfx.magPulse(), 'type:bramble': () => sfx.rustle(), 'type:fungal': () => sfx.sporeBurst(), 'type:runestone': () => sfx.runeHit(), 'type:spiralwood': () => sfx.spiralShift(), 'type:resinwood': () => sfx.resinCrack(), 'type:petrified': () => sfx.stoneHit(), 'type:embercore': () => sfx.flare(), 'type:ringwood': () => sfx.ringRise(),
   'sub:swirl': () => sfx.boing(), 'sub:fire': () => sfx.whoosh(), 'sub:hive': () => sfx.bees(), 'sub:wire': () => sfx.zap(0.5), 'sub:linked': () => sfx.chain(),
   'bird:song': () => sfx.tweet(), 'bird:crow': () => sfx.caw(), 'bird:pecker': () => sfx.peck(), 'bird:owl': () => sfx.hoot(), 'apples': () => sfx.apple(), 'hidden': () => sfx.reveal(),
-  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:bot': () => { sfx.woodSplit(); sfx.rustle(); }, 'boss:twin': () => { sfx.flare(); sfx.woodSplit(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
+  'boss:tank': () => sfx.gush(), 'boss:gear': () => sfx.gearClank(), 'boss:tire': () => sfx.puncture(), 'boss:wire': () => { sfx.zap(1.2); sfx.breaker(); }, 'boss:frost': () => { sfx.iceBreak(); sfx.iceCrack(); }, 'boss:bot': () => { sfx.woodSplit(); sfx.rustle(); }, 'boss:twin': () => { sfx.flare(); sfx.woodSplit(); }, 'boss:gas': () => { sfx.hiss(); sfx.clank(); }, 'boss:nest': () => sfx.sting(), 'boss:queen': () => sfx.shriek(), 'boss:classic': () => sfx.stamp(),
 };
 const SIG_SFX = { strong: () => sfx.subDrop(), marker: () => sfx.markerOn(), carve: () => sfx.carve(), chain: () => sfx.zap(0.35), cook: () => sfx.sizzle() };
 function updateIx(rdt) {
@@ -6311,6 +6326,7 @@ const IX_DRAW = {
   'boss:frost'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + e.seed, d = 14 + ease3(Math.min(1, u * 1.6)) * 150, x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d; ctx.save(); ctx.translate(x, y); ctx.rotate(a + HALF); ctx.fillStyle = i % 2 ? '#dff4ff' : '#9ff0ff'; ctx.beginPath(); ctx.moveTo(-4, 6); ctx.lineTo(0, -12); ctx.lineTo(4, 6); ctx.closePath(); ctx.fill(); ctx.restore(); } ctx.strokeStyle = '#9ff0ff'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 80, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:bot'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + e.seed, d = 12 + ease3(Math.min(1, u * 1.6)) * 140; ctx.save(); ctx.translate(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d); ctx.rotate(a + u * 4); ctx.fillStyle = i % 3 ? '#ff2e45' : '#2f9a1f'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.5, 0, 0, TAU); ctx.fill(); ctx.restore(); } ctx.strokeStyle = '#2f9a1f'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 80, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:twin'(e, u) { ctx.globalAlpha = 1 - u * u; for (let k = 0; k < 2; k++) { const a = u * 6 + k * Math.PI + e.seed, d = 10 + ease3(Math.min(1, u * 1.4)) * 60; ctx.fillStyle = TWIN_COL[k]; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 9 * (1 - u * 0.5), 0, TAU); ctx.fill(); } ctx.strokeStyle = '#fde7b0'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 90, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
+  'boss:gas'(e, u) { ctx.globalAlpha = 1 - u * u; for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + e.seed, d = 14 + ease3(Math.min(1, u * 1.5)) * 70, r = 6 + u * 16; ctx.fillStyle = i % 2 ? '#e8f0ee' : '#ffd23f'; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, r, 0, TAU); ctx.fill(); } ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3 * (1 - u); ctx.beginPath(); ctx.arc(e.x, e.y, 16 + u * 90, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; },
   'boss:tire'(e, u) { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#08080a'; for (const sd of [-1, 1]) for (let i = 0; i < 10; i++) { const x = e.x - 160 + ease3(u) * 320 * (i / 10), y = e.y + sd * 26 + i * 3; ctx.fillRect(x, y, 16, 8); } ctx.fillStyle = '#5c5c66'; for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(e.x - 120 + i * 34, e.y - u * 40 - (i % 2) * 10, 8 + u * 22, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; },
   'boss:nest'(e, u) { for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + e.seed, r = 20 + ease3(u) * 160; ctx.globalAlpha = 1 - u; drawHornet(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, 0.9, a, time + i); } ctx.strokeStyle = '#ff2e45'; ctx.lineWidth = 4; for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4, r = 60 + 40 * u; const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r, s = 10 * Math.min(1, u * 4); ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); ctx.stroke(); } ctx.globalAlpha = 1; },
   'boss:queen'(e, u) { const fall = ease3(Math.min(1, u * 1.6)) * 70, cr = u > 0.6; ctx.save(); ctx.translate(e.x, e.y - 90 + fall); ctx.globalAlpha = 1 - Math.max(0, u - 0.7) / 0.3; ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(-30, 14); ctx.lineTo(-30, -10); ctx.lineTo(-15, 4); ctx.lineTo(0, -18); ctx.lineTo(15, 4); ctx.lineTo(30, -10); ctx.lineTo(30, 14); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ff2e45'; ctx.beginPath(); ctx.arc(0, 4, 5, 0, TAU); ctx.fill(); if (cr) { ctx.strokeStyle = '#08080a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-4, -16); ctx.lineTo(3, -2); ctx.lineTo(-5, 6); ctx.lineTo(2, 14); ctx.stroke(); } ctx.restore(); ctx.globalAlpha = 1; },
@@ -6907,7 +6923,170 @@ BIX.twin = {
     G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'), G_('pin', 'cook'),
   ],
 };
-const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost || t.bot || t.twin));
+// ---------- GAS TANK: 30 situations ----------
+const GX = {
+  pop(c, n = 1) { let k = 0; for (const V of c.T.vents) if (V.st === 'capped' && k < n) { gasPopVent(c.t, V, true); k++; } return k; },
+  cap(c) { for (const V of c.T.vents) if (V.st === 'blowing') { V.st = 'capped'; V.t = 0; V.cap = 0; } },
+  drop(c, n) { gasPressure(c.T, -n); floater('PRESSURE -' + n + '%', CX, CY - R - 40, '#7cffd8'); },
+  cool(c) { for (const Z of c.T.zones) { const [x, y] = c.at(Z.a, R); for (let i = 0; i < 6; i++) smoke.push({ x, y, vx: rand(-60, 60), vy: rand(-120, -40), r: rand(4, 8), life: 0.8, max: 0.8, g: 200, c: 'rgba(230,240,240,.5)' }); } c.T.zones = []; c.T.zoneNext = Math.max(c.T.zoneNext, 6); },
+  lock(c, s) { c.T.railNext += s; c.T.railWarn = 0; },
+  balls(c) { for (const b of c.T.balls) burst(CX, b.y, 20, ['#ffd23f', '#ff7a1a'], 300, 20, 2.4, 0.4); c.T.balls = []; },
+  hold(c, s) { c.T.ballNext += s; },
+  stall(c, s) { c.T.roar = Math.max(c.T.roar, s); },
+};
+const gxSec = k => c => { const [s] = gasSection(gasSong()); return Array.isArray(k) ? k.includes(s) : s === k; };
+const gxVent = st => c => { const V = c.T.vents.find(v => v.st === st); return V ? c.at(V.a, R + 30) : null; };
+const gxZone = c => c.T.zones.length ? c.at(c.T.zones[0].a, R) : null;
+BIX.gas = {
+  sit: [
+    ['LOW PRESSURE', c => c.T.P < 35], ['BUILDING', c => c.T.P >= 35 && c.T.P < 70], ['RED LINE', c => c.T.P >= 85],
+    ['CAPPED VENT', c => c.T.vents.some(v => v.st === 'capped'), gxVent('capped')], ['BLOWING VENT', c => c.T.vents.some(v => v.st === 'blowing'), gxVent('blowing')], ['IN YOUR LANE', c => c.T.vents.some(v => v.st === 'blowing' && gasFacing(c.t, v.a, 0.6)), gxVent('blowing')],
+    ['BOTH CAPPED', c => c.T.vents.every(v => v.st === 'capped')], ['BOTH BLOWING', c => c.T.vents.every(v => v.st === 'blowing')],
+    ['WARMING UP', c => c.T.zones.some(z => z.st === 'warm'), gxZone], ['WHITE HOT', c => c.T.zones.some(z => z.st === 'hot'), gxZone],
+    ['RAIL SHIFT', c => c.T.railWarn > 0 || c.T.rails.some(r => r.to !== null)], ['REVERSING', c => c.T.roar > 0],
+    ['IGNITED', c => c.T.phase > 1], ['FIREBALL', c => c.T.balls.length > 0, c => [CX, c.T.balls[0].y]], ['BURNER LIT', c => (c.T.burn || 0) > 0.5 || c.T.P > 70], ['CRITICAL', c => c.T.crit],
+    ['FULL TANK', c => knivesLeft >= 25], ['HALF EMPTY', c => knivesLeft >= 10 && knivesLeft <= 20],
+    ['TUNNEL', gxSec('tunnel')], ['REFINERY', gxSec(['refinery', 'inferno'])], ['THE CHASE', gxSec('chase')], ['THE BRIDGE', gxSec('bridge')],
+    ['BARE STEEL', c => c.n() === 0], ['BRISTLING', c => c.n() >= 5],
+    ['FINAL WORDS', c => knivesLeft <= 3], ['LAST HEART', c => lives === 1], ['FULL HEALTH', c => lives >= MAX_LIVES], ['STUNNED', c => stunT > 0], ['APPLE STASH', c => apples >= 3], ['PINCUSHION', c => c.n() >= 3],
+  ],
+  strong: [
+    ['DENT', 'Low pressure: +1 damage.', c => c.hit(1)],
+    ['HAMMER BLOW', 'Building: both vents are knocked open.', c => GX.pop(c, 2)],
+    ['RELIEF VALVE', 'Red line: pressure down 40%.', c => GX.drop(c, 40)],
+    ['CAP BUSTER', 'Capped vent: it is blown open.', c => GX.pop(c)],
+    ['BACKDRAFT', 'Blowing vent: the jet slams it +1 damage.', c => c.hit(1)],
+    ['SHOULDER CHARGE', 'A vent in your lane is capped shut.', c => GX.cap(c)],
+    ['DOUBLE TAP', 'Both capped: both blown open.', c => GX.pop(c, 2)],
+    ['GALE', 'Both blowing: pressure down 20%.', c => GX.drop(c, 20)],
+    ['KNOCK OFF', 'Warming up: the heat is knocked out of it.', c => GX.cool(c)],
+    ['QUENCH', 'White hot: the metal is quenched.', c => GX.cool(c)],
+    ['JAM', 'Rail shift: the rails are jammed for 10s.', c => GX.lock(c, 10)],
+    ['STALL', 'Reversing: it stalls for 2s.', c => GX.stall(c, 2)],
+    ['BLOWBACK', 'Ignited: no fireballs for 8s.', c => GX.hold(c, 8)],
+    ['BAT AWAY', 'Fireball: knocked out of the air.', c => GX.balls(c)],
+    ['SMOTHER', 'Burner lit: pressure down 15%.', c => GX.drop(c, 15)],
+    ['BRACE', 'Critical: +1 damage.', c => c.hit(1)],
+    ['FIRST STRIKE', 'Full tank: +1 damage.', c => c.hit(1)],
+    ['GUT PUNCH', 'Half empty: +1 damage.', c => c.hit(1)],
+    ['ECHO', 'In the tunnel: +2 score.', c => c.pts(2)],
+    ['FLARE OUT', 'Refinery: pressure down 15%.', c => GX.drop(c, 15)],
+    ['RAMMED', 'The chase: +1 damage.', c => c.hit(1)],
+    ['OVERBOARD', 'The bridge: +2 score.', c => c.pts(2)],
+    ['CLEAN SHOT', 'Bare steel: 2 ability charge.', c => c.charge(2)],
+    ['SHAKE LOOSE', 'Bristling: +1 score per knife.', c => c.pts(c.n())],
+    G_('last', 'strong'), G_('heart', 'strong'), G_('full', 'strong'), G_('stun', 'strong'), G_('apples', 'strong'), G_('pin', 'strong'),
+  ],
+  marker: [
+    ['READING', 'Low pressure: +2 score.', c => c.pts(2)],
+    ['INSPECTION', 'Building: a capped vent is opened.', c => GX.pop(c)],
+    ['SHUTOFF', 'Red line: pressure down 35%.', c => GX.drop(c, 35)],
+    ['MARKED VALVE', 'Capped vent: it is opened.', c => GX.pop(c)],
+    ['FLOW CHECK', 'Blowing vent: +2 score.', c => c.pts(2)],
+    ['LANE CLEAR', 'A vent in your lane is capped.', c => GX.cap(c)],
+    ['LOCKOUT', 'Both capped: one is opened, pressure down 10%.', c => { GX.pop(c); GX.drop(c, 10); }],
+    ['FLOW RATE', 'Both blowing: +3 score.', c => c.pts(3)],
+    ['THERMAL SCAN', 'Warming up: cooled off.', c => GX.cool(c)],
+    ['HOT TAG', 'White hot: cooled off.', c => GX.cool(c)],
+    ['TAGGED OUT', 'Rail shift: the rails stay put 12s.', c => GX.lock(c, 12)],
+    ['READ THE TURN', 'Reversing: it stalls 2s.', c => GX.stall(c, 2)],
+    ['FIRE WATCH', 'Ignited: no fireballs for 10s.', c => GX.hold(c, 10)],
+    ['TARGET LOCK', 'Fireball: shot down.', c => GX.balls(c)],
+    ['PILOT OUT', 'Burner lit: pressure down 15%.', c => GX.drop(c, 15)],
+    ['WEAK WELD', 'Critical: +1 damage.', c => c.hit(1)],
+    ['SURVEY', 'Full tank: 2 ability charge.', c => c.charge(2)],
+    ['GAUGE CHECK', 'Half empty: pressure down 10%.', c => GX.drop(c, 10)],
+    ['HEADLAMP', 'In the tunnel: +2 score.', c => c.pts(2)],
+    ['PERMIT', 'Refinery: +3 score.', c => c.pts(3)],
+    ['PLATE NUMBER', 'The chase: +2 score.', c => c.pts(2)],
+    ['TOLL', 'The bridge: +1 apple.', c => c.apple(1)],
+    ['CLEAN SLATE', 'Bare steel: 2 ability charge.', c => c.charge(2)],
+    ['TALLY', 'Bristling: +1 score per knife.', c => c.pts(c.n())],
+    G_('last', 'marker'), G_('heart', 'marker'), G_('full', 'marker'), G_('stun', 'marker'), G_('apples', 'marker'), G_('pin', 'marker'),
+  ],
+  carve: [
+    ['SCORE THE STEEL', 'Low pressure: +1 damage.', c => c.hit(1)],
+    ['DRILL HOLE', 'Building: pressure down 20%.', c => GX.drop(c, 20)],
+    ['BLEED SCREW', 'Red line: pressure down 40%.', c => GX.drop(c, 40)],
+    ['CUT THE CAP', 'Capped vent: it is cut open.', c => GX.pop(c)],
+    ['WHITTLED FLUE', 'Blowing vent: a wooden knife.', c => c.wood()],
+    ['DEFLECTOR', 'A vent in your lane is capped.', c => GX.cap(c)],
+    ['TWIN CUTS', 'Both capped: both cut open.', c => GX.pop(c, 2)],
+    ['WIND CHIME', 'Both blowing: +2 score.', c => c.pts(2)],
+    ['SHAVE', 'Warming up: cooled off.', c => GX.cool(c)],
+    ['SCRAPE', 'White hot: cooled off.', c => GX.cool(c)],
+    ['WEDGE', 'Rail shift: the rails are wedged 12s.', c => GX.lock(c, 12)],
+    ['CHOCK', 'Reversing: it stalls 2s.', c => GX.stall(c, 2)],
+    ['DAMPER', 'Ignited: no fireballs for 8s.', c => GX.hold(c, 8)],
+    ['PADDLE', 'Fireball: batted away.', c => GX.balls(c)],
+    ['DOUSE', 'Burner lit: pressure down 15%.', c => GX.drop(c, 15)],
+    ['FAULT LINE', 'Critical: +1 damage.', c => c.hit(1)],
+    ['FIRST CUT', 'Full tank: a wooden knife.', c => c.wood()],
+    ['HALF WAY', 'Half empty: +1 apple.', c => c.apple(1)],
+    ['TUNNEL VISION', 'In the tunnel: +2 score.', c => c.pts(2)],
+    ['PIPE CUTTER', 'Refinery: pressure down 15%.', c => GX.drop(c, 15)],
+    ['STINGER', 'The chase: +1 damage.', c => c.hit(1)],
+    ['DRIFTWOOD', 'The bridge: a wooden knife.', c => c.wood()],
+    ['WHITTLE', 'Bare steel: +1 apple and 1 ability charge.', c => { c.apple(1); c.charge(1); }],
+    ['KNIFE RACK', 'Bristling: +1 score per knife, up to 4.', c => c.pts(Math.min(4, c.n()))],
+    G_('last', 'carve'), G_('heart', 'carve'), G_('full', 'carve'), G_('stun', 'carve'), G_('apples', 'carve'), G_('pin', 'carve'),
+  ],
+  chain: [
+    ['STATIC', 'Low pressure: +2 score.', c => c.pts(2)],
+    ['SOLENOID', 'Building: a capped vent trips open.', c => GX.pop(c)],
+    ['EMERGENCY DUMP', 'Red line: both vents trip open, pressure down 25%.', c => { GX.pop(c, 2); GX.drop(c, 25); }],
+    ['TRIPPED', 'Capped vent: it trips open.', c => GX.pop(c)],
+    ['ARC THROUGH', 'Blowing vent: +1 damage.', c => c.hit(1)],
+    ['SHUT VALVE', 'A vent in your lane is capped.', c => GX.cap(c)],
+    ['CIRCUIT', 'Both capped: both trip open.', c => GX.pop(c, 2)],
+    ['IONISED', 'Both blowing: +1 damage.', c => c.hit(1)],
+    ['COOLANT', 'Warming up: cooled off.', c => GX.cool(c)],
+    ['THERMOSTAT', 'White hot: cooled off.', c => GX.cool(c)],
+    ['SHORT', 'Rail shift: the rail motors short out for 12s.', c => GX.lock(c, 12)],
+    ['BRAKE', 'Reversing: it stalls 2s.', c => GX.stall(c, 2)],
+    ['IGNITER FRIED', 'Ignited: no fireballs for 10s.', c => GX.hold(c, 10)],
+    ['ZAPPED', 'Fireball: blown apart.', c => GX.balls(c)],
+    ['PILOT SHORT', 'Burner lit: pressure down 15%.', c => GX.drop(c, 15)],
+    ['OVERLOAD', 'Critical: +1 damage.', c => c.hit(1)],
+    ['POWER SURGE', 'Full tank: +1 damage.', c => c.hit(1)],
+    ['DISCHARGE', 'Half empty: +2 score.', c => c.pts(2)],
+    ['FLUORESCENT', 'In the tunnel: 1 ability charge.', c => c.charge(1)],
+    ['GROUND FAULT', 'Refinery: pressure down 15%.', c => GX.drop(c, 15)],
+    ['SIREN', 'The chase: +2 score.', c => c.pts(2)],
+    ['LIGHTNING ROD', 'The bridge: +1 damage.', c => c.hit(1)],
+    ['STATIC CHARGE', 'Bare steel: +2 score, 1 ability charge.', c => { c.pts(2); c.charge(1); }],
+    ['CHAIN GANG', 'Bristling: +1 damage.', c => c.hit(1)],
+    G_('last', 'chain'), G_('heart', 'chain'), G_('full', 'chain'), G_('stun', 'chain'), G_('apples', 'chain'), G_('pin', 'chain'),
+  ],
+  cook: [
+    ['SIMMER', 'Low pressure: +2 score.', c => c.pts(2)],
+    ['LID OFF', 'Building: a capped vent is opened.', c => GX.pop(c)],
+    ['PRESSURE COOKER', 'Red line: pressure down 40%.', c => GX.drop(c, 40)],
+    ['STEAM RELEASE', 'Capped vent: it is opened.', c => GX.pop(c)],
+    ['SMOKED', 'Blowing vent: +1 apple.', c => c.apple(1)],
+    ['LID ON', 'A vent in your lane is capped.', c => GX.cap(c)],
+    ['TWO POTS', 'Both capped: both opened.', c => GX.pop(c, 2)],
+    ['CONVECTION', 'Both blowing: +2 score.', c => c.pts(2)],
+    ['HOT PLATE', 'Warming up: cooled, +1 apple.', c => { GX.cool(c); c.apple(1); }],
+    ['SEAR', 'White hot: cooled, +2 score.', c => { GX.cool(c); c.pts(2); }],
+    ['GRILL RACK', 'Rail shift: the rails stay put 10s.', c => GX.lock(c, 10)],
+    ['STIR', 'Reversing: +2 score.', c => c.pts(2)],
+    ['FLAMBE', 'Ignited: +3 score.', c => c.pts(3)],
+    ['CATCH', 'Fireball: caught in the pan.', c => GX.balls(c)],
+    ['ON THE BURNER', 'Burner lit: +1 heart, or +3 score.', c => c.heart()],
+    ['WELL DONE', 'Critical: +1 damage.', c => c.hit(1)],
+    ['PREHEAT', 'Full tank: 2 ability charge.', c => c.charge(2)],
+    ['HALF BAKED', 'Half empty: +1 apple.', c => c.apple(1)],
+    ['TUNNEL OVEN', 'In the tunnel: +2 score.', c => c.pts(2)],
+    ['FLARE GRILL', 'Refinery: +1 heart, or +3 score.', c => c.heart()],
+    ['DRIVE-THRU', 'The chase: +1 apple.', c => c.apple(1)],
+    ['FISH FRY', 'The bridge: +2 score.', c => c.pts(2)],
+    ['CLEAN PLATE', 'Bare steel: 2 ability charge.', c => c.charge(2)],
+    ['SKEWERS', 'Bristling: +1 apple.', c => c.apple(1)],
+    G_('last', 'cook'), G_('heart', 'cook'), G_('full', 'cook'), G_('stun', 'cook'), G_('apples', 'cook'), G_('pin', 'cook'),
+  ],
+};
+const namedBoss = t => !!(t && (t.tank || t.gear || t.tire || t.nest || t.nestBait || t.wire || t.frost || t.bot || t.twin || t.gas));
 let appleCase = null;
 function caseBanner(id, c, extra) {
   let sub = extra || CASE_SUB[c];
@@ -7734,7 +7913,7 @@ function drawTypeAmbience4(t) {
 
 // ======================= BEAT CLOCK + BOSS BACKGROUNDS =======================
 // Measured from the tracks: tempo, and where the first downbeat sits (seconds into the file).
-const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 198.8, down: 0.2303 }, bot: { bpm: 120.2, down: 0.03 }, twin: { bpm: 105.0, down: 0.0804 }, main: { bpm: 120, down: 0 } };
+const BEATS = { boss: { bpm: 131.0, down: 1.023 }, gear: { bpm: 170.1, down: 0.088 }, tire: { bpm: 199.75, down: 1.084 }, nest: { bpm: 150.05, down: 1.537 }, queen: { bpm: 149.8, down: 0.238 }, wire: { bpm: 104.02, down: 1.785 }, frost: { bpm: 198.8, down: 0.2303 }, bot: { bpm: 120.2, down: 0.03 }, twin: { bpm: 105.0, down: 0.0804 }, gas: { bpm: 195.02, down: 0.399 }, main: { bpm: 120, down: 0 } };
 // playback position of a track, advanced on the audio clock so the beat never drifts
 function trackPos(tr, dA) {
   if (tr.pos === undefined) tr.pos = 0;
@@ -7765,13 +7944,14 @@ function bossBgKey(t) {
   if (t && t.frost && fx && fx.type === 'frostintro' && fx.t >= TF.live) return 'frost';
   if (t && t.bot && fx && fx.type === 'botintro' && fx.t >= TB.live) return 'bot';
   if (t && t.twin && fx && fx.type === 'twinintro' && fx.t >= TWN.live) return 'twin';
+  if (t && t.gas && fx && fx.type === 'gasintro' && fx.t >= GT.road) return 'gas';
   if (t && t.nest && fx && fx.type === 'nestintro' && fx.t >= NM.macro + TN.down) return 'nest';
   if (t && t.tire && fx && fx.type === 'tireintro' && fx.t >= TT.air) return 'tire';
   if (t && t.gear && fx && fx.type === 'gearintro' && fx.t >= GI.roll[0] - 0.05) return 'gear';
   if (t && t.tank && fx && fx.type === 'tankintro' && fx.t > TI.top - 0.3) return 'boss';
   if (!t || introCovering()) return null;
   if (t.tank && !t.tank.hide) return 'boss'; if (t.gear && !t.gear.hide) return 'gear'; if (t.tire && !t.tire.hide) return 'tire';
-  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost'; if (t.bot && !t.bot.hide) return 'bot'; if (t.twin && !t.twin.hide) return 'twin';
+  if (t.nest && !t.nest.hide) return t.nest.queen ? 'queen' : 'nest'; if (t.wire && !t.wire.hide) return 'wire'; if (t.frost && !t.frost.hide) return 'frost'; if (t.bot && !t.bot.hide) return 'bot'; if (t.twin && !t.twin.hide) return 'twin'; if (t.gas && !t.gas.hide) return 'gas';
   return null;
 }
 const BG = {};
@@ -7921,6 +8101,7 @@ MUSIC_MAP.wire = {"e":"ca988rqlhd89jrrjfb979jlhecaadsqkijiejtrnmjhknsrlkljgipomm
 MUSIC_MAP.frost = {"e":"111222112223232232243224635844446689a9a9bbchrkllllkklklllklklllllkklljjkkjjijiighhfghggfghhhikjkkkklmmmonegerrrrrrqqqrqsqqqrrrssqrrrqrqssrrswwwwvvuustsqqrqsrssrrqtwsoompqtrwvwvwvwvwvwwwwwqwvwvwvwwwwwwvsqpwvvvvvvvvvvvwvurxxxwwwyyrnmoogknwvvvwvwvwwwwwwvqwvwvwwwwwwwwsmorwvwvvvtqvvvvvwxvxxwwwxyxvvuvuzuttstrtrtrtqtrsqtrsstrtrtrtruststrwvvvutsqqnnllkjilkkllmorvxwwljiryztzyzytpwusvztsuxtzyzyuuwuuwypvxzuzxzyusvutxzutvuwzzvzvvxyynkmryzsyyxyywwsqotvwuysyzzywuxuuuxpuztxwzvzzytxrvqyyyuwzywzxyxxuhjlrhbed977bdacc8549b7ab7549c8bc987cc9cc857bd8cb856cb9cc979ddaefecbmsrrstrtttrsqrsrrrtqstqprssrrlnntxxwxvvttsrqpqoopqrrrrruvooonqquuwwwwwwwxxxxwwwwvwwxwxwxxxxxxxxtxwwwwwwxxxxxxwvwwxxyxxwxxwxxvmoputxxwxxxxxxxwwwwwxxxxxwxxxxxxyytxwwwxwxwxxxxwwvwxyxwwwwwxwxwvqputvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvpvvvvvvvvvvvvvvvv","b":"00000000000000000000000000011111122233333344ufffffeffeffefedddddddedeeddddccdcbbcbabbbcbddeedfghhijllnnnr455nnoopqqqopproopoonopnoppoppoqmloqppnnnnnmmoooqonpmkigemqndcdebkdsstsstttutuuvuurustsustutttrstjirrssttttstusutssvvutuuyvqedsscbrsrssttttutuuuuvstststtuuutuuuqqsvqrrrrtrtsvsusquvustttvwqprqqrpqorpqosprorrrrrrrqrprpsqqorprqppopononoomnkkjigecca988bdhstuso45tyrmzzzzuvsopxzntuomzzzzvwlttqzkuzqmzzxzutqpqzyqqvrzyyszsgprtsecuztqtrlxvvsprppltvsptsrzxusrttslwzqtwyqzwvuustqsqqjmytluooihro56tr9976654334322132186321b737532153142100320311002217642174297431qututvuyswssqvrsqttrrvsrpvrrqm76noqoplmmmkjiggecbdddeedomgccecbkqqrqrqrqrqrqrqrqrqrssrrrrqrqqqpotqpppppqpqpqpopppqqwvqooqustthacsppqpqrpqqrsrpqoqqrrqqrqqqqprpqnorqroppqqrpqpoooptqomommqonnsdhkpqqrqsssrsrssrsqqrrstrsrrqtsssrqrsqqqsrsrssstssr","h":"1114321121121321212631124315311132233334767bna77898898779979797a887a8888879aa8779868a86797798779a87b9a77745dofceeegbhhccdchhgefinllmmhkmnpqrnonmpnpoqnpopopopqtutywrgjkyozrtpmrlqnqmqmomomomqmomrmrmqmpmhspoplpnqnrlsornqnkqprrsrosqghlofnqlpmqlqlqnqmpmqmompmqmqnpmpmpmniimonpmpkhmsoqonzqqpqpqqqsrmtnskrpoimhmfngngmgmgmhphmjngnhmhnimkoivqpoooporrsuvrtsttsqtstvvwxzu99anoqjlgrilksynpqspwukkgrilrtrrrsqslsmlgrilntyztqzqtotmpnpnssqo8hcnlrnomqrmjtojpvqmuzplnqplprlqkzpyrorrpjqlrxsoulqwtutpopotqrqm88ena975543422311123213110242243478a4341112522412136423121242242759nce7j9m9g8e6c8gbbbkadccflefghccinnponkklllnmooqpqotvwyyyuimxzzztzxsvrttsswswruuuqxpxpxrvswruqvrztvwurwqvovstqsturxywruuzwyzvrikoryssqyutrvrwptqwqvovqvpwsvpvsuqosuutvvvxuuuttssrrttsuzwtrvvzrzzvztqutvswtxuxrxsusvtxrwrtqwtxrussrvqwsxqxqvrsrwsw"};
 MUSIC_MAP.bot = {"e":"jgiadabdlgdeie99qmkgzshhpkhkqnihtmidwojenjeknjdfwrjetnnmnkgmooprrprwxvnvqrrrvrqstsktxsjxprquwnpvymdoqlfossrrtsrptsouzrppttnqvrqzyvmuwnjvrqponnpurrqxuspxttposoqwtwnzysuvstnnqlouwsouxtzwttorquwutsnuqpsutrqloirurrssxrstqrqzuszsqrntzpvrqoyxtfwpqotwoqsurmtzottqpsutlblnkhuvncpmhhppkhrqjbsslblnjhnmhcvug8upohomggpm","b":"oan8d64mrb8kk85emcncngerod9puj7ominslblmcb8qcb7nnfrolhmlca8qch7tjhtzluzwoyyywwstlwwvrwmzjzwyyxxzlaankg9uvxxyxxyzxyxutquxzyysyxyzyzyxvmbwtxtvuwvwxururmqxutpvxxwxuwuwxuvxxutsvrxqrssurowqvxqxvvqnttsywqxttssnwisnwxtsprwkwtsvvswmvtrxruxtwxzjthwjxxwxxsswwxtwixvwszuxp6nclinlh7qd9qosa6ojobufmgkgcqpdabri98njf9ldacod","h":"728h14dj8fghafgm77af9bcjgkjmigfi97ig48mhh7haf8hc27ig52hhobobiamgukuiskuiznvukussvkozhtrkylqmguwt47igd9cd3121111111141116743123a125c1229jynkltmijykkoymiiylkwgvxjwmltrklzlljzmmiykkryjejhkkzkulozmkylwxkzmkhzklgwlkruligymkulwnmyokykswizmqjwlsiyotlgvtpwipsccjkgbi9h71547f1abj9kbng8ig587i428i4gcggfag11122213522327"};
 MUSIC_MAP.twin = {"e":"3676a89dkkighghhkhjhefggjookmiggltsrutvqutrpsuvrsqrssuursttttvwuuwusxttswutqvtuuusqqurttwrtrvusutlnklmomorusrlnnpijkijlkmlrqonnlgabedefiswwxwxywvxwxxyxyzxuvwwxwyyuwwwwwta77d9a7c8b7a888b8cbd9e9d9caeacbgdeegdfcfgfceegfhigedefejca8dbbdltuvwvtqvtsputsrtqqssqurssursuwstvtsrrtuvtrswtutwttttstvvqtqustsm9aad979ozwywzxxxuwxxyxzxwuwuwwxzywwvwxvuzxtusuvtsuxzzzwsttzzvxvtusuvtwvqfggfddhhegefdddc9bedefkswvywyvwxywyywxyyzvwxvwwwvvwwxvvrrprsxwwwwxyzxzzzzwxvxyxyywzwyyxtssrttsrsrqsusus","b":"2222455efiddhhdheadgdfhfghffkjhgqlpcxllfnoodpkqenkrelklejwrjonrjvtrprspmqqusrknlpnmnklkossposwotrmlhlionujmgphlhpccfcfcdzcjhnehga256388aqprpzrypuqvqxsznppsptrwpoonmnmqqw2223422343444334323433342223233h3839283g3929293m4436455a64456bevrqkujogrpsejkmelljanjhbskkcqmlhsxunqptptnmrvtruutnrppstrnpnsklom2234569psnsuzstznrvyptrvononrntonomsomnsihhjinmjijprptpmnmippqmolnmrmnlkefgcecchciefcdda255677dpklqorsqwvttzqqpplnlppmnklmmmrmqvfifsnuqvpvuzvzrztoqotzrqorutnzppqnnnnqqnnnrxztu","h":"12212235999daacevo85444997555459iijhmnloojkiilmknijhklpmohmlnnmpjtztvwutsttrwpwtvsxurtxtvwuuuwvtz987788eh887699cg997899di897g99c8222689cmsyuyszrzxyuyxxsuvwvvuzstuzuwuxxtk726221443254314431444143435443d2726252c2727282db53232242123349kjnhlllmkhmkkmlllilikmnljkkkkmooktvwtrvwzvvpswtvutwuxsxvstttwutvw9a8968eluxzvyzsvtzsztysztvyuxwuvywrwsupymnjmlmkjlihljljimkjmlliijkhlmjgh66666676766667b7222878cmuvuwwvusxutvtxyyvvuxqxtuwvwuuysxeeelvzrtuwtuwyrvuwxyszrwuxzxwussyysstwtutuwvuuv"};
+MUSIC_MAP.gas = {"e":"56ee86dff89ae866afcdddgdb646iflpvpnlppqppopmmmroqooksonppnoorqqrmnmmpqrooomooprqropmrpooqqrooqmrnxpmollknvrlppqplrsouptplttsooqowohkrnrmtomowvrhfgkggihiinolfihisuswvwvvsvtqywzwssuwswvxuwquuyyzvwurttwwsutstuuwussvsuvvusxovwvvpifg7536gb743342cdcdedgbgd88eac8eda8fgmrxrnionoqsmololpmsqpnoltqrqtnspqtvtnnqprqutonporprtnmrqrnqvnoprvopicbegggljehopmlljehklfkkjgeklnlmlegmnmtwurywxwvvusryvzztxuuvvxxwwsvuvyzywwsuuyxuvutuwxyutuwuvvvutxrxywwwxvyzyzzwyyuvyyzsuxwxzzzwwtuvxzzzyuvwuwywtsstxwytttvwxvywwvsxzxzj72","b":"34535534b85531016eeddeda7245goxzyadcchitzephfcwooda6ebovsdud9fpsnafbiiojqfugfhbdqeccecqgt9qdfddeppdds9cshvrgfvjathlfzgizgzqlhufcq8568586a55886a8dbedeeegcdefbdehohvjyiwfplrcsezfngsjxlsirioeurqsthydsfqdqgnkucwgohpfveufndnetdwgqqkr2111c7432351ca43c898c654c6649998hozzzcdbehhtwhrekbttlijcgaovubt9cepoodecdhxixbnajahbkhaafendsarbb9afdfccfhfhff6kptbiin8jsvbqjj8hrodkjg9nznoupergvhuhqetcsfzenhnezjuhkgoezbpcqhygvhpfthlkpezhmhtisirhmekjtcxhorqpysuuqkmerezjsdphsfpgmhnauerfwmopxuotsctkmezisfsflcseogoitjyq831","h":"0011112242225113222423345358adjsnmfdjeafiboajgjkmnfgihkohdjfj9gimneckchbidm9ji9anmidjfhajhkbl9gnrgw8l9whhht8cizjhozhoixlhivlfmznirzzzjzdcmzvzzz84224423647657aekorjijlilgkijmhgghjjhjjfkhmiiloiroonlhnkpjkrjijmjhjgkhjgjjklklggjklgpkd8752110120112122322121211111246cjrqlgcicchidoakdicolfbmjfhiimdl9kksneaide9hcl7jea8nleajfh8hhibjaa6832599d6bb59bb3baa4aba4aab79a94aaa4bbfinqonkjkhnihgiihmnfkkhkjjhimjmmijnqomlgojpmmslmllknkhhglgkhmkiihglnsmmkrlmpronliktnknkjsiliklklojoopknknnrqtylghltjlliirjpfmnljjith51"};
 const musicDec = {};
 function musicArr(name) {
   let m = musicDec[name]; if (m) return m; const M = MUSIC_MAP[name]; if (!M) return null;
@@ -14467,6 +14648,692 @@ function drawTwinIntro(t) {
   if (!live) cineSkipHint();
 }
 
+// ======================= BOSS: GAS TANK =======================
+// An upright tank of flammable gas strapped to the bed of a truck racing down a night highway, seen from above.
+// The PRESSURE gauge on its lid climbs all the time, faster with every knife you put in and while its vents are
+// capped; at 100% it BLOWS OUT (you lose a heart, knives are blasted off). Pop a capped VENT with a knife and it
+// blows, bleeding pressure, but a vent blowing down your lane blasts your throws aside. A HEATING REGION glows on
+// the rim: hit it while it is only warm to quench it, never once it is white hot. Steel RAILS ride the rim and shift
+// about. Under half health the burner IGNITES: the vents breathe fire and it lobs FIREBALLS down the lane at you.
+const GAS_HP = 30, GAS_PH2 = 14, GAS_CRIT = 5;
+const GAS_PAL = { name: 'GAS TANK', style: 'gas', bark: '#2f4a4a', barkHi: '#7a9a96', barkLo: '#142222', sap: '#ffd23f', heart: '#1a2a2a', ring: 'rgba(0,0,0,.3)', ray: 'rgba(255,255,255,.06)', light: '#9ab8b2', dark: '#2f4a4a', knot: '#142222' };
+const isGasStage = n => isFirstBossSlot(n) && firstBoss === 'gas';
+const gasBusy = () => !!(fx && /^gas(intro|blow|ignite|death)/.test(fx.type));
+function setupGas(t) {
+  t.gas = { hide: true, dead: false, ox: 0, oy: 0, s: 1, P: 22, Pv: 22, phase: 1, crit: false,
+    vents: [{ a: 0.75, st: 'capped', t: 0, cap: 1, seed: 1 }, { a: 0.75 + Math.PI + 0.35, st: 'capped', t: 0, cap: 1, seed: 2 }],
+    rails: [{ a: 2.35, w: 0.2, to: null, from: 0, u: 0 }, { a: 5.15, w: 0.2, to: null, from: 0, u: 0 }],
+    zones: [], zoneNext: 4, railNext: 12, railWarn: 0, balls: [], ballNext: 9, burn: 0, alarm: 0, flashHP: 0, jolt: 0, beacon: 0, roar: 0, spinDir: 1, spinT: 5, hitA: 0 };
+  t.pal = GAS_PAL; t.tex = null; t.stuck = []; t.apples = []; t.marks = []; t.pop = 1; t.landed = true; t.smooth = false;
+  t.pat = tt => gasSpin(t, tt);
+}
+// a steady industrial turn that slams into reverse every few seconds, faster under pressure
+function gasSpin(t, tt) {
+  const G = t.gas; if (!G) return 0;
+  const p = G.P / 100, base = 1.45 + 0.75 * p + (G.phase > 1 ? 0.35 : 0) + (G.crit ? 0.4 : 0);
+  return G.spinDir * base * (1 + 0.18 * Math.sin(tt * 2.1)) * (G.roar > 0 ? 0.3 : 1);
+}
+const gasAt = (t, a, r) => worldAt(t, a, r);
+const gasFacing = (t, a, w = 0.4) => angDiff(t.rot + a, HALF) < w;
+function gasSay(m, col = '#ffd23f', y = CY + R + 64) { floater(m, CX, y, col); }
+function gasPressure(G, d) { G.P = clamp(G.P + d, 0, 100); }
+// ---------- vents: capped vents build pressure; pop the cap and it blows for a while ----------
+function gasPopVent(t, V, quiet) {
+  const G = t.gas; V.st = 'blowing'; V.t = 0; V.dur = G.phase > 1 ? 4.5 : 5.5; V.cap = 0; gasPressure(G, -14);
+  const [x, y] = gasAt(t, V.a, R + 30);
+  debris.push({ kind: 'shard', x, y, vx: rand(-260, 260), vy: rand(-520, -300), rot: rand(TAU), vr: rand(-20, 20), c: '#c8322a', pts: [[-7, -4], [7, -4], [7, 4], [-7, 4]] });
+  burst(x, y, 24, G.phase > 1 ? ['#ffd23f', '#ff7a1a', '#ffffff'] : ['#e8f0ee', '#b8c8c4', '#ffffff'], 420, 30, 3, 0.5); shocks(x, y, 1, 70);
+  if (!quiet) { floater('VENT POPPED: PRESSURE DOWN', x, y - 30, '#7cffd8'); sfx.pipeBurst ? sfx.pipeBurst() : sfx.gush(); sfx.hiss(); }
+}
+// ---------- the heating region ----------
+function gasNewZone(t) {
+  const G = t.gas, taken = t.stuck.map(s => s.a).concat(G.vents.map(v => v.a), G.rails.map(r => r.a), G.zones.map(z => z.a));
+  let best = rand(TAU), bd = -1; for (let i = 0; i < 30; i++) { const a = rand(TAU), d = Math.min(9, ...taken.map(q => angDiff(q, a))); if (d > bd) { bd = d; best = a; } }
+  G.zones.push({ a: best, w: 0.3, st: 'warm', t: 0, seed: rand(99) }); sfx.heatWarn ? sfx.heatWarn() : sfx.hiss();
+  floater('HEATING REGION', CX, CY - R - 40, '#ff9a3c');
+}
+// ---------- rails slide round the rim ----------
+function gasShiftRails(t) {
+  const G = t.gas;
+  for (const Rl of G.rails) { Rl.from = Rl.a; Rl.to = Rl.a + (Math.random() < 0.5 ? -1 : 1) * rand(0.7, 1.6); Rl.u = 0; }
+  sfx.servo ? sfx.servo() : sfx.ratchet(); shake = Math.max(shake, 6); floater('THE RAILS SHIFT', CX, CY - R - 40, '#c3c3ca');
+}
+// ---------- fireballs (phase 2): lobbed down your lane; knock them out of the air ----------
+function gasFireball(t) { const G = t.gas; G.balls.push({ st: 'warn', t: 0, y: CY + R + 10 }); sfx.flare(); floater('FIREBALL: KNOCK IT DOWN', CX, CY + R + 64, '#ff7a1a'); }
+// ---------- blowout: the gauge hit 100 ----------
+function gasBlowout(t) {
+  const G = t.gas; if (G.dead || gasBusy()) return;
+  fx = { type: 'gasblow', t: 0, lt: 0, freeze: 0.2, x: CX, y: CY, lines: impactLinesFor(26, 1000), tg: t };
+  state = 'fx'; cinema(true, 0.8); camFocus(CX, CY, 1.12); G.balls = [];
+  sfx.pipeBurst ? sfx.pipeBurst() : sfx.gush(); sfx.subDrop(); sfx.hiss(); shake = 30; buzz([80, 30, 120]);
+}
+function updateGasBlow(t) {
+  const tg = fx.tg, G = tg.gas; tscale = t < 0.6 ? 0.4 : 0.8;
+  if (!fx.boom) {
+    fx.boom = true; for (const V of G.vents) { V.st = 'blowing'; V.t = 0; V.dur = 2.6; V.cap = 0; }
+    const out = tg.stuck.filter(s => !s.ability).slice(0, 3);
+    for (const s of out) { const w = tg.rot + s.a, [x, y] = gasAt(tg, s.a, R); debris.push({ kind: 'knife', x, y, vx: Math.cos(w) * 700, vy: Math.sin(w) * 700 - 300, rot: w - HALF, vr: rand(-30, 30) }); tg.stuck.splice(tg.stuck.indexOf(s), 1); }
+    for (let i = 0; i < 40; i++) { const a = rand(TAU), sp = rand(300, 800); parts.push({ x: CX + Math.cos(a) * R, y: CY + Math.sin(a) * R, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.4, 0.9), max: 0.9, c: ['#ffd23f', '#ff7a1a', '#ffffff'][i % 3], s: 3, rot: 0, vr: 0 }); }
+    shocks(CX, CY, 3, 300); pfxRing(CX, CY, '#ff9a3c', 320, 0.45); kick(0.4, 0.08, 1.6, 1.2); G.P = 30; G.alarm = 0;
+    floater('BLOWOUT!', CX, CY - R - 46, '#ff3b30');
+  }
+  if (t > 0.9) { endFx('play'); fail({ y: KNIFE_Y, wood: true, done: false }); }
+}
+// ---------- phase 2: the burner ignites ----------
+function startGasIgnite(t) {
+  const G = t.gas; G.phase = 2;
+  fx = { type: 'gasignite', t: 0, lt: 0, freeze: 0, tg: t }; state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.2);
+  sfx.flare(); sfx.subDrop(); sfx.voltRise ? sfx.voltRise() : sfx.riser(); shake = 14;
+}
+function updateGasIgnite(t) {
+  const tg = fx.tg, G = tg.gas; tscale = 0.5; G.burn = clamp(t / 0.8, 0, 1); G.roar = 1;
+  if (t > 0.8 && !fx.lit) { fx.lit = true; burst(CX, CY, 70, ['#ffd23f', '#ff7a1a', '#ff3b30', '#ffffff'], 760, 60, 3.4, 0.7); shocks(CX, CY, 3, 260); pfxRing(CX, CY, '#ff7a1a', 300, 0.5); kick(0.35, 0.07, 1.4, 1); shake = 28; sfx.kegBoom ? sfx.kegBoom() : sfx.logExplode(); floater('IGNITION', CX, CY - R - 46, '#ff7a1a'); G.ballNext = 5; }
+  if (t > 1.7) { endFx('play'); gasSay('THE VENTS BREATHE FIRE NOW', '#ff9a3c'); }
+}
+// ---------- knife in flight ----------
+function gasFlightHit(k, t) {
+  const G = t.gas; if (!G || G.hide || G.dead) return false;
+  const tip = k.y, a = normA(HALF - t.rot);
+  // fireballs: meet one in the air and both are gone
+  for (const b of G.balls) if (b.st === 'fly' && Math.abs(tip - b.y) < 30) { b.st = 'dead'; k.done = true; knivesLeft++; score++; burst(CX, b.y, 34, ['#ffd23f', '#ff7a1a', '#ffffff'], 460, 20, 3, 0.5); shocks(CX, b.y, 1, 80); floater('FIREBALL DOWNED  +1', CX + 60, b.y, '#ffd23f'); sfx.clang(); sfx.flare(); return true; }
+  if (k.ability) return false;
+  // a vent blowing straight down the lane blasts knives aside
+  for (const V of G.vents) if (V.st === 'blowing' && gasFacing(t, V.a, 0.38) && tip <= CY + R + 170) {
+    k.done = true; knivesLeft++; combo = 0; const fire = G.phase > 1, sd = Math.random() < 0.5 ? -1 : 1;
+    debris.push({ kind: 'knife', x: CX, y: k.y, vx: sd * rand(500, 700), vy: rand(-300, 100), rot: 0, vr: sd * rand(20, 30) });
+    burst(CX, k.y, 18, fire ? ['#ff7a1a', '#ffd23f'] : ['#e8f0ee', '#b8c8c4'], 360, 0, 2.6, 0.4);
+    floater(fire ? 'SCORCHED AWAY' : 'BLOWN AWAY', CX + 50, k.y, fire ? '#ff7a1a' : '#e8f0ee'); sfx.gush(); return true;
+  }
+  // the vent pipes and their caps
+  for (const V of G.vents) if (inArc(a, V.a, 0.13) && tip <= CY + R + 34) {
+    if (V.st === 'capped') { k.done = true; knivesLeft++; score++; gasPopVent(t, V); return true; }
+    k.done = true; knivesLeft++; combo = 0; debris.push({ kind: 'knife', x: CX, y: k.y, vx: rand(-500, 500), vy: rand(-480, -260), rot: 0, vr: rand(-30, 30) }); sfx.clang(); return true;
+  }
+  // the rails are steel: a knife that meets one breaks
+  for (const Rl of G.rails) if (inArc(a, Rl.a, Rl.w) && tip <= CY + R + 15) {
+    const [x, y] = gasAt(t, a, R + 12); burst(x, y, 26, ['#ffffff', '#ffd23f', '#c3c3ca'], 460, 20, 2.6, 0.4); floater('STEEL RAIL!', CX, CY + R + 56, '#c3c3ca'); sfx.clang(); fail(k); return true;
+  }
+  return false;
+}
+function gasSurfaceHit(k, t, a) {
+  const G = t.gas; if (!G) return false;
+  const Z = G.zones.find(z => inArc(a, z.a, z.w));
+  if (!Z || k.ability) return false;
+  const [x, y] = gasAt(t, Z.a, R);
+  if (Z.st === 'hot') { burst(x, y, 30, ['#ffffff', '#ffd23f', '#ff7a1a'], 420, 60, 3, 0.5); for (let i = 0; i < 12; i++) smoke.push({ x: CX + rand(-10, 10), y: CY + R, vx: rand(-60, 60), vy: rand(-120, -40), r: rand(4, 8), life: 0.9, max: 0.9, g: 230, c: 'rgba(240,240,244,.6)' }); floater('SCALDED!', CX, CY + R + 50, '#ff7a1a'); sfx.hiss(); fail(k); return true; }
+  G.zones.splice(G.zones.indexOf(Z), 1); score++; gasPressure(G, -6);
+  for (let i = 0; i < 10; i++) smoke.push({ x, y, vx: rand(-60, 60), vy: rand(-120, -40), r: rand(4, 8), life: 0.8, max: 0.8, g: 200, c: 'rgba(230,240,240,.5)' });
+  floater('QUENCHED  +1', x, y - 30, '#7cffd8'); sfx.hiss(); return false;
+}
+function gasStuck(t, s, a) {
+  const G = t.gas; G.jolt = 1; G.hitA = a; gasPressure(G, G.phase > 1 ? 1.6 : 1.3); G.flashHP = 0.25;
+  const [x, y] = gasAt(t, a, R); burst(x, y, 14, ['#ffffff', '#ffd23f', '#9ab8b2'], 340, 30, 2.4, 0.4); sfx.clank();
+}
+function gasClear(t) { const G = t.gas; if (G.dead || gasBusy()) return; startGasDeath(t); }
+// ---------- per frame ----------
+function updateGas(t, dt) {
+  const G = t.gas; if (!G || G.hide || G.dead) return;
+  G.flashHP = Math.max(0, G.flashHP - dt); G.jolt = Math.max(0, G.jolt - dt * 4); G.roar = Math.max(0, G.roar - dt); G.beacon += dt;
+  G.Pv += (G.P - G.Pv) * Math.min(1, dt * 6);
+  if (gasBusy() || state !== 'play') return;
+  if (G.phase === 1 && knivesLeft > 0 && knivesLeft <= GAS_PH2 && flying.length === 0) { startGasIgnite(t); return; }
+  if (!G.crit && knivesLeft > 0 && knivesLeft <= GAS_CRIT) { G.crit = true; floater('CRITICAL', CX, CY - R - 46, '#ff3b30'); sfx.alarm ? sfx.alarm() : sfx.heatWarn(); }
+  // the spin slams into reverse now and then
+  G.spinT -= dt; if (G.spinT <= 0) { G.spinT = rand(3.5, 6.5) * (G.crit ? 0.6 : 1); G.spinDir *= -1; G.roar = 0.25; sfx.ratchet ? sfx.ratchet() : sfx.thunk(); }
+  // pressure: always climbing, faster with capped vents and hot metal, falling while vents blow
+  let dP = 1.0 + (G.phase > 1 ? 0.4 : 0);
+  for (const V of G.vents) { if (V.st === 'capped') dP += 0.7; else { dP -= 6.5; V.t += dt; if (V.t > V.dur) { V.st = 'capped'; V.t = 0; V.cap = 0; sfx.thunk(); } } V.cap = Math.min(1, V.cap + dt * 3); }
+  for (const Z of G.zones) if (Z.st === 'hot') dP += 2.2;
+  gasPressure(G, dP * dt);
+  if (G.P >= 85) { G.alarm += dt; if (Math.floor(G.alarm * 4) !== G.alarmB) { G.alarmB = Math.floor(G.alarm * 4); sfx.tick(); } } else G.alarm = 0;
+  if (G.P >= 100) { gasBlowout(t); return; }
+  // heating regions
+  for (const Z of G.zones) { Z.t += dt; if (Z.st === 'warm' && Z.t > 3) { Z.st = 'hot'; Z.t = 0; sfx.flare(); } else if (Z.st === 'hot' && Z.t > 4.5) { Z.st = 'cool'; Z.t = 0; } else if (Z.st === 'cool' && Z.t > 1) Z.gone = true; }
+  G.zones = G.zones.filter(z => !z.gone);
+  G.zoneNext -= dt; if (G.zoneNext <= 0) { G.zoneNext = rand(6, 9); if (G.zones.length < (G.phase > 1 ? 2 : 1)) gasNewZone(t); }
+  // rails
+  G.railNext -= dt; if (G.railNext <= 0 && G.railWarn <= 0) { G.railWarn = 0.7; sfx.tick(); }
+  if (G.railWarn > 0) { G.railWarn -= dt; if (G.railWarn <= 0) { G.railNext = rand(10, 14) * (G.crit ? 0.6 : 1); gasShiftRails(t); } }
+  for (const Rl of G.rails) if (Rl.to !== null) { Rl.u = Math.min(1, Rl.u + dt / 0.8); Rl.a = normA(Rl.from + (Rl.to - Rl.from) * ease3(Rl.u)); if (Rl.u >= 1) Rl.to = null; }
+  // fireballs
+  if (G.phase > 1) { G.ballNext -= dt; if (G.ballNext <= 0) { G.ballNext = rand(8, 11) * (G.crit ? 0.7 : 1); gasFireball(t); } }
+  for (const b of G.balls) {
+    b.t += dt;
+    if (b.st === 'warn' && b.t > 0.9) { b.st = 'fly'; b.t = 0; sfx.whoosh(); }
+    if (b.st === 'fly') { b.y += dt * 320; if (b.y > KNIFE_Y - 10) { b.st = 'dead'; burst(CX, KNIFE_Y, 40, ['#ffd23f', '#ff7a1a', '#ff3b30'], 520, 40, 3, 0.6); floater('BURNED!', CX, KNIFE_Y - 60, '#ff7a1a'); sfx.flare(); fail({ y: KNIFE_Y, wood: true, done: false }); } }
+  }
+  G.balls = G.balls.filter(b => b.st !== 'dead');
+}
+// ---------- death: the tank goes up ----------
+function startGasDeath(t) {
+  const G = t.gas; G.dead = true; G.balls = [];
+  fx = { type: 'gasdeath', t: 0, lt: 0, freeze: 0.3, x: CX, y: CY, lines: impactLinesFor(32, 1100), tg: t, boss: true };
+  state = 'fx'; cinema(true, 1); camFocus(CX, CY, 1.22); sfx.alarm ? sfx.alarm() : sfx.heatWarn(); sfx.subDrop(); buzz(40);
+}
+function updateGasDeath(t) {
+  const tg = fx.tg, G = tg.gas; tscale = t < 1.4 ? 0.45 : 0.75;
+  if (t < 1.4) {
+    const u = t / 1.4; G.P = 100; G.Pv = 100 + Math.sin(t * 40) * 6; G.swell = u; G.s = 1 + 0.06 * u * u + Math.sin(t * 60) * 0.012 * u; shake = Math.max(shake, 3 + 14 * u);
+    for (const V of G.vents) { V.st = 'blowing'; V.t = 0; V.dur = 9; }
+    G.burn = 1; G.phase = 2;
+    if (Math.floor(t * 7) !== fx.z) { fx.z = Math.floor(t * 7); sfx.hiss(); const a = rand(TAU); burst(CX + Math.cos(a) * R, CY + Math.sin(a) * R, 16, ['#ffd23f', '#ff7a1a', '#ffffff'], 420, 20, 2.6, 0.5); }
+  }
+  if (t >= 1.4 && !fx.boom) {
+    fx.boom = true; G.s = 1; breakTarget(tg, 3);
+    for (let i = 0; i < 110; i++) { const a = rand(TAU), sp = rand(200, 1100); parts.push({ x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 150, life: rand(0.7, 1.7), max: 1.7, c: ['#ffd23f', '#ff7a1a', '#ff3b30', '#ffffff', '#2f4a4a'][i % 5], s: 4, rot: rand(TAU), vr: rand(-8, 8) }); }
+    for (let i = 0; i < 20; i++) { const a = rand(TAU), sp = rand(300, 800), pts = []; for (let j = 0; j < 4; j++) { const r = rand(6, 16), q = j / 4 * TAU + rand(-0.4, 0.4); pts.push([Math.cos(q) * r, Math.sin(q) * r]); } debris.push({ kind: 'shard', x: CX, y: CY, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 260, rot: rand(TAU), vr: rand(-16, 16), c: ['#2f4a4a', '#7a9a96', '#ffd23f', '#1a1a1e'][i % 4], pts }); }
+    G.fireball = 1; scheduleScreenHits(14, ['#ff7a1a', '#ffd23f', '#08080a'], 1.3); shocks(CX, CY, 6, 420); kick(0.9, 0.16, 2.2, 2.2); shake = 56; pfxRing(CX, CY, '#ff7a1a', 440, 0.7);
+    floater('KA-BOOM', CX, CY - 60, '#ffd23f'); setMusic('main'); tgt = null;
+    sfx.kegBoom ? sfx.kegBoom() : sfx.logExplode(); sfx.logExplode(); sfx.subDrop(); buzz([120, 40, 200]);
+  }
+  if (t > 1.6 && !fx.summoned) { fx.summoned = true; if (abil.state === 'used') summonButton(CX, CY); }
+  if (t > 3) endFx('clearing');
+}
+
+// ======================= GAS TANK intro, cut to Spero (195 BPM, bars on 0.399 + 1.2306n) =======================
+// 0.40 the yellow star on the first downbeat; it shrinks to a point and at 1.63 opens on a pressure gauge in macro,
+// its needle ticking up on every beat. 2.86 hard cut: hazard stripes, and DANGER / FLAMMABLE stencilled on with a
+// hiss on each half bar. 4.09 the valve wheel turning, gas spitting off it in time. 5.32 the highway at night: the
+// truck roars up into frame from behind, 6.55 it swerves round a car, 7.78 it settles and the camera pushes in on
+// the tank while the title comes up and its needle creeps into the red. 9.01 the roll: a counter climbs 85 / 90 /
+// 95 / 99 on each beat with a punch-in; 10.24 the drop: the valve vents, the fight is on.
+const GT = { star: 0.40, open: 1.63, stamp: 2.86, stamp2: 3.48, valve: 4.09, road: 5.32, swerve: 6.55, deck: 7.78, roll: 9.01, land: 10.24 };
+const GSHOT2 = { reveal: GT.land };
+const GT_CUES = Object.keys(GT).filter(k => k !== 'land');
+const GAS_BEAT = 60 / 195.02;
+function startGasIntro(t) {
+  fx = { type: 'gasintro', t: 0, freeze: 0, tg: t, cuts: {}, wait: 0 }; state = 'fx';
+  const G = t.gas; G.hide = true; G.ox = G.oy = 0; G.s = 1; cinema(true, 1); setHD(true);
+  cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+  slamMusic('gas');
+}
+function skipGasIntro() { if (fx && fx.type === 'gasintro' && fx.t < GT.land - 0.35) { fx.t = GT.land - 0.35; fx.skipped = true; for (const k of GT_CUES) fx.cuts[k] = true; const G = fx.tg.gas; G.hide = false; G.ox = G.oy = 0; } }
+// where the truck is during the drive-in: rising from below, a hard swerve, then settled
+function gasTruckPos(t) {
+  if (t < GT.road) return [0, 900];
+  const u = clamp((t - GT.road) / (GT.swerve - GT.road), 0, 1), e = 1 - Math.pow(1 - u, 3);
+  let x = 0, y = 760 * (1 - e);
+  if (t >= GT.swerve) { const s = t - GT.swerve, v = clamp(s / (GT.deck - GT.swerve), 0, 1); x = Math.sin(v * Math.PI) * 70 * (1 - v * 0.3); y = 0; }
+  return [x, y];
+}
+function updateGasIntro(t) {
+  tscale = 0; const tg = fx.tg, G = tg.gas, d = t - (fx.lt || 0); fx.lt = t; introTick(d);
+  const mp = introMusicClock('gas');
+  if (music.unlocked && !fx.skipped && mp === null && fx.wait < 1.2 && fx.t < 0.35) { fx.wait += d; fx.t = 0; fx.lt = 0; return; }
+  if (mp !== null && !fx.skipped && Math.abs(mp - fx.t) < 1.5) { fx.t += (mp - fx.t) * 0.25; t = fx.t; }
+  const at = k => cineCue(k, GT[k]);
+  if (at('star')) { sfx.starHit(); bloomBoost = 1; kick(0.12, 0.03, 1.2, 0.5); shocks(CX, CY + 40, 2, 300); }
+  if (at('open')) { sfx.reveal(); sfx.servo ? sfx.servo() : sfx.ratchet(); }
+  if (t > GT.open && t < GT.stamp) { const b = Math.floor((t - 0.0913) / GAS_BEAT); if (b !== fx.gb) { fx.gb = b; sfx.tick(); } }
+  if (at('stamp')) { sfx.stamp(); sfx.hiss(); shake = 12; kick(0.15, 0.04, 1, 0.5); }
+  if (at('stamp2')) { sfx.stamp(); sfx.hiss(); shake = 12; kick(0.15, 0.04, 1, 0.5); }
+  if (at('valve')) { sfx.ratchet ? sfx.ratchet() : sfx.thunk(); sfx.gush(); shake = 8; }
+  if (t > GT.valve && t < GT.road) { const b = Math.floor((t - 0.0913) / GAS_BEAT); if (b !== fx.vb) { fx.vb = b; if (b % 2) sfx.hiss(); } }
+  if (at('road')) { sfx.tireRev ? sfx.tireRev() : sfx.riser(); sfx.whoosh(); shake = 14; kick(0.2, 0.05, 1.1, 0.6); }
+  if (at('swerve')) { sfx.tireBrake ? sfx.tireBrake() : sfx.screech(); sfx.whoosh(); shake = 16; }
+  if (at('deck')) { sfx.thunk(); sfx.subDrop(); shake = 10; camFocus(CX, CY, 1.2); }
+  if (t > GT.roll && t < GT.land) { const b = Math.floor((t - GT.roll) / GAS_BEAT); if (b !== fx.rb) { fx.rb = b; sfx.stamp(); sfx.tick(); shake = 8 + 3 * b; camFocus(CX, CY, 1.22 + 0.06 * b); } }
+  if (t >= GT.road && t < GT.land) {
+    G.hide = false; const [x, y] = gasTruckPos(t); G.ox = x; G.oy = y;
+    G.P = G.Pv = t < GT.deck ? 22 : 22 + 75 * clamp((t - GT.deck) / (GT.land - GT.deck), 0, 1);
+    tg.rot += (t < GT.deck ? 0.6 : 1.4) * d;
+  }
+  if (t >= GT.land && !fx.landed) {
+    fx.landed = true; G.hide = false; G.ox = G.oy = 0; G.s = 1; G.P = G.Pv = 22;
+    cam.z = cam.tz = 1; cam.fx = cam.tfx = CX; cam.fy = cam.tfy = CY;
+    tankArrive.on = true; tankArrive.t = 0; knifeRiseT = 1.3; bloomBoost = 0.3;
+    for (const V of G.vents) { V.st = 'blowing'; V.t = 0; V.dur = 1.2; }
+    shake = 28; kick(0.3, 0.06, 0.8, 0.5); shocks(CX, CY, 3, 340); pfxRing(CX, CY, '#ff9a3c', 320, 0.45);
+    burst(CX, CY, 60, ['#ffd23f', '#ff7a1a', '#ffffff'], 640, 40, 3, 0.6);
+    sfx.pipeBurst ? sfx.pipeBurst() : sfx.gush(); sfx.stamp(); sfx.subDrop(); sfx.knifeRise(); buzz([60, 30, 90]);
+    endFx('play'); floater('KEEP THE PRESSURE DOWN', CX, CY - R - 50, '#ffd23f'); floater('POP THE VENT CAPS  /  NEVER HIT HOT METAL', CX, CY + R + 80, '#f4f4f0');
+  }
+  fxFilter = null;
+}
+// ======================= GAS TANK: art =======================
+// The lid of an upright industrial tank seen from above: a teal steel dome inside a riveted rim with a hazard band,
+// a weld seam, a copper coil spiralling out from the central valve to the pressure gauge, a yellow flammable
+// warning triangle and stencilling. Rails, vents and the heating region are fixed to the rim.
+// ---------- shared pieces (the intro uses them big) ----------
+function gasGaugeDial(g, x, y, r) {
+  g.save(); g.translate(x, y);
+  const bz = g.createLinearGradient(-r, -r, r, r); bz.addColorStop(0, '#d8e0e0'); bz.addColorStop(0.5, '#6a7476'); bz.addColorStop(1, '#2a3032');
+  g.fillStyle = bz; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+  g.fillStyle = '#1a1e20'; g.beginPath(); g.arc(0, 0, r * 0.88, 0, TAU); g.fill();
+  const df = g.createRadialGradient(-r * 0.2, -r * 0.2, 1, 0, 0, r * 0.85); df.addColorStop(0, '#fbfaf2'); df.addColorStop(1, '#d8d4c4'); g.fillStyle = df; g.beginPath(); g.arc(0, 0, r * 0.84, 0, TAU); g.fill();
+  const a0 = Math.PI * 0.75, sw = Math.PI * 1.5;
+  g.strokeStyle = '#d82a1e'; g.lineWidth = r * 0.1; g.beginPath(); g.arc(0, 0, r * 0.68, a0 + sw * 0.8, a0 + sw); g.stroke();
+  g.strokeStyle = '#e8b020'; g.beginPath(); g.arc(0, 0, r * 0.68, a0 + sw * 0.6, a0 + sw * 0.8); g.stroke();
+  g.strokeStyle = '#1a1e20'; for (let i = 0; i <= 20; i++) { const a = a0 + sw * i / 20, l = i % 5 ? 0.1 : 0.2; g.lineWidth = i % 5 ? r * 0.02 : r * 0.04; g.beginPath(); g.moveTo(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.8); g.lineTo(Math.cos(a) * r * (0.8 - l), Math.sin(a) * r * (0.8 - l)); g.stroke(); }
+  if (r > 30) { g.fillStyle = '#1a1e20'; g.font = `700 ${r * 0.14}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; for (let i = 0; i <= 4; i++) { const a = a0 + sw * i / 4; g.fillText(String(i * 25), Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5); } g.font = `700 ${r * 0.1}px ${FONT}`; g.fillText('PSI x10', 0, r * 0.62); }
+  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.3; g.fillStyle = '#4a5254'; g.beginPath(); g.arc(Math.cos(a) * r * 0.94, Math.sin(a) * r * 0.94, r * 0.035, 0, TAU); g.fill(); }
+  g.restore();
+}
+function gasNeedle(x, y, r, v, rot = 0) {
+  const a = Math.PI * 0.75 + Math.PI * 1.5 * clamp(v, 0, 1.04);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(r * 0.04, r * 0.06); ctx.lineTo(Math.cos(a) * r * 0.72 + r * 0.04, Math.sin(a) * r * 0.72 + r * 0.06); ctx.stroke();
+  ctx.strokeStyle = '#c81e14'; ctx.lineWidth = Math.max(1, r * 0.05); ctx.beginPath(); ctx.moveTo(-Math.cos(a) * r * 0.16, -Math.sin(a) * r * 0.16); ctx.lineTo(Math.cos(a) * r * 0.72, Math.sin(a) * r * 0.72); ctx.stroke();
+  ctx.fillStyle = '#2a2e30'; ctx.beginPath(); ctx.arc(0, 0, r * 0.09, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(-r * 0.25, -r * 0.35, r * 0.5, r * 0.22, -0.6, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function gasValveWheel(g, x, y, r, rot = 0) {
+  g.save(); g.translate(x, y); g.rotate(rot);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.arc(r * 0.06, r * 0.08, r, 0, TAU); g.fill();
+  g.strokeStyle = '#7a1410'; g.lineWidth = r * 0.24; g.beginPath(); g.arc(0, 0, r * 0.86, 0, TAU); g.stroke();
+  g.strokeStyle = '#d8382a'; g.lineWidth = r * 0.16; g.stroke();
+  g.strokeStyle = 'rgba(255,200,180,.55)'; g.lineWidth = r * 0.05; g.beginPath(); g.arc(0, 0, r * 0.86, Math.PI * 1.05, Math.PI * 1.6); g.stroke();
+  for (let i = 0; i < 18; i++) { const a = i / 18 * TAU; g.fillStyle = '#9a1c14'; g.beginPath(); g.arc(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, r * 0.05, 0, TAU); g.fill(); }
+  for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; g.strokeStyle = '#7a1410'; g.lineWidth = r * 0.16; g.beginPath(); g.moveTo(Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2); g.lineTo(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.8); g.stroke(); g.strokeStyle = '#c8322a'; g.lineWidth = r * 0.09; g.stroke(); }
+  const hg = g.createRadialGradient(-r * 0.08, -r * 0.08, 1, 0, 0, r * 0.28); hg.addColorStop(0, '#e8eef0'); hg.addColorStop(1, '#5a6466'); g.fillStyle = hg;
+  g.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; g.lineTo(Math.cos(a) * r * 0.26, Math.sin(a) * r * 0.26); } g.closePath(); g.fill(); g.strokeStyle = '#2a3032'; g.lineWidth = r * 0.03; g.stroke();
+  g.fillStyle = '#2a3032'; g.beginPath(); g.arc(0, 0, r * 0.08, 0, TAU); g.fill();
+  g.restore();
+}
+function gasHazard(g, x, y, s, rot = 0) {
+  g.save(); g.translate(x, y); g.rotate(rot); g.lineJoin = 'round';
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.moveTo(1.5, -s + 2); g.lineTo(s * 0.92 + 1.5, s * 0.62 + 2); g.lineTo(-s * 0.92 + 1.5, s * 0.62 + 2); g.closePath(); g.fill();
+  g.fillStyle = '#ffcc1a'; g.strokeStyle = '#141414'; g.lineWidth = s * 0.12; g.beginPath(); g.moveTo(0, -s); g.lineTo(s * 0.92, s * 0.62); g.lineTo(-s * 0.92, s * 0.62); g.closePath(); g.fill(); g.stroke();
+  // a flame
+  g.fillStyle = '#141414'; g.beginPath(); g.moveTo(0, -s * 0.45); g.bezierCurveTo(s * 0.32, -s * 0.12, s * 0.32, s * 0.3, 0, s * 0.42); g.bezierCurveTo(-s * 0.32, s * 0.3, -s * 0.26, s * 0.02, -s * 0.08, -s * 0.12); g.bezierCurveTo(-s * 0.04, s * 0.04, s * 0.06, s * 0.06, 0, -s * 0.45); g.fill();
+  g.fillStyle = '#ffcc1a'; g.beginPath(); g.ellipse(0, s * 0.24, s * 0.1, s * 0.14, 0, 0, TAU); g.fill();
+  g.restore();
+}
+function gasStencil(g, str, x, y, size, rot, a = 0.7) { g.save(); g.translate(x, y); g.rotate(rot); g.font = `400 ${size}px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = `rgba(236,240,232,${a})`; g.fillText(str, 0, 0); g.globalCompositeOperation = 'destination-out'; const rnd = mulberry(str.length * 31); for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(0,0,0,${0.3 + rnd() * 0.5})`; g.fillRect((rnd() - 0.5) * size * str.length * 0.7, (rnd() - 0.5) * size, rnd() * 3, rnd() * 3); } g.restore(); }
+const GAS_GAUGE = [0, -0.6], GAS_COIL0 = 20, GAS_COIL1 = 0.5;
+// the copper coil: from the valve out in two turns, then a straight run to the gauge
+function gasCoilPts(r) {
+  const pts = []; const n = 120, turns = 1.85;
+  for (let i = 0; i <= n; i++) { const u = i / n, a = -HALF + 0.5 + u * turns * TAU, rr = GAS_COIL0 + (r * GAS_COIL1 - GAS_COIL0) * u; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+  const [lx, ly] = pts[pts.length - 1], gx = GAS_GAUGE[0] * r, gy = GAS_GAUGE[1] * r;
+  pts.push([lx + (gx - lx) * 0.5, ly + (gy - ly) * 0.5 + 6]); pts.push([gx, gy + r * 0.16]);
+  return pts;
+}
+function makeGasTexture(t) {
+  const S = Math.ceil((R + 4) * 2 * TEX), c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(S / 2, S / 2); g.scale(TEX, TEX); g.lineCap = 'round'; g.lineJoin = 'round';
+  const rnd = mulberry(8080);
+  // rim
+  const rg = g.createRadialGradient(0, 0, R - 14, 0, 0, R); rg.addColorStop(0, '#1a2626'); rg.addColorStop(0.5, '#4a6464'); rg.addColorStop(1, '#1a2828');
+  g.fillStyle = rg; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  for (let i = 0; i < 36; i++) { const a = i / 36 * TAU, x = Math.cos(a) * (R - 6), y = Math.sin(a) * (R - 6); g.fillStyle = '#0e1616'; g.beginPath(); g.arc(x + 0.5, y + 0.6, 2, 0, TAU); g.fill(); g.fillStyle = '#8aa6a2'; g.beginPath(); g.arc(x, y, 1.6, 0, TAU); g.fill(); }
+  // hazard band
+  g.save(); g.beginPath(); g.arc(0, 0, R - 12, 0, TAU); g.arc(0, 0, R - 20, 0, TAU, true); g.clip();
+  g.fillStyle = '#ffc81a'; g.fillRect(-R, -R, 2 * R, 2 * R); g.fillStyle = '#141414';
+  for (let i = 0; i < 48; i++) { const a = i / 48 * TAU; g.beginPath(); g.moveTo(Math.cos(a) * (R - 22), Math.sin(a) * (R - 22)); g.lineTo(Math.cos(a + 0.05) * (R - 22), Math.sin(a + 0.05) * (R - 22)); g.lineTo(Math.cos(a + 0.11) * (R - 10), Math.sin(a + 0.11) * (R - 10)); g.lineTo(Math.cos(a + 0.06) * (R - 10), Math.sin(a + 0.06) * (R - 10)); g.closePath(); g.fill(); }
+  for (let i = 0; i < 70; i++) { const a = rnd() * TAU, rr = R - 20 + rnd() * 8; g.fillStyle = 'rgba(40,30,20,.35)'; g.fillRect(Math.cos(a) * rr, Math.sin(a) * rr, 1 + rnd() * 2, 1 + rnd() * 2); }
+  g.restore();
+  g.strokeStyle = '#0e1616'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, R - 12, 0, TAU); g.stroke(); g.beginPath(); g.arc(0, 0, R - 20, 0, TAU); g.stroke();
+  // the dome
+  const dg = g.createRadialGradient(0, 0, 4, 0, 0, R - 20); dg.addColorStop(0, '#4f7a76'); dg.addColorStop(0.6, '#3a6260'); dg.addColorStop(1, '#244242');
+  g.fillStyle = dg; g.beginPath(); g.arc(0, 0, R - 20.5, 0, TAU); g.fill();
+  g.lineWidth = 0.5; for (let rr = 12; rr < R - 22; rr += 2.2) { g.strokeStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},${0.03 + rnd() * 0.04})`; g.beginPath(); g.arc(0, 0, rr, 0, TAU); g.stroke(); }
+  // weld seam
+  g.strokeStyle = '#2a4444'; g.lineWidth = 4; g.beginPath(); g.arc(0, 0, R * 0.7, 0, TAU); g.stroke();
+  for (let i = 0; i < 90; i++) { const a = i / 90 * TAU; g.fillStyle = i % 2 ? '#5f8682' : '#4a6e6a'; g.beginPath(); g.ellipse(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7, 2.4, 1.4, a + 0.6, 0, TAU); g.fill(); }
+  // grime and rust
+  for (let i = 0; i < 14; i++) { const a = rnd() * TAU, rr = rnd() * (R - 24), sg = g.createRadialGradient(Math.cos(a) * rr, Math.sin(a) * rr, 0, Math.cos(a) * rr, Math.sin(a) * rr, 6 + rnd() * 12); sg.addColorStop(0, rnd() < 0.5 ? 'rgba(120,60,20,.28)' : 'rgba(10,20,20,.3)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = sg; g.fillRect(-R, -R, 2 * R, 2 * R); }
+  // stencils
+  gasStencil(g, 'LPG', R * 0.36, R * 0.42, 15, -0.5, 0.75); gasStencil(g, 'UN 1075', R * 0.42, R * 0.6, 6, -0.5, 0.6); gasStencil(g, 'GAS TANK', -R * 0.05, R * 0.56, 9, 0.2, 0.65);
+  // the warning triangle
+  gasHazard(g, -R * 0.56, R * 0.06, 15, -0.2);
+  // the copper coil, outlined, lit, with clamps
+  const pts = gasCoilPts(R), path = () => { g.beginPath(); pts.forEach((p, i) => g[i ? 'lineTo' : 'moveTo'](p[0], p[1])); };
+  path(); g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 8; g.save(); g.translate(1, 1.5); g.stroke(); g.restore();
+  path(); g.strokeStyle = '#4a2410'; g.lineWidth = 7; g.stroke(); g.strokeStyle = '#b8642a'; g.lineWidth = 5; g.stroke(); g.strokeStyle = '#e89a5a'; g.lineWidth = 2; g.stroke(); g.strokeStyle = 'rgba(255,230,200,.7)'; g.lineWidth = 0.7; g.stroke();
+  for (let i = 12; i < pts.length - 4; i += 22) { const [x, y] = pts[i], [x2, y2] = pts[i + 1], a = Math.atan2(y2 - y, x2 - x); g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = '#8a9496'; g.fillRect(-2, -5, 4, 10); g.fillStyle = '#2a3032'; g.fillRect(-0.6, -5, 1.2, 10); g.restore(); }
+  // gauge housing on its stem
+  gasGaugeDial(g, GAS_GAUGE[0] * R, GAS_GAUGE[1] * R, 16);
+  // central valve: flange, bonnet and the red handwheel
+  g.fillStyle = '#2a3436'; g.beginPath(); g.arc(0, 0, 22, 0, TAU); g.fill();
+  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; g.fillStyle = '#8a9a9a'; g.beginPath(); g.arc(Math.cos(a) * 18, Math.sin(a) * 18, 2, 0, TAU); g.fill(); }
+  gasValveWheel(g, 0, 0, 15, 0.3);
+  return c;
+}
+// ---------- everything on the lid that moves: needle, burner, gas in the coil, rim fixtures ----------
+function drawGasLive(t) {
+  const G = t.gas; if (!G) return;
+  const p = G.Pv / 100, pulse = (typeof beatInfo === 'function' ? beatInfo('gas').pulse : 0);
+  // gas pulsing through the coil, faster and redder under pressure
+  if (p > 0.3) {
+    const pts = gasCoilPts(R); ctx.save(); ctx.globalCompositeOperation = 'lighter'; const col = p > 0.8 ? '255,90,40' : p > 0.6 ? '255,180,60' : '120,220,255';
+    for (let k = 0; k < 6; k++) { const u = ((time * (0.4 + p) + k / 6) % 1), [x, y] = pts[Math.floor(u * (pts.length - 1))]; ctx.fillStyle = `rgba(${col},${0.35 + 0.4 * p})`; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, TAU); ctx.fill(); }
+    ctx.restore();
+  }
+  gasNeedle(GAS_GAUGE[0] * R, GAS_GAUGE[1] * R, 16, p + (p > 0.85 ? Math.sin(time * 50) * 0.015 : 0));
+  if (p > 0.85 && Math.sin(time * 14) > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,60,40,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(GAS_GAUGE[0] * R, GAS_GAUGE[1] * R, 18, 0, TAU); ctx.stroke(); ctx.restore(); }
+  // the burner over the valve: a pilot under pressure, a roaring ring of fire once ignited
+  const fl = Math.max(G.burn || 0, clamp((p - 0.6) / 0.4, 0, 1) * 0.6);
+  if (fl > 0.02) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const r0 = 10 + 18 * fl + 3 * pulse, fg = ctx.createRadialGradient(0, 0, 2, 0, 0, r0 * 1.6); fg.addColorStop(0, `rgba(160,210,255,${0.9 * fl})`); fg.addColorStop(0.35, `rgba(255,200,80,${0.8 * fl})`); fg.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(0, 0, r0 * 1.6, 0, TAU); ctx.fill();
+    for (let i = 0; i < 9; i++) { const a = i / 9 * TAU - time * 3, l = r0 * (1 + 0.35 * Math.sin(time * 17 + i * 2)); ctx.fillStyle = `rgba(255,${150 + i * 8},50,${0.5 * fl})`; ctx.beginPath(); ctx.ellipse(Math.cos(a) * l * 0.55, Math.sin(a) * l * 0.55, l * 0.45, l * 0.16, a, 0, TAU); ctx.fill(); }
+    ctx.restore();
+  }
+  // the heating region: the rim glows, then burns white, a warning sign beside it
+  for (const Z of G.zones) {
+    const k = Z.st === 'warm' ? 0.6 + 0.3 * Math.sin(time * 6) : Z.st === 'hot' ? 1 : Math.max(0, 1 - Z.t);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = Z.st === 'hot' ? `rgba(255,240,200,${0.9 * k})` : `rgba(255,140,40,${0.8 * k})`; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(0, 0, R - 5, Z.a - Z.w, Z.a + Z.w); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,100,20,${0.5 * k})`; ctx.lineWidth = 20; ctx.beginPath(); ctx.arc(0, 0, R - 2, Z.a - Z.w, Z.a + Z.w); ctx.stroke();
+    if (Z.st === 'hot') for (let i = 0; i < 4; i++) { const a = Z.a + (i - 1.5) * Z.w * 0.5, rr = R + 6 + ((time * 40 + i * 9) % 26); ctx.strokeStyle = `rgba(255,200,120,${0.4 * (1 - (rr - R - 6) / 26)})`; ctx.lineWidth = 1.5; ctx.beginPath(); for (let j = 0; j <= 6; j++) { const aa = a + Math.sin(j + time * 9) * 0.03; ctx[j ? 'lineTo' : 'moveTo'](Math.cos(aa) * (rr + j * 2), Math.sin(aa) * (rr + j * 2)); } ctx.stroke(); }
+    ctx.restore();
+    ctx.save(); ctx.rotate(Z.a + HALF); ctx.translate(0, -(R - 34)); ctx.scale(0.55, 0.55); withCtx(ctx, () => gasHazard(ctx, 0, 0, 14, 0)); ctx.restore();
+  }
+  // rails: a short ladder of steel bolted to the rim
+  for (const Rl of G.rails) {
+    const warn = G.railWarn > 0 && Math.sin(time * 30) > 0;
+    ctx.save(); ctx.lineCap = 'round';
+    for (const rr of [R + 3, R + 14]) { ctx.strokeStyle = '#1a1e20'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, rr, Rl.a - Rl.w, Rl.a + Rl.w); ctx.stroke(); ctx.strokeStyle = warn ? '#ffd23f' : '#9aa4a6'; ctx.lineWidth = 3; ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 0.8; ctx.stroke(); }
+    for (let a = Rl.a - Rl.w + 0.03; a <= Rl.a + Rl.w; a += 0.075) { ctx.strokeStyle = '#1a1e20'; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (R + 1), Math.sin(a) * (R + 1)); ctx.lineTo(Math.cos(a) * (R + 16), Math.sin(a) * (R + 16)); ctx.stroke(); ctx.strokeStyle = warn ? '#ffd23f' : '#7a8486'; ctx.lineWidth = 2; ctx.stroke(); }
+    for (const a of [Rl.a - Rl.w, Rl.a + Rl.w]) { ctx.fillStyle = '#4a5254'; ctx.beginPath(); ctx.arc(Math.cos(a) * (R - 3), Math.sin(a) * (R - 3), 3, 0, TAU); ctx.fill(); }
+    ctx.restore();
+  }
+  // vents: a pipe out of the rim with a flange, capped red until popped
+  for (const V of G.vents) {
+    ctx.save(); ctx.rotate(V.a);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(R - 6, -5, 34, 12);
+    const pg = ctx.createLinearGradient(0, -6, 0, 6); pg.addColorStop(0, '#c8d0d0'); pg.addColorStop(0.45, '#7a8486'); pg.addColorStop(1, '#2a3032'); ctx.fillStyle = pg; ctx.fillRect(R - 8, -6, 34, 12);
+    ctx.fillStyle = '#4a5254'; ctx.fillRect(R - 1, -9, 4, 18); ctx.fillStyle = '#9aa4a6'; ctx.fillRect(R - 1, -9, 1.2, 18);
+    if (V.st === 'capped') { const k = V.cap; ctx.fillStyle = '#7a1410'; ctx.fillRect(R + 24, -8 * k, 8, 16 * k); ctx.fillStyle = '#d8382a'; ctx.fillRect(R + 24, -7 * k, 6, 14 * k); ctx.fillStyle = '#ffd0c0'; ctx.fillRect(R + 25, -6 * k, 1.2, 12 * k); }
+    else { ctx.fillStyle = '#0a0c0c'; ctx.beginPath(); ctx.ellipse(R + 26, 0, 2.5, 5, 0, 0, TAU); ctx.fill(); }
+    ctx.restore();
+  }
+  if (G.jolt > 0) { ctx.fillStyle = `rgba(255,255,255,${0.12 * G.jolt})`; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill(); }
+}
+// ======================= GAS TANK: in front of the tank =======================
+const gasPuff = k => bakeSprite('gasPuff' + k, -32, -32, 64, 64, g => { const cols = [['255,255,255', '200,214,214'], ['255,236,160', '255,110,30']][k]; const pg = g.createRadialGradient(-6, -6, 2, 0, 0, 30); pg.addColorStop(0, `rgba(${cols[0]},.95)`); pg.addColorStop(0.55, `rgba(${cols[1]},.55)`); pg.addColorStop(1, `rgba(${cols[1]},0)`); g.fillStyle = pg; g.beginPath(); g.arc(0, 0, 30, 0, TAU); g.fill(); });
+function drawGasFront(t) {
+  const G = t.gas; if (!G || G.hide) return;
+  gasEnvOver(t);
+  const ox = G.ox || 0, oy = G.oy || 0, fire = G.phase > 1;
+  ctx.save(); ctx.translate(ox, oy);
+  for (const V of G.vents) {
+    const w = t.rot + V.a, c = Math.cos(w), s = Math.sin(w), x0 = CX + c * (R + 28), y0 = CY + s * (R + 28);
+    if (V.st === 'blowing') {
+      // the jet: puffs racing out of the pipe and swelling into a cloud
+      const k = clamp(V.t / 0.15, 0, 1) * clamp((V.dur - V.t) / 0.4, 0, 1), spr = gasPuff(fire ? 1 : 0);
+      ctx.save(); if (fire) ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 14; i++) { const u = (time * 2.6 + i / 14) % 1, d = u * 190 * k, r = 7 + u * 34, wob = Math.sin(i * 7.3 + time * 3) * u * 22; ctx.globalAlpha = (1 - u) * 0.75 * k; ctx.drawImage(spr.c, x0 + c * d - s * wob - r, y0 + s * d + c * wob - r, r * 2, r * 2); }
+      ctx.restore();
+    } else if (Math.sin(time * 3 + V.seed * 2) > 0.6) {
+      // a capped vent weeps fumes
+      const u = (time * 1.4 + V.seed) % 1; ctx.save(); ctx.globalAlpha = 0.35 * (1 - u); const r = 4 + u * 12; ctx.drawImage(gasPuff(0).c, x0 + c * (8 + u * 20) - r, y0 + s * (8 + u * 20) - r - u * 10, r * 2, r * 2); ctx.restore();
+    }
+  }
+  ctx.restore();
+  // fireballs: the lane glows, then the ball drops toward you
+  for (const b of G.balls) {
+    if (b.st === 'warn') { const k = b.t / 0.9; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const lg = ctx.createLinearGradient(0, CY + R, 0, KNIFE_Y); lg.addColorStop(0, `rgba(255,120,30,${0.35 * k})`); lg.addColorStop(1, 'rgba(255,120,30,0)'); ctx.fillStyle = lg; ctx.fillRect(CX - 22, CY + R, 44, KNIFE_Y - CY - R); ctx.restore(); }
+    else { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let j = 4; j >= 0; j--) { const r = 18 - j * 2; ctx.globalAlpha = 0.25 + (4 - j) * 0.15; ctx.drawImage(gasPuff(1).c, CX - r + Math.sin(time * 30 + j) * 2, b.y - j * 14 - r, r * 2, r * 2); } ctx.restore(); }
+  }
+}
+function drawGasScreen(t) {
+  const G = t.gas; if (!G || G.hide || G.dead) return;
+  if (G.Pv > 85) { const a = (G.Pv - 85) / 15 * (0.18 + 0.12 * Math.sin(time * 14)); ctx.save(); ctx.globalAlpha = a; blit(bakeSprite('gasVig', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 170, CX, CY + 60, 560); v.addColorStop(0, 'rgba(255,60,20,0)'); v.addColorStop(1, 'rgba(255,60,20,.9)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); ctx.restore(); }
+}
+// ---------- HUD: health and the pressure gauge ----------
+function drawGasHUD() {
+  const t = tgt; if (!t || !t.gas || t.gas.hide) return;
+  const G = t.gas, x0 = CX - 100, y = 104;
+  let fill = 1; if (fx && fx.type === 'gasintro') fill = clamp((fx.t - GSHOT2.reveal - 0.4) / 0.9, 0, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, y - 4, 208, 16);
+  const cw = 200 / GAS_HP; for (let i = 0; i < GAS_HP; i++) { ctx.fillStyle = i < knivesLeft * fill ? (G.flashHP > 0 && Math.sin(time * 30) > 0 ? '#ffffff' : i < GAS_CRIT ? '#ff3b30' : i < GAS_PH2 ? '#ff9a3c' : '#ffd23f') : '#1e1a14'; ctx.fillRect(x0 + i * cw, y, cw - 1.5, 8); }
+  // pressure: a striped bar with a needle
+  const py = y + 18, pk = G.Pv / 100;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x0 - 4, py - 3, 208, 12);
+  const pg = ctx.createLinearGradient(x0, 0, x0 + 200, 0); pg.addColorStop(0, '#3fd6a0'); pg.addColorStop(0.6, '#ffd23f'); pg.addColorStop(0.85, '#ff7a1a'); pg.addColorStop(1, '#ff3b30');
+  ctx.fillStyle = '#141818'; ctx.fillRect(x0, py, 200, 6); ctx.fillStyle = pg; ctx.fillRect(x0, py, 200 * pk, 6);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; for (let x = 0; x < 200 * pk; x += 8) ctx.fillRect(x0 + x, py, 3, 6);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x0 + 200 * pk - 1, py - 3, 2, 12);
+  const hot = pk > 0.85, col = hot ? (Math.sin(time * 14) > 0 ? '#ff3b30' : '#ffffff') : pk > 0.6 ? '#ffd23f' : '#c3c3ca';
+  text('PRESSURE ' + Math.round(G.Pv) + '%', CX, py + 16, 7, col, 'center', 700);
+  let msg = 'POP THE VENT CAPS TO BLEED PRESSURE', mc = '#c3c3ca';
+  if (hot) { msg = 'ABOUT TO BLOW: POP A VENT'; mc = col; }
+  else if (G.balls.some(b => b.st !== 'dead')) { msg = 'FIREBALL: KNOCK IT OUT OF THE AIR'; mc = '#ff7a1a'; }
+  else if (G.zones.some(z => z.st === 'hot')) { msg = 'WHITE HOT METAL: DO NOT HIT IT'; mc = '#ffd23f'; }
+  else if (G.zones.some(z => z.st === 'warm')) { msg = 'IT IS HEATING UP: QUENCH IT NOW'; mc = '#ff9a3c'; }
+  else if (G.vents.some(v => v.st === 'blowing' && gasFacing(t, v.a, 0.6))) { msg = 'A VENT IS BLOWING DOWN YOUR LANE: WAIT'; mc = '#e8f0ee'; }
+  else if (G.railWarn > 0) { msg = 'THE RAILS ARE SHIFTING'; mc = '#ffd23f'; }
+  text(msg, CX, py + 28, 7, mc, 'center', 700);
+}
+// ======== GAS TANK background: overhead, on the back of a truck racing down a night highway, cut to Spero ========
+// The camera rides above the truck. The road streams past underneath at a speed locked to the tempo: a sodium lamp
+// sweeps over the truck on every half bar, lane dashes and the shoulder rush by, and the road swings under the
+// truck as it weaves. The surroundings change with the song:
+//   10.2 highway: lamps, a guardrail, exhaust puffing on every bar
+//   44.7 and 101.3 tunnel: concrete wall, a ceiling light sweeping over on every beat
+//   49.6 refinery: pipelines on the shoulder, flare-stack glow flickering on the beat, smoke drifting across
+//   69.3 bridge: girder shadows crossing on every beat, dark water below
+//   81.6 the chase: police lights flashing red and blue from behind
+//   113.6 inferno: the refinery is burning, a blast on every bar, sparks off the guardrail
+const GAS_SEC = [[0, 'highway'], [10.24, 'highway'], [44.70, 'tunnel'], [49.62, 'refinery'], [69.31, 'bridge'], [81.62, 'chase'], [101.31, 'tunnel'], [113.62, 'inferno'], [152.99, 'highway']];
+const GAS_V = 720, GAS_P = 60 / 195.02, GAS_BAR = 4 * GAS_P;
+function gasSong() { const Bb = BEATS.gas; return beatOf('gas') * 60 / Bb.bpm + Bb.down; }
+function gasSection(st) { let s = 'highway', s0 = 0; for (const [t0, k] of GAS_SEC) if (st >= t0) { s = k; s0 = t0; } return [s, st - s0]; }
+const gasRoadX = (st, sec) => 34 + (sec === 'chase' || sec === 'inferno' ? 26 : 16) * Math.sin(st * TAU / (8 * GAS_BAR)) + 6 * Math.sin(st * TAU / (2 * GAS_BAR));
+// ---------- baked parts ----------
+const gasAsphalt = () => twinBake('gasAsphalt', 0, 0, W + 160, 400, 1, g => {
+  const rnd = mulberry(5050); g.fillStyle = '#1b1c1f'; g.fillRect(0, 0, W + 160, 400);
+  for (let i = 0; i < 1800; i++) { const v = 20 + rnd() * 40; g.fillStyle = `rgba(${v},${v},${v + 4},${0.5 + rnd() * 0.5})`; g.fillRect(rnd() * (W + 160), rnd() * 400, 1 + rnd(), 1 + rnd()); }
+  for (let i = 0; i < 5; i++) { g.fillStyle = 'rgba(10,10,12,.35)'; g.fillRect(rnd() * (W + 100), rnd() * 360, 40 + rnd() * 90, 20 + rnd() * 50); }
+  g.strokeStyle = 'rgba(8,8,10,.6)'; g.lineWidth = 1; for (let i = 0; i < 6; i++) { let x = rnd() * (W + 160), y = rnd() * 400; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 30; y += rnd() * 22; g.lineTo(x, y); } g.stroke(); }
+  for (const x of [150, 175, 310, 335]) { g.fillStyle = 'rgba(6,6,8,.25)'; g.fillRect(x, 0, 14, 400); }
+});
+const gasTruck = () => twinBake('gasTruck', CX - 150, -60, 300, 500, 2, g => {
+  g.lineJoin = 'round';
+  const bx0 = CX - 118, bx1 = CX + 118, by0 = 146, by1 = CY + R + 62;
+  // shadow on the road
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.roundRect(bx0 - 10, -40, bx1 - bx0 + 30, by1 + 50, 24); g.fill();
+  // frame rails between cab and bed
+  g.fillStyle = '#111214'; g.fillRect(CX - 70, 100, 140, 60); g.fillStyle = '#2a2c30'; g.fillRect(CX - 60, 100, 16, 60); g.fillRect(CX + 44, 100, 16, 60);
+  // the cab: hood, windscreen, roof with marker lights, mirrors, stacks
+  const cg = g.createLinearGradient(CX - 85, 0, CX + 85, 0); cg.addColorStop(0, '#5a120c'); cg.addColorStop(0.3, '#b8261c'); cg.addColorStop(0.55, '#d8402c'); cg.addColorStop(1, '#6a160e');
+  g.fillStyle = cg; g.beginPath(); g.roundRect(CX - 78, -60, 156, 70, 18); g.fill();
+  g.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 9; i++) g.fillRect(CX - 40 + i * 10, -58, 4, 26);
+  g.fillStyle = '#0c1418'; g.beginPath(); g.roundRect(CX - 76, 6, 152, 26, 6); g.fill();
+  g.fillStyle = 'rgba(160,190,220,.25)'; g.beginPath(); g.moveTo(CX - 60, 8); g.lineTo(CX - 20, 8); g.lineTo(CX - 40, 30); g.lineTo(CX - 74, 30); g.closePath(); g.fill();
+  g.fillStyle = cg; g.beginPath(); g.roundRect(CX - 84, 30, 168, 94, 14); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(CX - 70, 38, 60, 78, 10); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 1.5; g.beginPath(); g.roundRect(CX - 30, 54, 60, 40, 6); g.stroke();
+  for (const sd of [-1, 1]) { g.fillStyle = '#1a1c20'; g.fillRect(CX + sd * 84 - (sd > 0 ? 0 : 14), 20, 14, 6); g.fillStyle = '#3a3e44'; g.beginPath(); g.roundRect(CX + sd * 98 - 5, 12, 10, 22, 3); g.fill(); g.fillStyle = '#9aa8b8'; g.fillRect(CX + sd * 98 - 3, 14, 3, 18); }
+  for (const sd of [-1, 1]) { const hg = g.createLinearGradient(CX + sd * 74 - 7, 0, CX + sd * 74 + 7, 0); hg.addColorStop(0, '#6a7076'); hg.addColorStop(0.5, '#e8eef4'); hg.addColorStop(1, '#4a5056'); g.fillStyle = hg; g.beginPath(); g.arc(CX + sd * 74, 122, 8, 0, TAU); g.fill(); g.fillStyle = '#141618'; g.beginPath(); g.arc(CX + sd * 74, 122, 4.5, 0, TAU); g.fill(); }
+  for (const sd of [-1, 1]) { g.fillStyle = '#c8ccd0'; g.fillRect(CX + sd * 26 - 3, 36, 6, 16); }
+  // the bed: diamond plate inside raised rails
+  g.fillStyle = '#26292c'; g.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
+  g.save(); g.beginPath(); g.rect(bx0 + 8, by0 + 8, bx1 - bx0 - 16, by1 - by0 - 16); g.clip();
+  const dg = g.createLinearGradient(bx0, 0, bx1, 0); dg.addColorStop(0, '#3a3f44'); dg.addColorStop(0.5, '#565c62'); dg.addColorStop(1, '#34393e'); g.fillStyle = dg; g.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
+  for (let y = by0; y < by1; y += 10) for (let x = bx0 + ((y / 10) % 2) * 6; x < bx1; x += 12) { g.save(); g.translate(x, y); g.rotate(0.8); g.fillStyle = 'rgba(200,210,220,.22)'; g.fillRect(-4, -1, 8, 2); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-4, 1, 8, 1); g.restore(); }
+  for (let i = 0; i < 8; i++) { const rnd = mulberry(i + 9); g.fillStyle = 'rgba(90,50,20,.18)'; g.beginPath(); g.ellipse(bx0 + rnd() * (bx1 - bx0), by0 + rnd() * (by1 - by0), 10 + rnd() * 20, 6 + rnd() * 12, 0, 0, TAU); g.fill(); }
+  g.restore();
+  g.strokeStyle = '#141618'; g.lineWidth = 3; g.strokeRect(bx0 + 1.5, by0 + 1.5, bx1 - bx0 - 3, by1 - by0 - 3);
+  g.fillStyle = '#4a5056'; for (const x of [bx0, bx1 - 8]) { g.fillRect(x, by0, 8, by1 - by0); g.fillStyle = '#1a1c20'; for (let y = by0 + 16; y < by1 - 10; y += 30) g.fillRect(x + 2, y, 4, 8); g.fillStyle = '#4a5056'; }
+  g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(bx0 + 1, by0, 1.5, by1 - by0); g.fillRect(bx1 - 7, by0, 1.5, by1 - by0);
+  // headboard rack
+  g.fillStyle = '#1a1c20'; g.fillRect(bx0, by0 - 8, bx1 - bx0, 12); g.fillStyle = '#7a8086'; for (let x = bx0 + 6; x < bx1 - 4; x += 14) g.fillRect(x, by0 - 7, 5, 10); g.fillStyle = '#9aa0a6'; g.fillRect(bx0, by0 - 8, bx1 - bx0, 2.5);
+  // the cradle the tank sits in, and the chains that hold it to the deck
+  g.strokeStyle = '#141618'; g.lineWidth = 9; g.beginPath(); g.arc(CX, CY, R + 8, 0, TAU); g.stroke(); g.strokeStyle = '#6a7076'; g.lineWidth = 5; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 1; g.beginPath(); g.arc(CX, CY, R + 9.5, Math.PI, Math.PI * 1.6); g.stroke();
+  for (const a of [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75]) {
+    const x0 = CX + Math.cos(a) * (R + 10), y0 = CY + Math.sin(a) * (R + 10), x1 = Math.cos(a) > 0 ? bx1 - 12 : bx0 + 12, y1 = Math.sin(a) > 0 ? by1 - 16 : by0 + 16;
+    g.fillStyle = '#2a2c30'; g.fillRect(x0 - 7, y0 - 7, 14, 14); g.fillStyle = '#8a9096'; g.fillRect(x0 - 5, y0 - 5, 10, 10);
+    const n = Math.floor(Math.hypot(x1 - x0, y1 - y0) / 7), an = Math.atan2(y1 - y0, x1 - x0);
+    for (let i = 0; i <= n; i++) { const u = i / n, x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u; g.save(); g.translate(x, y); g.rotate(an + (i % 2 ? HALF : 0)); g.strokeStyle = '#1a1c20'; g.lineWidth = 3; g.beginPath(); g.ellipse(0, 0, 4.5, 2.4, 0, 0, TAU); g.stroke(); g.strokeStyle = '#a8b0b6'; g.lineWidth = 1.4; g.stroke(); g.restore(); }
+    const mx = x0 + (x1 - x0) * 0.55, my = y0 + (y1 - y0) * 0.55; g.save(); g.translate(mx, my); g.rotate(an); g.fillStyle = '#c8a01a'; g.fillRect(-10, -3, 20, 6); g.fillStyle = '#141618'; g.fillRect(-2, -5, 4, 10); g.restore();
+    g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(x1, y1, 4, 0, TAU); g.fill(); g.fillStyle = '#141618'; g.beginPath(); g.arc(x1, y1, 2, 0, TAU); g.fill();
+  }
+  // rear: hazard-striped bumper, tail lights, the placard
+  g.save(); g.beginPath(); g.rect(bx0 - 4, by1 - 4, bx1 - bx0 + 8, 16); g.clip(); g.fillStyle = '#ffc81a'; g.fillRect(bx0 - 4, by1 - 4, bx1 - bx0 + 8, 16); g.fillStyle = '#141414'; for (let x = bx0 - 20; x < bx1 + 10; x += 16) { g.beginPath(); g.moveTo(x, by1 + 12); g.lineTo(x + 8, by1 - 4); g.lineTo(x + 16, by1 - 4); g.lineTo(x + 8, by1 + 12); g.closePath(); g.fill(); } g.restore();
+  g.strokeStyle = '#141414'; g.lineWidth = 2; g.strokeRect(bx0 - 4, by1 - 4, bx1 - bx0 + 8, 16);
+  g.save(); g.translate(CX, by1 + 4); g.rotate(Math.PI / 4); g.fillStyle = '#ffffff'; g.fillRect(-10, -10, 20, 20); g.fillStyle = '#d8261c'; g.fillRect(-8.5, -8.5, 17, 17); g.restore();
+  g.fillStyle = '#ffffff'; g.font = `700 7px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('2', CX, by1 + 8);
+  // mud flaps
+  for (const sd of [-1, 1]) { g.fillStyle = '#0c0d0e'; g.fillRect(CX + sd * 124 - 8, by1 - 10, 16, 20); }
+});
+// tyres with tread rolling past at road speed
+function gasTyres(ox, oy, st) {
+  const off = (st * GAS_V) % 12;
+  for (const [x, y, w, h] of [[CX - 100, -20, 18, 40], [CX + 82, -20, 18, 40], [CX - 136, 300, 18, 40], [CX + 118, 300, 18, 40], [CX - 136, 348, 18, 40], [CX + 118, 348, 18, 40]]) {
+    ctx.fillStyle = '#0a0a0b'; ctx.beginPath(); ctx.roundRect(x + ox, y + oy, w, h, 5); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.roundRect(x + ox, y + oy, w, h, 5); ctx.clip(); ctx.fillStyle = '#2a2b2e'; for (let ty = -12 + off; ty < h; ty += 12) ctx.fillRect(x + ox + 2, y + oy + ty, w - 4, 4); ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(x + ox + 2, y + oy + 3, 3, h - 6);
+  }
+}
+// ---------- the road and its surroundings ----------
+function gasRoad(st, sec, s, Bt, F) {
+  const rx = gasRoadX(st, sec), scroll = (st * GAS_V) % 400, dash = (st * GAS_V) % 200, edge = 30 + rx - 34;
+  for (let y = -400 + scroll; y < H + 60; y += 400) ctx.drawImage(gasAsphalt().c, -80 + rx - 34, y, W + 160, 400);
+  // speed: long streaks of reflected light rushing over the asphalt, cat's eyes ticking past
+  ctx.fillStyle = 'rgba(255,255,255,.035)'; for (let i = 0; i < 16; i++) { const y = ((hash(i, 9, 1) * (H + 300) + st * GAS_V * 1.6) % (H + 300)) - 150; ctx.fillRect(hash(i, 9, 2) * W, y, 2, 80 + 120 * hash(i, 9, 3)); }
+  ctx.fillStyle = 'rgba(255,220,120,.9)'; for (let y = -100 + (st * GAS_V) % 100; y < H + 60; y += 100) { ctx.fillRect(edge + 26, y, 3, 3); ctx.fillRect(CX + rx - 34 + 164, y + 50, 3, 3); }
+  // lane markings: the solid edge line on the left, a dashed line on the right
+  ctx.fillStyle = '#e8c21a'; ctx.fillRect(edge + 18, -60, 5, H + 120);
+  ctx.fillStyle = 'rgba(240,240,236,.85)'; for (let y = -200 + dash; y < H + 60; y += 200) ctx.fillRect(CX + rx - 34 + 168, y, 6, 90);
+  // the shoulder and whatever lies beyond it
+  const left = edge + 10;
+  if (sec === 'tunnel') {
+    ctx.fillStyle = '#2c2e30'; ctx.fillRect(-60, -60, left + 60, H + 120); ctx.fillStyle = '#4a4c50'; ctx.fillRect(left - 10, -60, 10, H + 120);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; for (let y = -60 + (st * GAS_V) % 120; y < H + 60; y += 120) ctx.fillRect(-60, y, left + 50, 4);
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(W - 30, -60, 90, H + 120);
+  } else if (sec === 'bridge') {
+    const wg = ctx.createLinearGradient(0, 0, left, 0); wg.addColorStop(0, '#04080e'); wg.addColorStop(1, '#0a1420'); ctx.fillStyle = wg; ctx.fillRect(-60, -60, left + 60, H + 120);
+    ctx.fillStyle = 'rgba(160,190,230,.25)'; for (let i = 0; i < 12; i++) { const y = ((hash(i, 4, 1) * H + st * 60) % (H + 40)) - 20; ctx.fillRect(hash(i, 4, 2) * (left - 20), y, 8 + hash(i, 4, 3) * 14, 1.5); }
+    ctx.fillStyle = '#3a4048'; ctx.fillRect(left - 14, -60, 14, H + 120); ctx.fillStyle = '#1a1e22'; for (let y = -60 + (st * GAS_V) % 140; y < H + 60; y += 140) ctx.fillRect(left - 22, y, 26, 14);
+  } else {
+    // gravel shoulder and a W-beam guardrail on posts
+    ctx.fillStyle = sec === 'inferno' ? '#1a1410' : '#1c1a18'; ctx.fillRect(-60, -60, left + 60, H + 120);
+    ctx.fillStyle = 'rgba(80,70,60,.35)'; for (let i = 0; i < 40; i++) { const y = ((hash(i, 6, 1) * (H + 120) + st * GAS_V) % (H + 120)) - 60; ctx.fillRect(hash(i, 6, 2) * left, y, 2, 2); }
+    if (sec === 'refinery' || sec === 'inferno') {
+      for (let k = 0; k < 3; k++) { const x = left - 40 - k * 16; if (x < -20) continue; const pg = ctx.createLinearGradient(x - 6, 0, x + 6, 0); pg.addColorStop(0, '#2a2e32'); pg.addColorStop(0.5, k === 1 ? '#8a6a3a' : '#7a8288'); pg.addColorStop(1, '#1a1c20'); ctx.fillStyle = pg; ctx.fillRect(x - 6, -60, 12, H + 120); ctx.fillStyle = 'rgba(0,0,0,.4)'; for (let y = -60 + (st * GAS_V) % 160; y < H + 60; y += 160) ctx.fillRect(x - 7, y, 14, 6); }
+    }
+    ctx.fillStyle = '#141414'; for (let y = -60 + (st * GAS_V) % 90; y < H + 60; y += 90) ctx.fillRect(left - 12, y, 7, 7);
+    const gg = ctx.createLinearGradient(left - 8, 0, left, 0); gg.addColorStop(0, '#5a6066'); gg.addColorStop(0.5, '#c8ced4'); gg.addColorStop(1, '#4a5056'); ctx.fillStyle = gg; ctx.fillRect(left - 8, -60, 8, H + 120);
+  }
+  // lamp poles reach out over the lane from the shoulder, one per half bar
+  if (sec === 'highway' || sec === 'chase' || sec === 'refinery') {
+    const ph = ((st - BEATS.gas.down) % (2 * GAS_P) + 2 * GAS_P) % (2 * GAS_P), sp = 2 * GAS_P * GAS_V;
+    for (let k = -1; k <= 2; k++) { const y = CY + ph * GAS_V - k * sp; if (y < -40 || y > H + 40) continue; ctx.fillStyle = '#2a2c30'; ctx.fillRect(left - 16, y - 3, 70, 6); ctx.fillStyle = '#141518'; ctx.fillRect(left - 22, y - 7, 12, 14); ctx.fillStyle = '#ffd88a'; ctx.fillRect(left + 46, y - 5, 14, 10); }
+  }
+  // the fast lane on the right: streaks rushing past when the song is flat out
+  if (sec === 'chase' || sec === 'inferno' || sec === 'refinery') { ctx.fillStyle = 'rgba(255,255,255,.12)'; for (let i = 0; i < 10; i++) { const y = ((hash(i, 8, 1) * (H + 200) + st * 1600) % (H + 200)) - 100; ctx.fillRect(CX + rx + 150 + hash(i, 8, 2) * 60, y, 1.5, 40 + 60 * hash(i, 8, 3)); } }
+}
+BG.gas = (Bt, px, py) => {
+  const F = musicFeel('gas'), st = gasSong(), [sec, s] = gasSection(st), T = tgt && tgt.gas, ox = T ? T.ox : 0, oy = T ? T.oy : 0;
+  ctx.save(); ctx.translate(px * 0.1, py * 0.1); gasRoad(st, sec, s, Bt, F); ctx.restore();
+  if (oy < H + 100) { blit2(gasTruck(), ox, oy); gasTyres(ox, oy, st); gasCabLights(ox, oy, Bt); }
+};
+function blit2(sp, ox, oy) { ctx.drawImage(sp.c, sp.x + ox, sp.y + oy, sp.w, sp.h); }
+// amber marker lights on the cab roof and red tail lights, pulsing on the beat
+function gasCabLights(ox, oy, Bt) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) { const x = CX - 40 + i * 20 + ox, y = 34 + oy; const k = 0.5 + 0.5 * Bt.pulse; ctx.fillStyle = `rgba(255,170,40,${0.9 * k})`; ctx.fillRect(x - 3, y - 2, 6, 4); ctx.fillStyle = `rgba(255,140,30,${0.2 * k})`; ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill(); }
+  for (const sd of [-1, 1]) { const x = CX + sd * 110 + ox, y = CY + R + 60 + oy, k = 0.6 + 0.4 * Bt.pulse, tg = ctx.createRadialGradient(x, y, 0, x, y, 26); tg.addColorStop(0, `rgba(255,40,30,${0.8 * k})`); tg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.fillStyle = tg; ctx.fillRect(x - 26, y - 26, 52, 52); ctx.fillStyle = '#ff5a40'; ctx.fillRect(x - 6, y - 3, 12, 6); }
+  ctx.restore();
+}
+// light that falls across the truck and the tank: lamp pools, tunnel lights, fire, sirens, girder shadows
+function gasEnvOver(t) {
+  if (state === 'menu') return;
+  const st = gasSong(), [sec, s] = gasSection(st), Bt = beatInfo('gas'), rx = gasRoadX(st, sec), G = t.gas, oy = G ? G.oy : 0;
+  ctx.save();
+  if (sec === 'highway' || sec === 'chase' || sec === 'refinery') {
+    const ph = ((st - BEATS.gas.down) % (2 * GAS_P) + 2 * GAS_P) % (2 * GAS_P), sp = 2 * GAS_P * GAS_V; ctx.globalCompositeOperation = 'lighter';
+    for (let k = -1; k <= 2; k++) { const y = CY + ph * GAS_V - k * sp; if (y < -200 || y > H + 200) continue; ctx.drawImage(gasPool().c, rx + 100 - 230, y - 200, 460, 400); }
+  }
+  if (sec === 'tunnel') {
+    ctx.globalCompositeOperation = 'lighter'; const sp = GAS_P * GAS_V, ph = ((st - BEATS.gas.down) % GAS_P + GAS_P) % GAS_P;
+    for (let k = -2; k <= 3; k++) { const y = CY + ph * GAS_V - k * sp; ctx.drawImage(gasBar().c, -60, y - 40, W + 120, 80); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(0,10,20,.32)'; fillView(); ctx.fillStyle = '#1e2022'; ctx.fillRect(W - 26, -60, 90, H + 120); ctx.fillStyle = '#3a3c40'; ctx.fillRect(W - 26, -60, 6, H + 120); ctx.fillStyle = 'rgba(255,236,190,.6)'; for (let k = -2; k <= 3; k++) { const y = CY + ph * GAS_V - k * sp; ctx.fillRect(W - 24, y - 2, 18, 4); }
+  }
+  if (sec === 'refinery' || sec === 'inferno') {
+    ctx.globalCompositeOperation = 'lighter'; const k = (sec === 'inferno' ? 0.55 : 0.3) * (0.6 + 0.4 * Bt.pulse) * (0.85 + 0.15 * Math.sin(time * 23));
+    const fg = ctx.createLinearGradient(-60, 0, 260, 0); fg.addColorStop(0, `rgba(255,110,30,${k})`); fg.addColorStop(1, 'rgba(255,110,30,0)'); ctx.fillStyle = fg; ctx.fillRect(-60, -60, 320, H + 120);
+    if (sec === 'inferno') { const d = Bt.down; if (d > 0.05) { const by = ((Bt.bar * 211) % 500) + 60, eg = ctx.createRadialGradient(0, by, 10, 0, by, 300); eg.addColorStop(0, `rgba(255,200,90,${0.55 * d})`); eg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = eg; ctx.fillRect(-60, by - 300, 400, 600); } }
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 4; i++) { const y = ((hash(i, 2, 1) * (H + 300) + st * 260) % (H + 300)) - 150; ctx.globalAlpha = sec === 'inferno' ? 0.32 : 0.2; ctx.drawImage(gasPuff(0).c, -80 + hash(i, 2, 2) * 200, y, 260, 160); }
+    ctx.globalAlpha = 1;
+    if (sec === 'inferno') { ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 24; i++) { const y = ((hash(i, 3, 1) * (H + 100) + st * (500 + 400 * hash(i, 3, 2))) % (H + 100)) - 50; ctx.fillStyle = i % 3 ? 'rgba(255,170,60,.85)' : 'rgba(255,240,180,.9)'; ctx.fillRect(hash(i, 3, 3) * W, y, 2, 2 + 6 * hash(i, 3, 4)); } }
+  }
+  if (sec === 'chase') {
+    ctx.globalCompositeOperation = 'lighter'; const red = Math.floor(Bt.b) % 2 === 0, k = 0.55 * Bt.pulse + 0.15, x = red ? CX - 120 : CX + 120;
+    const pg = ctx.createRadialGradient(x, H + 60, 20, x, H + 60, 420); pg.addColorStop(0, red ? `rgba(255,30,40,${k})` : `rgba(40,90,255,${k})`); pg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = pg; ctx.fillRect(-60, H - 400, W + 120, 520); const sg = ctx.createLinearGradient(red ? -60 : W + 60, 0, CX, 0); sg.addColorStop(0, red ? `rgba(255,30,40,${0.5 * k})` : `rgba(40,90,255,${0.5 * k})`); sg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = sg; ctx.fillRect(-60, -60, W + 120, H + 120);
+  }
+  if (sec === 'bridge') {
+    const sp = GAS_P * GAS_V, ph = ((st - BEATS.gas.down) % GAS_P + GAS_P) % GAS_P; ctx.fillStyle = 'rgba(0,0,6,.55)';
+    for (let k = -2; k <= 3; k++) { const y = CY + ph * GAS_V - k * sp; ctx.save(); ctx.translate(CX, y); ctx.transform(1, 0, k % 2 ? 0.8 : -0.8, 1, 0, 0); ctx.fillRect(-W, -9, W * 2, 18); ctx.restore(); }
+    ctx.fillStyle = 'rgba(20,40,80,.18)'; fillView();
+  }
+  ctx.restore();
+  // exhaust from the stacks on every bar, blown back over the bed
+  const bt = Bt.barU * 4; ctx.save(); for (let i = 0; i < 4; i++) { const u = (Bt.barU + i / 4) % 1, r = 6 + u * 26; ctx.globalAlpha = 0.28 * (1 - u); for (const sd of [-1, 1]) ctx.drawImage(gasSmoke().c, CX + sd * 74 + (G ? G.ox : 0) - r + sd * u * 10, 122 + oy + u * 170 - r, r * 2, r * 2); } ctx.restore();
+  // sparks off the bed scraping the guardrail in the inferno
+  if (sec === 'inferno' && Math.sin(st * 3) > 0.3) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 14; i++) { const u = (time * 3 + i / 14) % 1, x = CX - 120 + (G ? G.ox : 0) - u * 30 - hash(i, 5, 1) * 20, y = CY + 140 + u * 300; ctx.fillStyle = `rgba(255,${200 - i * 6},90,${1 - u})`; ctx.fillRect(x, y, 2, 6); } ctx.restore(); }
+}
+const gasPool = () => twinBake('gasPool', -170, -160, 340, 320, 1, g => { const pg = g.createRadialGradient(0, 0, 10, 0, 0, 170); pg.addColorStop(0, 'rgba(255,190,90,.42)'); pg.addColorStop(0.5, 'rgba(255,150,50,.18)'); pg.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = pg; g.save(); g.scale(1, 0.94); g.beginPath(); g.arc(0, 0, 170, 0, TAU); g.fill(); g.restore(); });
+const gasBar = () => twinBake('gasBar', -60, -40, W + 120, 80, 1, g => { const bg = g.createLinearGradient(0, -40, 0, 40); bg.addColorStop(0, 'rgba(255,236,190,0)'); bg.addColorStop(0.5, 'rgba(255,236,190,.5)'); bg.addColorStop(1, 'rgba(255,236,190,0)'); g.fillStyle = bg; g.fillRect(-60, -40, W + 120, 80); });
+const gasSmoke = () => twinBake('gasSmoke', -32, -32, 64, 64, 1, g => { const sg = g.createRadialGradient(0, 0, 2, 0, 0, 30); sg.addColorStop(0, 'rgba(40,40,44,.9)'); sg.addColorStop(1, 'rgba(40,40,44,0)'); g.fillStyle = sg; g.fillRect(-32, -32, 64, 64); });
+
+// ======================= the intro, drawn =======================
+const gasPlate = () => twinBake('gasPlate', -60, -60, W + 120, H + 120, 1, g => {
+  const pg = g.createLinearGradient(0, -60, 0, H + 60); pg.addColorStop(0, '#16201f'); pg.addColorStop(1, '#0a100f'); g.fillStyle = pg; g.fillRect(-60, -60, W + 120, H + 120);
+  const rnd = mulberry(77); g.lineWidth = 0.6; for (let i = 0; i < 260; i++) { const y = rnd() * (H + 120) - 60; g.strokeStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},.05)`; g.beginPath(); g.moveTo(-60, y); g.lineTo(W + 60, y + (rnd() - 0.5) * 4); g.stroke(); }
+  for (const y of [40, H - 40]) for (let x = 10; x < W; x += 34) { g.fillStyle = '#060a0a'; g.beginPath(); g.arc(x + 0.6, y + 0.8, 3.4, 0, TAU); g.fill(); g.fillStyle = '#5a7270'; g.beginPath(); g.arc(x, y, 2.8, 0, TAU); g.fill(); }
+});
+const gasStripes = () => twinBake('gasStripes', 0, 0, W + 160, 160, 1, g => { g.fillStyle = '#ffc81a'; g.fillRect(0, 0, W + 160, 160); g.fillStyle = '#121212'; for (let x = -160; x < W + 160; x += 80) { g.beginPath(); g.moveTo(x, 160); g.lineTo(x + 160, 0); g.lineTo(x + 200, 0); g.lineTo(x + 40, 160); g.closePath(); g.fill(); } const rnd = mulberry(3); for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(60,40,20,${rnd() * 0.3})`; g.fillRect(rnd() * (W + 160), rnd() * 160, 2, 2); } });
+const GT_C = [CX, CY + 40];
+function giBeatStep(t, t0) { const b = (t - t0) / GAS_P, k = Math.floor(b), u = b - k; return k + (1 - Math.exp(-u * 9)) * (1 + 0.25 * Math.exp(-u * 6) * Math.sin(u * 20)); }
+function giGauge(t) {
+  blit(gasPlate());
+  const z = 1 + 0.08 * (t - GT.open) / (GT.stamp - GT.open); ctx.save(); ctx.translate(GT_C[0], GT_C[1]); ctx.scale(z, z); ctx.translate(-GT_C[0], -GT_C[1]);
+  blit(twinBake('gasDialBig', GT_C[0] - 175, GT_C[1] - 175, 350, 350, 2, g => { g.fillStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.arc(GT_C[0] + 8, GT_C[1] + 10, 168, 0, TAU); g.fill(); gasGaugeDial(g, GT_C[0], GT_C[1], 165); }));
+  const v = 0.06 + 0.075 * giBeatStep(t, GT.open); gasNeedle(GT_C[0], GT_C[1], 165, v);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(200,230,255,.07)'; ctx.beginPath(); ctx.moveTo(GT_C[0] - 140, GT_C[1] - 80); ctx.lineTo(GT_C[0] - 60, GT_C[1] - 150); ctx.lineTo(GT_C[0] + 10, GT_C[1] - 150); ctx.lineTo(GT_C[0] - 120, GT_C[1] - 10); ctx.closePath(); ctx.fill(); ctx.restore();
+  ctx.restore();
+  text('LINE PRESSURE', CX, H - 150, 12, 'rgba(255,210,63,.8)', 'center', 700);
+}
+function giHazard(t) {
+  const s = t - GT.stamp, off = (t * 160) % 80;
+  for (let y = -80; y < H + 80; y += 160) ctx.drawImage(gasStripes().c, -80 - off, y, W + 160, 160);
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; fillView();
+  // a red beacon sweeping round
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const ba = t * 7; beam(CX, CY + 40, ba, 600, 10, 160, 'rgba(255,40,30,.22)'); beam(CX, CY + 40, ba + Math.PI, 600, 10, 160, 'rgba(255,40,30,.22)'); ctx.restore();
+  const k = clamp(s / 0.12, 0, 1), sc = 1 + 0.6 * (1 - k) * (1 - k);
+  ctx.save(); ctx.translate(CX, CY + 40); ctx.scale(sc, sc); withCtx(ctx, () => gasHazard(ctx, 0, 0, 120, 0)); ctx.restore();
+  const word = (str, t0, y, size, col) => { const e = t - t0; if (e < 0) return; slamText(str, CX, y, size, col, e, 99, { under: 'rgba(255,40,30,.4)' }); };
+  word('DANGER', GT.stamp, 120, 52, '#ffd23f'); word('FLAMMABLE GAS', GT.stamp2, H - 170, 30, '#ffffff');
+}
+function giValve(t) {
+  blit(gasPlate());
+  ctx.save(); ctx.translate(GT_C[0], GT_C[1]);
+  const pts = gasCoilPts(250); ctx.save(); ctx.rotate(-0.3 + 0.05 * (t - GT.valve)); ctx.beginPath(); pts.slice(0, -2).forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1])); ctx.lineCap = 'round'; ctx.strokeStyle = '#4a2410'; ctx.lineWidth = 22; ctx.stroke(); ctx.strokeStyle = '#b8642a'; ctx.lineWidth = 16; ctx.stroke(); ctx.strokeStyle = '#e89a5a'; ctx.lineWidth = 6; ctx.stroke(); ctx.strokeStyle = 'rgba(255,235,210,.7)'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  ctx.fillStyle = '#2a3436'; ctx.beginPath(); ctx.arc(0, 0, 80, 0, TAU); ctx.fill(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; ctx.fillStyle = '#8a9a9a'; ctx.beginPath(); ctx.arc(Math.cos(a) * 66, Math.sin(a) * 66, 6, 0, TAU); ctx.fill(); }
+  withCtx(ctx, () => gasValveWheel(ctx, 0, 0, 120, 0.3 + 0.7 * giBeatStep(t, GT.valve)));
+  ctx.restore();
+  // gas spits off the flange on the off beats
+  const b = (t - GT.valve) / GAS_P, k = Math.floor(b), u = b - k;
+  if (k % 2 === 1) { ctx.save(); for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4 + k, d = 70 + u * 160, r = 14 + u * 50; ctx.globalAlpha = 0.7 * (1 - u); ctx.drawImage(gasPuff(0).c, GT_C[0] + Math.cos(a) * d - r, GT_C[1] + Math.sin(a) * d - r, r * 2, r * 2); } ctx.restore(); }
+}
+function giTitle(t) {
+  if (t >= GT.deck && t < GT.roll + 0.2) cineTitle('GAS TANK', 'HAZMAT CLASS 2  /  FLAMMABLE', t - GT.deck + 0.4, '#ffd23f', '#ff3b30', CY + R + 150);
+  if (t >= GT.roll && t < GT.land) {
+    const b = Math.floor((t - GT.roll) / GAS_P), e = t - GT.roll - b * GAS_P; slamText(['85%', '90%', '95%', '99%'][Math.min(3, b)], CX, CY + R + 140, 64, b >= 3 ? '#ff3b30' : '#ffd23f', e, 99, { under: 'rgba(255,60,30,.45)' });
+    ctx.save(); ctx.globalAlpha = 0.25 + 0.2 * Math.exp(-e * 6); blit(bakeSprite('gasVig', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 170, CX, CY + 60, 560); v.addColorStop(0, 'rgba(255,60,20,0)'); v.addColorStop(1, 'rgba(255,60,20,.9)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); ctx.restore();
+  }
+}
+function drawGasIntro(t) {
+  const live = t >= GT.road;
+  ctx.save();
+  if (!live) { ctx.fillStyle = '#000'; fillView(); }
+  if (t >= GT.open && t < GT.stamp) introIris(t, GT.open, () => giGauge(t), '255,210,120');
+  else if (t >= GT.stamp && t < GT.valve) giHazard(t);
+  else if (t >= GT.valve && t < GT.road) giValve(t);
+  else if (live && t < GT.land) giTitle(t);
+  introStarOut(t, GT.star, GT.open, 'gas');
+  if (!live) { blit(bakeSprite('tiVig2', -40, -40, W + 80, H + 80, g => { const v = g.createRadialGradient(CX, CY + 60, 140, CX, CY + 60, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.55, 'rgba(0,0,0,.35)'); v.addColorStop(1, 'rgba(0,0,0,.92)'); g.fillStyle = v; g.fillRect(-40, -40, W + 80, H + 80); })); drawGrain(0.05); }
+  ctx.restore();
+  if (!live) cineSkipHint();
+}
+
 // ======================= WIRE CLUMP cinematic =======================
 // ======================= FEEL + VFX (build 48) =======================
 // Screen shake as trauma: shake (pixels, as the game has always set it) maps to trauma 0..1, and the offset is
@@ -14973,6 +15840,7 @@ function update(dt) {
     if (t.frost) updateFrost(t, dt);
     if (t.bot) updateBot(t, dt);
     if (t.twin) updateTwin(t, dt);
+    if (t.gas) updateGas(t, dt);
     if (t.nestPending && state === 'play' && !fx) { t.nestPending = false; startNestIntro(t); }
     if (t.marker && t.marker.dead) { t.marker.dead += dt * 2; if (t.marker.dead > 1) t.marker = null; }
   }
@@ -15014,7 +15882,7 @@ function update(dt) {
     const el = CLEAR_TOTAL - clearT;
     if (el > CLEAR_HOLD && !clearCues.flick) { clearCues.flick = true; flickSeq = makeFlickerSeq(CLEAR_FLICK); flickIdx = -1; sfx.ballast(); }
     if (el > CLEAR_HOLD + CLEAR_FLICK && !clearCues.off) { clearCues.off = true; offAt = time; sfx.lightsOff(); debris = []; parts = []; smoke = []; }
-    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost || tgt.bot || tgt.twin ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
+    if (clearT <= 0) { stage++; newStage(); if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.gas) { tgt.smooth = true; tgt.landed = true; } lightIn = tgt.tank || tgt.gear || tgt.tire || tgt.wire || tgt.frost || tgt.bot || tgt.twin || tgt.gas ? 0 : LIGHT_IN; offAt = -1; sfx.breaker(); shake = Math.max(shake, 10); kick(0.06, 0.02, 0.6); buzz([60, 20, 30]); }
   }
   updatePieces(dt);
 }
@@ -15118,7 +15986,7 @@ function drawAppleVector(half = 0) {
 
 function easeOutBounce(x) { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; }
 function drawTarget() {
-  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone')) || (tgt.bot && tgt.bot.hide) || (tgt.twin && (tgt.twin.hide || !tgt.twin.solo))) return;
+  if ((tgt.tank && tgt.tank.hide) || (tgt.gear && tgt.gear.hide) || (tgt.tire && tgt.tire.hide) || (tgt.nest && tgt.nest.hide) || (tgt.wire && tgt.wire.hide) || (tgt.frost && (tgt.frost.hide || tgt.frost.layer === 'core' || tgt.frost.layer === 'gone')) || (tgt.bot && tgt.bot.hide) || (tgt.twin && (tgt.twin.hide || !tgt.twin.solo)) || (tgt.gas && tgt.gas.hide)) return;
   const t = tgt, e = easeOutBounce(t.pop), drop = t.smooth ? 0 : (1 - e) * -340;
   const land = t.landed && !t.smooth ? Math.max(0, 1 - (t.pop - 0.37) * 4) : 0;
   const se = t.smooth ? 1 - Math.pow(1 - t.pop, 3) : 1, ss = t.smooth ? 0.8 + 0.2 * se : 1;
@@ -15132,6 +16000,7 @@ function drawTarget() {
   if (t.wire) { ctx.translate(t.wire.ox, t.wire.oy); ctx.scale(t.wire.s, t.wire.s); }
   if (t.frost) { ctx.translate(t.frost.ox, t.frost.oy); ctx.scale(t.frost.s, t.frost.s); }
   if (t.bot) { ctx.translate(t.bot.ox, t.bot.oy); ctx.scale(t.bot.s, t.bot.s); }
+  if (t.gas) { ctx.translate(t.gas.ox, t.gas.oy); ctx.scale(t.gas.s, t.gas.s); }
   ctx.scale(swS * ss * (1 + 0.05 * t.hit + 0.06 * land), swS * ss * (1 - 0.06 * t.hit - 0.08 * land));
   for (const k of t.stuck) { ctx.save(); ctx.rotate(t.rot + k.a - HALF); ctx.translate(0, R - EMBED - (k.sink || 0) - (k.pen || 0)); ctx.rotate(knifeTilt(k)); if (k.wood) drawWoodKnife(); else drawKnife(); if (k.freeze !== undefined) drawFrozenCoat(k); ctx.restore(); }
   drawLogSide(t);
@@ -15282,7 +16151,7 @@ function drawHUD() {
     ctx.fillStyle = '#08080a'; ctx.beginPath(); ctx.arc(x, ty, now ? 7.5 : 6, 0, TAU); ctx.fill();
     ctx.fillStyle = done ? '#ffd23f' : now ? '#ffffff' : '#38383f'; ctx.beginPath(); ctx.arc(x, ty, now ? 5.5 : 4, 0, TAU); ctx.fill();
   }
-  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isBotStage(stage) ? 'LITANY OF THE BOTANY' : isTwinStage(stage) ? 'TWIN LOGS' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
+  const bossName = stage % 5 === 0 ? (isTankStage(stage) ? 'WATER TANKER' : isGearStage(stage) ? 'GEARBOX' : isTireStage(stage) ? 'MONSTER TIRE' : isWireStage(stage) ? 'THE WIRE CLUMP' : isFrostStage(stage) ? 'PERMAFROST' : isBotStage(stage) ? 'LITANY OF THE BOTANY' : isTwinStage(stage) ? 'TWIN LOGS' : isGasStage(stage) ? 'GAS TANK' : isNestStage(stage) ? (tgt && tgt.nestBait ? null : "HORNET'S NEST") : BOSSES[Math.max(0, stage / 5 - 2) % BOSSES.length].name) : null;
   text(bossName ? 'BOSS / ' + bossName : 'STAGE ' + stage, CX, 48, 11, bossName ? '#ff8a95' : 'rgba(255,255,255,.75)', 'center', 700);
   drawTypeMeter();
   comboPop = Math.max(0, comboPop - 0.06);
@@ -15297,9 +16166,9 @@ function drawHUD() {
     ctx.fillStyle = g; ctx.fillRect(-W, -H, W * 3, H * 3);
   }
   drawAbilFeed();
-  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD(); drawBotHUD(); drawBotStatus(); drawTwinHUD();
+  drawTankHUD(); drawGearHUD(); drawTireHUD(); drawNestHUD(); drawWireHUD(); drawFrostHUD(); drawBotHUD(); drawBotStatus(); drawTwinHUD(); drawGasHUD();
   // remaining knives
-  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost || tgt.bot || tgt.twin))) drawMagazine();
+  if (!(tgt && (tgt.tank || tgt.gear || tgt.tire || tgt.nest || tgt.wire || tgt.frost || tgt.bot || tgt.twin || tgt.gas))) drawMagazine();
 }
 
 // the knife magazine: a slotted steel rack, lit knives still to throw, empty slots spent, the next one up highlighted
@@ -15772,6 +16641,7 @@ function drawScene() {
   if (tgt && tgt.frost) drawFrostFront(tgt);
   if (tgt && tgt.bot) drawBotFront(tgt);
   if (tgt && tgt.twin) { drawTwinLogs(tgt); drawTwinFront(tgt); }
+  if (tgt && tgt.gas) drawGasFront(tgt);
   if (frostRays.length) drawFrostRays();
   if (tgt && tgt.tank && !tgt.tank.hide) drawTankRobot(tgt);
   if (bossBgKey(tgt) === 'boss') drawTankFore();
@@ -15811,6 +16681,7 @@ function drawScene() {
   if (fx && fx.type === 'frostintro') drawFrostIntro(fx.t);
   if (fx && fx.type === 'botintro') drawBotIntro(fx.t);
   if (fx && fx.type === 'twinintro') drawTwinIntro(fx.t);
+  if (fx && fx.type === 'gasintro') drawGasIntro(fx.t);
   if (fx && fx.type === 'tiredeflate') drawTireDeflate(fx.t);
   if (fx && fx.type === 'nestintro') drawNestIntro(fx.t);
   if (fx && fx.type === 'abkill') drawAbKill(fx.t);
@@ -15837,6 +16708,7 @@ function drawScene() {
   if (tgt && tgt.frost && state !== 'menu') drawFrostWeather(tgt);
   if (tgt && tgt.bot && state !== 'menu') drawBotScreen(tgt);
   if (tgt && tgt.twin && state !== 'menu') drawTwinScreen(tgt);
+  if (tgt && tgt.gas && state !== 'menu') drawGasScreen(tgt);
 
   if (state !== 'menu') drawForeground();
   ctx.restore();
@@ -15844,7 +16716,7 @@ function drawScene() {
   if (ixq.length && state !== 'menu') drawIxTitles();
   if (sporeT > 0 && state !== 'menu') drawSporeHaze();
   if (state === 'menu') drawMenu();
-  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal) || (fx.type === 'botintro' && fx.t < BSHOT.reveal) || (fx.type === 'twinintro' && fx.t < TWSHOT.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
+  else if (!(fx && ((fx.type === 'tankintro' && fx.t < SHOT.reveal) || (fx.type === 'gearintro' && fx.t < GSHOT.reveal) || (fx.type === 'tireintro' && fx.t < TSHOT.reveal) || (fx.type === 'nestintro' && fx.t < NSHOT.reveal) || (fx.type === 'wireintro' && fx.t < WSHOT.reveal) || (fx.type === 'frostintro' && fx.t < FSHOT.reveal) || (fx.type === 'botintro' && fx.t < BSHOT.reveal) || (fx.type === 'twinintro' && fx.t < TWSHOT.reveal) || (fx.type === 'gasintro' && fx.t < GSHOT2.reveal)))) { const hudAll = () => { drawHUD(); drawBanner(); drawAbilityButton(); drawTray(); drawFlights(); }; if (tankArrive.on && tankArrive.t < 0.95) drawHudShards(hudAll); else hudAll(); }
   drawSwirl();
   drawFloaters();
   drawStageLights();
@@ -16115,7 +16987,7 @@ function drawBackdrop() {
     if (state !== 'menu') { ctx.save(); ctx.translate(px * 0.5, py * 0.5); ctx.globalAlpha = 0.05 + (tgt ? tgt.hit * 0.06 : 0); dtext(String(stage).padStart(2, '0'), CX, CY + 6, 250, '#ffffff', 'center', null, -0.18); ctx.restore(); }
   }
   if (!bk && state !== 'menu') { drawMillFloor(px, py); drawMillLight(px, py); }
-  if (bk !== 'boss' && bk !== 'twin') {
+  if (bk !== 'boss' && bk !== 'twin' && bk !== 'gas') {
   // hanging chains and hooks, swinging with the camera
   ctx.save(); ctx.translate(px * 0.8, py * 0.8);
   for (let i = 0; i < 5; i++) {
@@ -16135,7 +17007,7 @@ function drawBackdrop() {
   }
   }
   // rotating reticle around the log
-  ctx.save(); if (tgt && tgt.twin && !tgt.twin.solo) ctx.globalAlpha = 0; ctx.translate(CX, CY); ctx.rotate(-time * 0.6);
+  ctx.save(); if ((tgt && tgt.twin && !tgt.twin.solo) || bossBgKey(tgt) === 'gas') ctx.globalAlpha = 0; ctx.translate(CX, CY); ctx.rotate(-time * 0.6);
   ctx.strokeStyle = '#5c5c66'; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
   ctx.beginPath(); ctx.arc(0, 0, R + 44, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = '#ffffff';
@@ -16144,6 +17016,7 @@ function drawBackdrop() {
   ctx.strokeStyle = '#38383f'; ctx.lineWidth = 1.5;
   for (let i = 0; i < 24; i++) { ctx.rotate(TAU / 24); ctx.beginPath(); ctx.moveTo(0, -R - 30); ctx.lineTo(0, -R - (i % 3 ? 34 : 40)); ctx.stroke(); }
   ctx.restore();
+  if (bk === 'gas') return;
   // runway: dashed lane from the knife to the log, scrolling upward
   ctx.fillStyle = '#2a2a31';
   const lo = (time * 260) % 24;
@@ -16155,7 +17028,7 @@ function drawBackdrop() {
 // the plane in front of the action: sawdust in the air and out-of-focus rigging that slides the other way
 function introCovering() { return !!(fx && /intro$/.test(fx.type)); }
 function drawForeground() {
-  if (introCovering() || bossBgKey(tgt) === 'boss' || bossBgKey(tgt) === 'twin') return;
+  if (introCovering() || bossBgKey(tgt) === 'boss' || bossBgKey(tgt) === 'twin' || bossBgKey(tgt) === 'gas') return;
   const px = plx.x, py = plx.y;
   for (let i = 0; i < 34; i++) {
     const dz = 1.15 + hash(i, 8, 1) * 1.5, sp = 6 + hash(i, 8, 2) * 16;
@@ -16361,14 +17234,15 @@ const ENTRIES = [
   { cat: 'BRANCH', name: 'LIVE WIRE', sub: 'wire', how: 'Breaking it leaves a live zone. Land a knife there and you are stunned for 5s.', abil: 'Breaks it with no live zone left.' },
   { cat: 'BRANCH', name: 'CHAINED PAIR', sub: 'linked', how: 'Hit the chain first. Then both branches can break.', abil: 'Chain and branches snap together.' },
   { cat: 'BRANCH', name: 'BIRD PERCH', sub: 'bird', how: 'Hit beside the bird to scare it away. Hitting the bird: game over.', abil: 'Birds are shooed before the branch breaks.' },
-  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of eight bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
-  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of eight bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
-  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of eight bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
-  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of eight bosses, at random). THE ICE LAYER takes 18 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). Two or three FROZEN SPECIES blocks sit on the rim: break them to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin, and a CRYSTAL BURST rings the rim with spikes every few seconds: hold your throw. The RAW LOG takes 18 more: PARTIAL ICE regrows the shell if left 35s, and BREAKAWAYS fire icicles. Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
-  { cat: 'BOSS', name: 'LITANY OF THE BOTANY', bot: true, how: 'Stage 5 (one of eight bosses, at random). Five great VINES lock its spin to the arc between two of them. VINE PHASE: a white spider lily buds in the arc and blooms after 10s; black tentacles crawl out to strangle it, so hit them. Strike 3 bloomed lilies and a vine tears away, widening the arc: four phases, then it spins free and 5 hits end it. Special lilies: blue (counts double), red (half a heart), golden (5 apples), surprise (blinds you) and electric (shocks you). Flytraps snap when open, poison ivy costs half a heart, nightshade a whole one. Floral vines make 35% of throws bloom instead (60s), roses splinter you (10 throws, 20% to lose a heart), vine tentacles steal your knife 6s (cut them as they reach). The mature hollow swallows knives and spits them back (parry); hit it 5 times while its eyes are shut. Breakaways bare eyes that drain your SANITY.', abil: 'Ability knives pass the growths on the rim.' },
-  { cat: 'BOSS', name: 'TWIN LOGS', twin: true, how: 'Stage 5 (one of eight bosses, at random). CASTOR and POLLUX, 20 HP each, were cut from one tree and orbit one another in a forest grove. ORBIT: they reverse without warning, swap places through the middle (and flip whose turn it is), SHELTER (the stronger parks in front of its twin and takes your throws), WHIRL and PLUNGE at you. TURNS: your throw homes in on one twin, the next on the other, and so on; whoever is in the way takes it instead. INTERTWINED PITH: if their HP drifts more than 6 apart the stronger twin charges you and the run is over, so use eclipses and misses to rebalance. ABILITIES: either twin grows BRANCHES (snap them, but the throw is spent), turns to SPIRALWOOD (its knives slide every 2 hits), raises a RINGWOOD band (aim for the gaps) or forms a PITH LINK (every hit lands on both). ONE LAST LOG: kill one and the other takes the centre as an ordinary log.', abil: 'Ability knives home in on the twin whose turn it is and hit it for double: watch the balance.' },
-  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of eight bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
-  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of eight bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
+  { cat: 'BOSS', name: 'WATER TANKER', tanker: true, how: 'Stage 5 (one of nine bosses, at random). Knives are forced out after 2s and leave leaks. A 60s flood starts at the first leak. Leaks older than 3s swallow knives. Never throw while it glows hot, and never hit the pipe.', abil: '20 hits to burst it before the mill floods.' },
+  { cat: 'BOSS', name: "HORNET'S NEST", nest: true, how: 'Stage 5 (one of nine bosses, at random). It starts as a normal log with a beehive branch: break the hive and the nest wakes. Wasps orbit on two rings at different speeds: hitting one stings your knife (4s stun) and flips the spin. Infested patches and any knife the wasps have claimed swarm your knife and jam your ability for 40s; if you are already swarmed, it costs a heart. Every 8 hits a breach tears open (hit it for x2), more wasps join and more crawl over your screen. At 0 the queen hatches and rebuilds it to 10. Her moves: Royal Guard (hold fire or lose a heart), Stinger Volley (throw to parry), Royal Jelly (amber bounces knives), Swarm Call, and Dive Bomb (throw into her as she dives, or lose a heart).', abil: 'Passes through wasps and swats the queen.' },
+  { cat: 'BOSS', name: 'THE WIRE CLUMP', wire: true, how: 'Stage 5 (one of nine bosses, at random). 22 hits. Twisted braids (gold rope) are safe and restore 3% STABILITY; bare wire takes x3 damage but costs 9%. If stability reaches 0 the clump explodes and the run is over. Watch the voltmeter: at DANGEROUS voltage any knife that touches it bites back for a heart, and stuck knives glow, then explode (1 damage) or melt away. Arcs reach out of it: a knife through one drops a GROUND WIRE, and sparks drop them too; touching a ground wire electrocutes you. From phase 2 big red WIRE CUTTERS clamp on: smash them before the jaws close or they snip a cable (-12%). Snapped cables cause a 5s BLACKOUT: only red alarm lights, the voltmeter dies, and the glow of the ground wires is the only way to read the voltage.', abil: 'Ability knives are insulated: they never bite back.' },
+  { cat: 'BOSS', name: 'PERMAFROST', frost: true, how: 'Stage 5 (one of nine bosses, at random). THE ICE LAYER takes 18 hits, and knives stuck in it freeze into FROZEN ARTIFACTS: shatter those too (it costs no heart). Two or three FROZEN SPECIES blocks sit on the rim: break them to free a cicada, hornet, butterfly, lanternfly or TRAPPED TENTACLES, which crystallize your next 3 knives unless you parry. CRYSTALLIZED ICE freezes any knife it touches into a 3-hit artifact. The FROST WIND sets the spin, and a CRYSTAL BURST rings the rim with spikes every few seconds: hold your throw. The RAW LOG takes 18 more: PARTIAL ICE regrows the shell if left 35s, and BREAKAWAYS fire icicles. Last, THE CORE: one hit within 3s.', abil: 'Ability knives pass through the ice, the crystals and the frozen blocks, and they never freeze.' },
+  { cat: 'BOSS', name: 'LITANY OF THE BOTANY', bot: true, how: 'Stage 5 (one of nine bosses, at random). Five great VINES lock its spin to the arc between two of them. VINE PHASE: a white spider lily buds in the arc and blooms after 10s; black tentacles crawl out to strangle it, so hit them. Strike 3 bloomed lilies and a vine tears away, widening the arc: four phases, then it spins free and 5 hits end it. Special lilies: blue (counts double), red (half a heart), golden (5 apples), surprise (blinds you) and electric (shocks you). Flytraps snap when open, poison ivy costs half a heart, nightshade a whole one. Floral vines make 35% of throws bloom instead (60s), roses splinter you (10 throws, 20% to lose a heart), vine tentacles steal your knife 6s (cut them as they reach). The mature hollow swallows knives and spits them back (parry); hit it 5 times while its eyes are shut. Breakaways bare eyes that drain your SANITY.', abil: 'Ability knives pass the growths on the rim.' },
+  { cat: 'BOSS', name: 'TWIN LOGS', twin: true, how: 'Stage 5 (one of nine bosses, at random). CASTOR and POLLUX, 20 HP each, were cut from one tree and orbit one another in a forest grove. ORBIT: they reverse without warning, swap places through the middle (and flip whose turn it is), SHELTER (the stronger parks in front of its twin and takes your throws), WHIRL and PLUNGE at you. TURNS: your throw homes in on one twin, the next on the other, and so on; whoever is in the way takes it instead. INTERTWINED PITH: if their HP drifts more than 6 apart the stronger twin charges you and the run is over, so use eclipses and misses to rebalance. ABILITIES: either twin grows BRANCHES (snap them, but the throw is spent), turns to SPIRALWOOD (its knives slide every 2 hits), raises a RINGWOOD band (aim for the gaps) or forms a PITH LINK (every hit lands on both). ONE LAST LOG: kill one and the other takes the centre as an ordinary log.', abil: 'Ability knives home in on the twin whose turn it is and hit it for double: watch the balance.' },
+  { cat: 'BOSS', name: 'GAS TANK', gas: true, how: 'Stage 5 (one of nine bosses, at random). An upright tank of flammable gas strapped to a truck racing down a night highway, 30 hits. PRESSURE: the gauge on its lid climbs all the time, faster with each knife and while its vents are capped; at 100% it BLOWS OUT, costs you a heart and blasts knives off it. VENTS: hit a red vent cap to pop it and the vent blows, bleeding pressure, but a vent blowing down your lane blasts your throws aside. HEATING REGION: quench the rim while it only glows orange; never hit it white hot. RAILS: steel ladders on the rim that break your knife, and they shift. IGNITION at 14 left: the vents breathe fire and it lobs FIREBALLS down the lane; knock them out of the air. CRITICAL at 5: everything speeds up.', abil: 'Ability knives pass the vents, rails and hot metal.' },
+  { cat: 'BOSS', name: 'MONSTER TIRE', tire: true, how: 'Stage 5 (one of nine bosses, at random). Rubber first: a hit on a fresh spot bounces and leaves a chalk mark, and a second hit on that mark punctures. Marks fade after 9s. The brass valve punctures at once and counts double. After 10 punctures, hit or clip any stuck knife to tear it out and deflate the tyre. Then 20 hits on bare steel. Every 7s it does a 4s burnout: the rubber flings muck at the screen, the steel folds out blades (never hit them) and throws your knives off. Each 4 steel hits shears a lug nut that rattles around your lane and knocks knives away.', abil: 'The ability punctures without a bounce.' },
+  { cat: 'BOSS', name: 'GEARBOX', gear: true, how: 'Stage 5 (one of nine bosses, at random). Lurches in ratcheting jolts. Every few seconds it summons two gears and swaps itself out for a decoy. The drive chain blocks your lane: crack 3 links, or hit the red master link to snap it at once. Yellow sleeves bounce knives and stun you. Never hit the pinion gears on its rim. In phase 2 its plates blow off and it bowls cogs down your lane: knock them out with a throw or your knife jams.', abil: '20 hits. Snapping the chain slams it back, jams it and deals 2 damage. Too slow and it repairs itself.' },
   { cat: 'BOSS', name: 'IRONBARK', boss: 0, how: 'Every 5th stage. More knives, reversing spin, steel bands.', abil: 'Same rules, bigger payoff: +5 bonus.' },
   { cat: 'BOSS', name: 'FROSTHEART', boss: 1, how: 'A frozen core that glints and lurches.', abil: '+5 bonus when it falls.' },
   { cat: 'BOSS', name: 'EMBER STUMP', boss: 2, how: 'Lava veins pulse through a charred stump.', abil: '+5 bonus when it falls.' },
@@ -16396,6 +17270,7 @@ function demoFor(e) {
   if (e.type === 'blackout') { const D = t.f.dark; D.hold = 0; D.lvl = 1; D.lamps = [{ a: 0.2, w: 0.5, t: 0.6, dur: 1e9, seed: 1 }, { a: 2.9, w: 0.4, t: 0.6, dur: 1e9, seed: 2 }]; t.stuck = [{ a: 0.4 }, { a: 1.7 }, { a: 4.4 }]; }
   if (e.nest) { setupNest(t); t.nest.hide = false; t.stuck = [{ a: 0.4, inf: 1 }, { a: 2.6, inf: 1 }]; t.nest.breaches.push({ a: 4.4, spent: false, born: -9, seed: 3 }); }
   if (e.wire) { setupWire(t); const T = t.wire; T.hide = false; T.grounds = [{ a: 1.4, t: 0, life: 1e9, grow: 1, seed: 1 }]; T.cutters = [{ a: 3.7, t: 1.5, dur: 1e9, in: 1 }]; T.volt = 0.5; }
+  if (e.gas) { setupGas(t); const G = t.gas; G.hide = false; G.P = G.Pv = 64; G.zones = [{ a: 3.4, w: 0.3, st: 'warm', t: 1, seed: 1 }]; G.vents[1].st = 'blowing'; G.vents[1].t = 0; G.vents[1].dur = 1e9; t.stuck = [{ a: 1.6 }, { a: 4.3 }]; }
   if (e.twin) { setupTwin(t); const T = t.twin; T.hide = false; T.D = 74; T.L[0].stuck = [{ a: 0.6 }, { a: 2.8 }]; T.L[1].stuck = [{ a: 1.4 }, { a: 4.1 }]; T.L[0].br = [{ a: 4.6, alive: true, grow: 1, leaf: true }]; T.L[1].ring = { t: 1, life: 1e9, rise: 1, rot: 0.4, sp: 0, gaps: [0, Math.PI] }; T.L[1].hp = 17; }
   if (e.bot) { setupBot(t); const B = t.bot; B.hide = false; for (const v of B.vines) { v.ex = CX + Math.cos(v.a) * 190; v.ey = CY + Math.sin(v.a) * 190; } B.lily = { kind: 'white', a: HALF, t: 4, grow: 10, mature: false, seed: 2, tentAt: 99, tent: { t: 1.2, st: 'crawl', hp: 1 } }; B.spec = [{ kind: 'red', a: HALF + 0.9, t: 9, grow: 6, mature: true, seed: 5, tentAt: 99, guard: 0 }]; B.roses = [{ a: 3.6, t: 5, life: 99, seed: 3 }]; B.obs = [{ kind: 'flytrap', a: 5.0, t: 5, life: 999, cyc: 0, open: true, seed: 4, hitT: 0 }]; B.eyes = [{ a: 2.6, w: 0.2, t: 5, seed: 6 }]; B.hollow = { a: 0.3, hp: 5, eyeT: 0, closed: false, stored: 1, cd: 9, hitT: 0, grow: 1, seed: 1 }; }
   if (e.frost) { setupFrost(t); const T = t.frost; T.hide = false; t.stuck = [{ a: 0.5, freeze: 1, frozen: true }, { a: 2.5, freeze: 0.55 }]; T.arts = [{ kind: 'species', sp: 'tentacle', a: 4.3, hp: 2, max: 2, seed: 3, hitT: 0 }]; T.crystals = [{ a: 1.5, t: 3, life: 1e9, seed: 2, grown: true }]; T.wind = 0.7; }
@@ -16779,7 +17654,7 @@ function drawEncyScreen() {
 function drawDemoLog(t, x, y, s) {
   const saved = tgt; tgt = t;
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.translate(-CX, -CY);
-  if (t.twin) { const T = t.twin; T.ang = time * 0.5; for (const L of T.L) L.rot = time * (L.i ? -1.1 : 1.1); twinPlace(T); drawTwinBack(t); drawTwinLogs(t); } if (t.bot) drawBotVines(t); drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.bot) drawBotFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
+  if (t.twin) { const T = t.twin; T.ang = time * 0.5; for (const L of T.L) L.rot = time * (L.i ? -1.1 : 1.1); twinPlace(T); drawTwinBack(t); drawTwinLogs(t); } if (t.bot) drawBotVines(t); drawTarget(); if (t.nest) drawNestFront(t); if (t.frost) drawFrostFront(t); if (t.bot) drawBotFront(t); if (t.gas) drawGasFront(t); if (t.f && t.f.saws.length) drawSawmill(t);
   if (ENTRIES[ui.idx].apple) { ctx.save(); ctx.translate(CX, CY); ctx.scale(2.4, 2.4); drawApple(); ctx.restore(); }
   ctx.restore(); tgt = saved;
 }
@@ -16797,7 +17672,7 @@ function drawMenuScreen() {
   for (const p of parts) { ctx.save(); ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); ctx.restore(); }
   drawFloaters();
   drawMute();
-  if (ui.screen !== 'intro') text('BUILD 65', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
+  if (ui.screen !== 'intro') text('BUILD 66', W - 8, H - 10, 7, '#5c5c66', 'right', 700);
   drawCursor();
   if (ui.flash > 0) { ui.flash = Math.max(0, ui.flash - 0.05); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${ui.flash * 0.6})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); }
   // fade between screens
@@ -16995,6 +17870,7 @@ view.addEventListener('pointerdown', e => {
   if (fx && fx.type === 'frostintro') { skipFrostIntro(); return; }
   if (fx && fx.type === 'botintro') { skipBotIntro(); return; }
   if (fx && fx.type === 'twinintro') { skipTwinIntro(); return; }
+  if (fx && fx.type === 'gasintro') { skipGasIntro(); return; }
   if (state === 'play') { const it = trayHit(x, y); if (it) { useItem(it); return; } }
   if ((state === 'play' || state === 'fx') && Math.hypot(x - BTN[0], y - BTN[1]) < 40) { ac(); activateAbility(); return; }
   action();
@@ -17003,7 +17879,7 @@ view.addEventListener('pointermove', e => { const [x, y] = toVirtual(e); if (e.p
 window.addEventListener('pointerup', () => { if (state === 'menu') menuUp(); });
 window.addEventListener('keydown', e => {
   if (adminOpen) return;
-  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro' || fx.type === 'botintro' || fx.type === 'twinintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
+  if (fx && (fx.type === 'tankintro' || fx.type === 'gearintro' || fx.type === 'tireintro' || fx.type === 'nestintro' || fx.type === 'wireintro' || fx.type === 'frostintro' || fx.type === 'botintro' || fx.type === 'twinintro' || fx.type === 'gasintro') && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); skipTankIntro(); skipGearIntro(); skipTireIntro(); skipWireIntro(); skipNestIntro(); return; }
   if (state === 'menu' && !e.repeat) {
     ac();
     if (e.code === 'Escape' && ui.screen !== 'main') { go('main'); return; }
@@ -17041,7 +17917,7 @@ function frame(now) {
 // ======================= ADMIN PANEL =======================
 // A gear button in the corner opens it (the game pauses): pick the next log type and the next boss, jump around, cheat.
 let adminOpen = false, adminNextType = null, adminNextBoss = null, adminGod = false;
-const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost'], ['bot', 'Litany of the Botany'], ['twin', 'Twin Logs']];
+const ADMIN_BOSSES = [['tank', 'Water Tanker'], ['gear', 'Gearbox'], ['tire', 'Monster Tire'], ['nest', "Hornet's Nest"], ['wire', 'The Wire Clump'], ['frost', 'Permafrost'], ['bot', 'Litany of the Botany'], ['twin', 'Twin Logs'], ['gas', 'Gas Tank']];
 function syncAdmin() {
   const ty = document.getElementById('admType'), bo = document.getElementById('admBoss'), note = document.getElementById('admNote');
   if (!ty) return;
@@ -17055,7 +17931,7 @@ function adminJump(n) {
   flying = []; debris = []; parts = []; pieces = []; impactT = 0; gray = 0; frac = null; gridFrac = null; finale = false; stunT = 0; zapT = 0; lightIn = 0;
   if (lives <= 0) lives = MAX_LIVES;
   stage = n; setMusic('main'); newStage();
-  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
+  if (!tgt.tank && !tgt.gear && !tgt.tire && !tgt.wire && !tgt.frost && !tgt.bot && !tgt.twin && !tgt.gas && !tgt.nestBait) { tgt.smooth = true; tgt.landed = true; }
 }
 function setAdmin(open) {
   adminOpen = open; const pn = document.getElementById('adm');
